@@ -1,0 +1,2221 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-900 select-none">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MiroBoard Pro - Pizarra Online Colaborativa</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome 6 Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Inter Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        miro: {
+                            blue: '#4262ff',
+                            dark: '#050038',
+                            gray: '#2c2c2c',
+                            panel: 'rgba(255, 255, 255, 0.94)',
+                            panelDark: 'rgba(30, 41, 59, 0.92)'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        canvas { touch-action: none; user-select: none; -webkit-user-select: none; }
+        .tool-btn { transition: all 0.15s ease; }
+        .tool-btn.active { background-color: #e0e7ff; color: #4338ca; border-color: #6366f1; }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.94);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(226, 232, 240, 0.9);
+        }
+        .color-dot { transition: transform 0.15s ease; }
+        .color-dot:hover { transform: scale(1.2); }
+        .tool-flyout { transition: opacity 0.15s ease, transform 0.15s ease; }
+    </style>
+</head>
+<body class="h-full w-full overflow-hidden font-sans text-slate-800 bg-slate-100">
+
+    <!-- MAIN CANVAS CONTAINER -->
+    <div id="canvas-container" class="relative w-full h-full cursor-default overflow-hidden">
+        <canvas id="board-canvas" class="block w-full h-full bg-slate-50"></canvas>
+
+        <!-- TEXT EDITING OVERLAY -->
+        <textarea id="text-editor" class="fixed hidden z-30 p-2 bg-transparent outline-none border-2 border-indigo-500 rounded resize-none font-sans overflow-hidden shadow-xl focus:ring-0" style="transform-origin: 0 0;"></textarea>
+    </div>
+
+    <!-- TOP HEADER NAVBAR -->
+    <header class="fixed top-4 left-4 right-4 z-20 flex items-center justify-between pointer-events-none">
+        <div class="flex items-center gap-3 pointer-events-auto">
+            <!-- Brand Logo -->
+            <div class="glass-panel px-3.5 py-2 rounded-2xl shadow-lg flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-black text-lg shadow-md shadow-indigo-200">
+                    <i class="fa-solid fa-shapes"></i>
+                </div>
+                <div class="flex flex-col">
+                    <div class="flex items-center gap-2">
+                        <input id="board-title-input" type="text" value="Pizarra MiroBoard Pro" class="bg-transparent font-bold text-slate-800 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 rounded px-1.5 transition-all" />
+                        <span class="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full font-bold">PRO</span>
+                    </div>
+                    <span class="text-[10px] text-slate-400 font-medium px-1.5">Guardado automático local</span>
+                </div>
+            </div>
+
+            <!-- History Actions -->
+            <div class="glass-panel p-1.5 rounded-2xl shadow-lg flex items-center gap-1">
+                <button id="btn-undo" title="Deshacer (Ctrl+Z)" class="p-2 text-slate-600 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-30">
+                    <i class="fa-solid fa-rotate-left text-sm"></i>
+                </button>
+                <button id="btn-redo" title="Rehacer (Ctrl+Y)" class="p-2 text-slate-600 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-30">
+                    <i class="fa-solid fa-rotate-right text-sm"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Right Top Action Bar -->
+        <div class="flex items-center gap-3 pointer-events-auto">
+            <!-- Grid Settings -->
+            <div class="glass-panel p-1.5 rounded-2xl shadow-lg flex items-center gap-2 text-xs">
+                <div class="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl">
+                    <button id="btn-grid-dots" class="px-2.5 py-1 rounded-lg font-medium bg-white shadow-sm text-indigo-600">Puntos</button>
+                    <button id="btn-grid-lines" class="px-2.5 py-1 rounded-lg font-medium text-slate-600 hover:text-slate-900">Líneas</button>
+                    <button id="btn-grid-none" class="px-2.5 py-1 rounded-lg font-medium text-slate-600 hover:text-slate-900">Sin Grid</button>
+                </div>
+                <div class="h-4 w-px bg-slate-200"></div>
+                <button id="btn-snap-grid" class="flex items-center gap-1.5 px-2.5 py-1 rounded-xl hover:bg-slate-100 text-slate-700 transition-colors">
+                    <i id="snap-icon" class="fa-solid fa-magnet text-xs text-slate-400"></i>
+                    <span class="font-medium">Ajuste</span>
+                </button>
+            </div>
+
+            <!-- Templates -->
+            <button id="btn-open-templates" class="glass-panel px-4 py-2 rounded-2xl shadow-lg flex items-center gap-2 text-sm font-semibold text-indigo-600 hover:bg-indigo-50 transition-all pointer-events-auto">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                <span>Plantillas</span>
+            </button>
+
+            <!-- Export Options -->
+            <div class="glass-panel p-1.5 rounded-2xl shadow-lg flex items-center gap-1">
+                <button id="btn-export-png" title="Exportar como Imagen PNG" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-indigo-200 transition-all">
+                    <i class="fa-solid fa-download"></i>
+                    <span>Exportar</span>
+                </button>
+                <button id="btn-export-svg" title="Exportar Vector SVG" class="p-2 text-slate-600 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-colors">
+                    <i class="fa-solid fa-file-code"></i>
+                </button>
+                <button id="btn-export-json" title="Guardar proyecto (JSON)" class="p-2 text-slate-600 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-colors">
+                    <i class="fa-solid fa-floppy-disk"></i>
+                </button>
+                <label title="Abrir proyecto (JSON)" class="p-2 text-slate-600 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer">
+                    <i class="fa-solid fa-folder-open"></i>
+                    <input type="file" id="import-file-input" accept=".json" class="hidden">
+                </label>
+                <button id="btn-clear-canvas" title="Limpiar Pizarra" class="p-2 text-red-500 hover:bg-red-50 rounded-xl transition-colors">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- LEFT SIDEBAR TOOLBAR -->
+    <aside class="fixed left-4 top-1/2 -translate-y-1/2 z-20 glass-panel p-1.5 rounded-2xl shadow-2xl flex flex-col gap-1 border border-slate-200/80">
+        <!-- Select Tool -->
+        <button id="tool-select" data-tool="select" title="Seleccionar y Mover (V)" class="tool-btn active p-3 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-center relative group">
+            <i class="fa-solid fa-mouse-pointer text-base"></i>
+            <span class="absolute left-full ml-3 px-2 py-1 bg-slate-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg">Puntero (V)</span>
+        </button>
+
+        <!-- Hand / Pan Tool -->
+        <button id="tool-hand" data-tool="hand" title="Navegar Lienzo (H / Espacio)" class="tool-btn p-3 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-center relative group">
+            <i class="fa-solid fa-hand text-base"></i>
+            <span class="absolute left-full ml-3 px-2 py-1 bg-slate-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg">Mano (H)</span>
+        </button>
+
+        <div class="h-px bg-slate-200 my-1"></div>
+
+        <!-- Sticky Notes Tool -->
+        <div class="relative">
+            <button id="tool-sticky" data-tool="sticky" title="Nota Adhesiva (N)" class="tool-btn p-3 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-between gap-1 relative group w-full">
+                <i class="fa-solid fa-note-sticky text-amber-500 text-base"></i>
+                <i class="fa-solid fa-caret-right text-[10px] text-slate-400"></i>
+                <span class="absolute left-full ml-3 px-2 py-1 bg-slate-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg">Notas (N)</span>
+            </button>
+            <!-- Sticky Color Submenu -->
+            <div id="flyout-sticky" class="tool-flyout hidden absolute left-full top-0 ml-3 glass-panel p-2.5 rounded-2xl shadow-2xl flex gap-1.5 bg-white border border-slate-200 z-50">
+                <button data-color="#fef08a" class="w-6 h-6 rounded-full bg-yellow-200 border border-yellow-400 color-dot active-sticky-color" title="Amarillo"></button>
+                <button data-color="#bfdbfe" class="w-6 h-6 rounded-full bg-blue-200 border border-blue-400 color-dot" title="Azul"></button>
+                <button data-color="#bbf7d0" class="w-6 h-6 rounded-full bg-green-200 border border-green-400 color-dot" title="Verde"></button>
+                <button data-color="#fbcfe8" class="w-6 h-6 rounded-full bg-pink-200 border border-pink-400 color-dot" title="Rosa"></button>
+                <button data-color="#fed7aa" class="w-6 h-6 rounded-full bg-orange-200 border border-orange-400 color-dot" title="Naranja"></button>
+                <button data-color="#e9d5ff" class="w-6 h-6 rounded-full bg-purple-200 border border-purple-400 color-dot" title="Mortero"></button>
+                <button data-color="#ddd6fe" class="w-6 h-6 rounded-full bg-indigo-200 border border-indigo-400 color-dot" title="Lavanda"></button>
+                <button data-color="#e2e8f0" class="w-6 h-6 rounded-full bg-slate-200 border border-slate-400 color-dot" title="Gris"></button>
+            </div>
+        </div>
+
+        <!-- Text Tool -->
+        <button id="tool-text" data-tool="text" title="Texto Libre (T)" class="tool-btn p-3 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-center relative group">
+            <i class="fa-solid fa-font text-base"></i>
+            <span class="absolute left-full ml-3 px-2 py-1 bg-slate-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg">Texto (T)</span>
+        </button>
+
+        <!-- Pencil Tool -->
+        <div class="relative">
+            <button id="tool-pencil" data-tool="pencil" title="Lápiz / Trazos Libres (P)" class="tool-btn p-3 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-between gap-1 relative group w-full">
+                <i class="fa-solid fa-pen-line text-base"></i>
+                <i class="fa-solid fa-caret-right text-[10px] text-slate-400"></i>
+                <span class="absolute left-full ml-3 px-2 py-1 bg-slate-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg">Lápiz (P)</span>
+            </button>
+            <!-- Pencil Options -->
+            <div id="flyout-pencil" class="tool-flyout hidden absolute left-full top-0 ml-3 flex flex-col glass-panel p-3 rounded-2xl shadow-2xl gap-2 bg-white border border-slate-200 z-50 min-w-[150px]">
+                <div class="text-[11px] font-bold text-slate-400 uppercase">Grosor</div>
+                <input type="range" id="pencil-width" min="1" max="20" value="3" class="w-full accent-indigo-600">
+                <div class="text-[11px] font-bold text-slate-400 uppercase">Color</div>
+                <div class="flex gap-1.5 flex-wrap">
+                    <button data-pencil-color="#1e293b" class="w-5 h-5 rounded-full bg-slate-800 border border-slate-900 pencil-color-btn"></button>
+                    <button data-pencil-color="#ef4444" class="w-5 h-5 rounded-full bg-red-500 border border-red-600 pencil-color-btn"></button>
+                    <button data-pencil-color="#3b82f6" class="w-5 h-5 rounded-full bg-blue-500 border border-blue-600 pencil-color-btn"></button>
+                    <button data-pencil-color="#10b981" class="w-5 h-5 rounded-full bg-emerald-500 border border-emerald-600 pencil-color-btn"></button>
+                    <button data-pencil-color="#f59e0b" class="w-5 h-5 rounded-full bg-amber-500 border border-amber-600 pencil-color-btn"></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Highlighter Tool -->
+        <div class="relative">
+            <button id="tool-highlighter" data-tool="highlighter" title="Destacador / Resaltador Neón" class="tool-btn p-3 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-between gap-1 relative group w-full">
+                <i class="fa-solid fa-highlighter text-amber-500 text-base"></i>
+                <i class="fa-solid fa-caret-right text-[10px] text-slate-400"></i>
+                <span class="absolute left-full ml-3 px-2 py-1 bg-slate-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg">Destacador</span>
+            </button>
+            <!-- Highlighter Colors -->
+            <div id="flyout-highlighter" class="tool-flyout hidden absolute left-full top-0 ml-3 flex flex-col glass-panel p-3 rounded-2xl shadow-2xl gap-2 bg-white border border-slate-200 z-50 min-w-[150px]">
+                <div class="text-[11px] font-bold text-slate-400 uppercase">Color Neón</div>
+                <div class="flex gap-1.5 flex-wrap">
+                    <button data-high-color="rgba(255, 229, 0, 0.45)" class="w-6 h-6 rounded-full bg-yellow-300 border border-yellow-500 high-color-btn" title="Amarillo Neón"></button>
+                    <button data-high-color="rgba(0, 255, 102, 0.45)" class="w-6 h-6 rounded-full bg-green-400 border border-green-500 high-color-btn" title="Verde Neón"></button>
+                    <button data-high-color="rgba(255, 0, 170, 0.45)" class="w-6 h-6 rounded-full bg-pink-400 border border-pink-500 high-color-btn" title="Rosa Neón"></button>
+                    <button data-high-color="rgba(0, 229, 255, 0.45)" class="w-6 h-6 rounded-full bg-cyan-300 border border-cyan-500 high-color-btn" title="Cyan Neón"></button>
+                    <button data-high-color="rgba(255, 102, 0, 0.45)" class="w-6 h-6 rounded-full bg-orange-400 border border-orange-500 high-color-btn" title="Naranja Neón"></button>
+                </div>
+                <div class="text-[11px] font-bold text-slate-400 uppercase">Grosor</div>
+                <input type="range" id="highlighter-width" min="10" max="40" value="20" class="w-full accent-amber-500">
+            </div>
+        </div>
+
+        <!-- Shapes Tool -->
+        <div class="relative">
+            <button id="tool-shapes" data-tool="rect" title="Formas Geométricas" class="tool-btn p-3 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-between gap-1 relative group w-full">
+                <i id="current-shape-icon" class="fa-regular fa-square text-base"></i>
+                <i class="fa-solid fa-caret-right text-[10px] text-slate-400"></i>
+                <span class="absolute left-full ml-3 px-2 py-1 bg-slate-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg">Formas</span>
+            </button>
+            <!-- Shapes Menu -->
+            <div id="flyout-shapes" class="tool-flyout hidden absolute left-full top-0 ml-3 flex flex-col glass-panel p-2 rounded-2xl shadow-2xl gap-1 bg-white border border-slate-200 z-50 min-w-[160px]">
+                <button data-shape="rect" class="p-2 hover:bg-indigo-50 rounded-xl text-slate-700 flex items-center gap-2 text-xs font-semibold shape-btn"><i class="fa-regular fa-square text-sm w-4"></i> Rectángulo</button>
+                <button data-shape="rounded-rect" class="p-2 hover:bg-indigo-50 rounded-xl text-slate-700 flex items-center gap-2 text-xs font-semibold shape-btn"><i class="fa-solid fa-vector-square text-sm w-4"></i> Redondeado</button>
+                <button data-shape="circle" class="p-2 hover:bg-indigo-50 rounded-xl text-slate-700 flex items-center gap-2 text-xs font-semibold shape-btn"><i class="fa-regular fa-circle text-sm w-4"></i> Círculo / Elipse</button>
+                <button data-shape="triangle" class="p-2 hover:bg-indigo-50 rounded-xl text-slate-700 flex items-center gap-2 text-xs font-semibold shape-btn"><i class="fa-solid fa-play -rotate-90 text-xs w-4"></i> Triángulo</button>
+                <button data-shape="diamond" class="p-2 hover:bg-indigo-50 rounded-xl text-slate-700 flex items-center gap-2 text-xs font-semibold shape-btn"><i class="fa-solid fa-diamond text-xs w-4"></i> Diamante</button>
+                <button data-shape="hexagon" class="p-2 hover:bg-indigo-50 rounded-xl text-slate-700 flex items-center gap-2 text-xs font-semibold shape-btn"><i class="fa-solid fa-draw-polygon text-xs w-4"></i> Hexágono</button>
+                <button data-shape="star" class="p-2 hover:bg-indigo-50 rounded-xl text-slate-700 flex items-center gap-2 text-xs font-semibold shape-btn"><i class="fa-regular fa-star text-sm w-4"></i> Estrella</button>
+                <button data-shape="callout" class="p-2 hover:bg-indigo-50 rounded-xl text-slate-700 flex items-center gap-2 text-xs font-semibold shape-btn"><i class="fa-regular fa-comment text-sm w-4"></i> Bocadillo</button>
+            </div>
+        </div>
+
+        <!-- Lines & Arrows Tool -->
+        <div class="relative">
+            <button id="tool-lines" data-tool="arrow" title="Líneas y Conectores (A)" class="tool-btn p-3 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-between gap-1 relative group w-full">
+                <i class="fa-solid fa-arrow-right text-base"></i>
+                <i class="fa-solid fa-caret-right text-[10px] text-slate-400"></i>
+                <span class="absolute left-full ml-3 px-2 py-1 bg-slate-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg">Líneas (A)</span>
+            </button>
+            <!-- Lines Submenu -->
+            <div id="flyout-lines" class="tool-flyout hidden absolute left-full top-0 ml-3 flex flex-col glass-panel p-2 rounded-2xl shadow-2xl gap-1 bg-white border border-slate-200 z-50 min-w-[160px]">
+                <button data-line="arrow" class="p-2 hover:bg-indigo-50 rounded-xl text-slate-700 flex items-center gap-2 text-xs font-semibold line-btn"><i class="fa-solid fa-arrow-right w-4"></i> Flecha Simple</button>
+                <button data-line="double-arrow" class="p-2 hover:bg-indigo-50 rounded-xl text-slate-700 flex items-center gap-2 text-xs font-semibold line-btn"><i class="fa-solid fa-left-right w-4"></i> Flecha Doble</button>
+                <button data-line="line" class="p-2 hover:bg-indigo-50 rounded-xl text-slate-700 flex items-center gap-2 text-xs font-semibold line-btn"><i class="fa-solid fa-minus w-4"></i> Línea Recta</button>
+                <button data-line="curved" class="p-2 hover:bg-indigo-50 rounded-xl text-slate-700 flex items-center gap-2 text-xs font-semibold line-btn"><i class="fa-solid fa-bezier-curve w-4"></i> Conector Curvo</button>
+            </div>
+        </div>
+
+        <!-- Eraser Tool -->
+        <button id="tool-eraser" data-tool="eraser" title="Borrador (E)" class="tool-btn p-3 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-center relative group">
+            <i class="fa-solid fa-eraser text-base"></i>
+            <span class="absolute left-full ml-3 px-2 py-1 bg-slate-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg">Borrador (E)</span>
+        </button>
+
+        <!-- Frame Tool -->
+        <div class="relative">
+            <button id="tool-frame" data-tool="frame" title="Marcos Organizadores (F)" class="tool-btn p-3 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-between gap-1 relative group w-full">
+                <i class="fa-solid fa-crop text-base"></i>
+                <i class="fa-solid fa-caret-right text-[10px] text-slate-400"></i>
+                <span class="absolute left-full ml-3 px-2 py-1 bg-slate-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg">Marco (F)</span>
+            </button>
+            <!-- Frame Preset Submenu -->
+            <div id="flyout-frame" class="tool-flyout hidden absolute left-full top-0 ml-3 flex flex-col glass-panel p-2 rounded-2xl shadow-2xl gap-1 bg-white border border-slate-200 z-50 min-w-[160px]">
+                <button data-frame="custom" class="p-2 hover:bg-indigo-50 rounded-xl text-slate-700 flex items-center gap-2 text-xs font-semibold frame-btn"><i class="fa-solid fa-expand w-4"></i> Marco Libre</button>
+                <button data-frame="16:9" class="p-2 hover:bg-indigo-50 rounded-xl text-slate-700 flex items-center gap-2 text-xs font-semibold frame-btn"><i class="fa-solid fa-tv w-4"></i> 16:9 Presentación</button>
+                <button data-frame="a4" class="p-2 hover:bg-indigo-50 rounded-xl text-slate-700 flex items-center gap-2 text-xs font-semibold frame-btn"><i class="fa-solid fa-file font-normal w-4"></i> Documento A4</button>
+                <button data-frame="mobile" class="p-2 hover:bg-indigo-50 rounded-xl text-slate-700 flex items-center gap-2 text-xs font-semibold frame-btn"><i class="fa-solid fa-mobile-screen w-4"></i> Pantalla Móvil</button>
+            </div>
+        </div>
+
+        <!-- Comments Tool -->
+        <button id="tool-comment" data-tool="comment" title="Añadir Comentario (C)" class="tool-btn p-3 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-center relative group">
+            <i class="fa-regular fa-comment-dots text-base text-indigo-600"></i>
+            <span class="absolute left-full ml-3 px-2 py-1 bg-slate-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg">Comentario (C)</span>
+        </button>
+
+        <div class="h-px bg-slate-200 my-1"></div>
+
+        <!-- Upload Image -->
+        <label title="Subir Imagen local" class="p-3 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-center cursor-pointer relative group">
+            <i class="fa-regular fa-image text-base"></i>
+            <input type="file" id="image-upload-input" accept="image/*" class="hidden">
+            <span class="absolute left-full ml-3 px-2 py-1 bg-slate-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg">Subir Imagen</span>
+        </label>
+    </aside>
+
+    <!-- FLOATING CONTEXT CONFIGURATION TOOLBAR -->
+    <div id="context-toolbar" class="fixed hidden z-30 glass-panel p-2 rounded-2xl shadow-2xl flex items-center gap-2 border border-slate-200 transition-all">
+        <!-- Fill Color -->
+        <div class="flex items-center gap-1.5 px-1.5">
+            <span class="text-[10px] uppercase font-bold text-slate-400">Relleno</span>
+            <input type="color" id="ctx-fill-color" class="w-6 h-6 rounded-lg cursor-pointer border-0 bg-transparent" value="#ffffff">
+        </div>
+
+        <div class="h-4 w-px bg-slate-200"></div>
+
+        <!-- Stroke Color & Width -->
+        <div class="flex items-center gap-1.5 px-1.5">
+            <span class="text-[10px] uppercase font-bold text-slate-400">Borde</span>
+            <input type="color" id="ctx-stroke-color" class="w-6 h-6 rounded-lg cursor-pointer border-0 bg-transparent" value="#1e293b">
+            <select id="ctx-stroke-width" class="text-xs bg-slate-100/80 rounded-lg px-2 py-1 text-slate-700 font-semibold outline-none">
+                <option value="0">Sin borde</option>
+                <option value="1">1px</option>
+                <option value="2" selected>2px</option>
+                <option value="4">4px</option>
+                <option value="8">8px</option>
+            </select>
+            <select id="ctx-stroke-style" class="text-xs bg-slate-100/80 rounded-lg px-2 py-1 text-slate-700 font-semibold outline-none">
+                <option value="solid">Sólida</option>
+                <option value="dashed">Discontinua</option>
+                <option value="dotted">Punteada</option>
+            </select>
+        </div>
+
+        <div class="h-4 w-px bg-slate-200"></div>
+
+        <!-- Opacity Slider -->
+        <div class="flex items-center gap-1.5 px-1.5">
+            <span class="text-[10px] uppercase font-bold text-slate-400">Opacidad</span>
+            <input type="range" id="ctx-opacity" min="0.1" max="1" step="0.05" value="1" class="w-16 accent-indigo-600">
+        </div>
+
+        <div class="h-4 w-px bg-slate-200"></div>
+
+        <!-- Text formatting (if text / sticky) -->
+        <div id="ctx-text-formatting" class="flex items-center gap-1 px-1">
+            <select id="ctx-font-size" class="text-xs bg-slate-100/80 rounded-lg px-2 py-1 text-slate-700 font-semibold outline-none">
+                <option value="12">12px</option>
+                <option value="16" selected>16px</option>
+                <option value="20">20px</option>
+                <option value="28">28px</option>
+                <option value="36">36px</option>
+                <option value="48">48px</option>
+            </select>
+            <button id="ctx-bold" class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-700 font-bold text-xs"><i class="fa-solid fa-bold"></i></button>
+            <button id="ctx-italic" class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-700 italic text-xs"><i class="fa-solid fa-italic"></i></button>
+        </div>
+
+        <div class="h-4 w-px bg-slate-200"></div>
+
+        <!-- Layering & Actions -->
+        <div class="flex items-center gap-1">
+            <button id="ctx-bring-front" title="Traer al Frente" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600"><i class="fa-solid fa-layer-group text-xs"></i></button>
+            <button id="ctx-send-back" title="Enviar al Fondo" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600"><i class="fa-solid fa-layers-polyline text-xs"></i></button>
+            <button id="ctx-duplicate" title="Duplicar (Ctrl+D)" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600"><i class="fa-regular fa-copy text-xs"></i></button>
+            <button id="ctx-lock" title="Bloquear / Desbloquear" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600"><i id="ctx-lock-icon" class="fa-solid fa-unlock text-xs"></i></button>
+            <button id="ctx-delete" title="Eliminar (Supr)" class="p-1.5 hover:bg-red-50 text-red-500 rounded-lg"><i class="fa-solid fa-trash-can text-xs"></i></button>
+        </div>
+    </div>
+
+    <!-- BOTTOM RIGHT ZOOM CONTROLS & MINIMAP -->
+    <div class="fixed bottom-4 right-4 z-20 flex flex-col items-end gap-3 pointer-events-none">
+        <!-- Interactive Minimap Panel -->
+        <div id="minimap-container" class="glass-panel p-2 rounded-2xl shadow-2xl border border-slate-200 hidden pointer-events-auto transition-all">
+            <div class="text-[10px] font-bold text-slate-400 mb-1 flex justify-between items-center">
+                <span>NAVEGADOR DE LIENZO</span>
+                <button id="btn-close-minimap" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <canvas id="minimap-canvas" width="180" height="110" class="bg-slate-100 rounded-xl cursor-crosshair border border-slate-200"></canvas>
+        </div>
+
+        <!-- Zoom Control Bar -->
+        <div class="glass-panel p-1.5 rounded-2xl shadow-2xl flex items-center gap-2 border border-slate-200 pointer-events-auto">
+            <button id="btn-zoom-out" title="Alejar (-)" class="p-2 text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">
+                <i class="fa-solid fa-minus text-xs"></i>
+            </button>
+
+            <!-- Zoom Level & Dropdown -->
+            <div class="relative group/zoom">
+                <button id="zoom-level-btn" class="px-2 py-1 text-xs font-bold text-slate-700 hover:bg-slate-100 rounded-lg min-w-[55px] text-center">
+                    100%
+                </button>
+                <div class="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover/zoom:flex flex-col glass-panel p-1.5 rounded-xl shadow-xl gap-1 bg-white border border-slate-200 text-xs">
+                    <button class="zoom-preset px-3 py-1 hover:bg-indigo-50 rounded-lg text-slate-700 font-medium" data-zoom="0.25">25%</button>
+                    <button class="zoom-preset px-3 py-1 hover:bg-indigo-50 rounded-lg text-slate-700 font-medium" data-zoom="0.5">50%</button>
+                    <button class="zoom-preset px-3 py-1 hover:bg-indigo-50 rounded-lg text-slate-700 font-medium" data-zoom="0.75">75%</button>
+                    <button class="zoom-preset px-3 py-1 hover:bg-indigo-50 rounded-lg text-slate-700 font-medium" data-zoom="1.0">100%</button>
+                    <button class="zoom-preset px-3 py-1 hover:bg-indigo-50 rounded-lg text-slate-700 font-medium" data-zoom="1.5">150%</button>
+                    <button class="zoom-preset px-3 py-1 hover:bg-indigo-50 rounded-lg text-slate-700 font-medium" data-zoom="2.0">200%</button>
+                </div>
+            </div>
+
+            <button id="btn-zoom-in" title="Acercar (+)" class="p-2 text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">
+                <i class="fa-solid fa-plus text-xs"></i>
+            </button>
+
+            <div class="h-4 w-px bg-slate-200"></div>
+
+            <button id="btn-zoom-fit" title="Ajustar a la Pantalla" class="px-2.5 py-1.5 text-xs font-bold text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors">
+                Ajustar
+            </button>
+            <button id="btn-zoom-selection" title="Ajustar a Selección" class="p-2 text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">
+                <i class="fa-solid fa-expand text-xs"></i>
+            </button>
+            <button id="btn-toggle-minimap" title="Ver Minimapa" class="p-2 text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">
+                <i class="fa-solid fa-map text-xs"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- BOTTOM LEFT HELP BUTTON -->
+    <div class="fixed bottom-4 left-4 z-20">
+        <button id="btn-shortcuts" title="Atajos de Teclado (?)" class="glass-panel w-10 h-10 rounded-2xl shadow-lg flex items-center justify-center text-slate-600 hover:text-indigo-600 transition-all font-bold text-base">
+            <i class="fa-solid fa-question"></i>
+        </button>
+    </div>
+
+    <!-- MODAL: TEMPLATES -->
+    <div id="modal-templates" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full p-6 border border-slate-100 flex flex-col gap-5">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+                <div>
+                    <h3 class="text-xl font-bold text-slate-900">Bibliotecas de Plantillas Miro</h3>
+                    <p class="text-xs text-slate-500">Inserta estructuras y diagramas predefinidos instantáneamente</p>
+                </div>
+                <button class="close-modal text-slate-400 hover:text-slate-600 text-xl p-1">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 my-1">
+                <!-- Kanban -->
+                <div data-template="kanban" class="template-card border border-slate-200 rounded-2xl p-4 hover:border-indigo-500 hover:shadow-xl cursor-pointer transition-all flex flex-col gap-2 group">
+                    <div class="w-full h-24 bg-indigo-50/50 rounded-xl flex items-center justify-center gap-2 p-2 border border-indigo-100">
+                        <div class="w-1/3 h-full bg-white rounded-lg border border-indigo-200 p-1 flex flex-col gap-1">
+                            <div class="w-full h-2 bg-indigo-200 rounded"></div>
+                            <div class="w-3/4 h-3 bg-amber-100 rounded"></div>
+                        </div>
+                        <div class="w-1/3 h-full bg-white rounded-lg border border-indigo-200 p-1 flex flex-col gap-1">
+                            <div class="w-full h-2 bg-indigo-200 rounded"></div>
+                            <div class="w-full h-3 bg-blue-100 rounded"></div>
+                        </div>
+                        <div class="w-1/3 h-full bg-white rounded-lg border border-indigo-200 p-1 flex flex-col gap-1">
+                            <div class="w-full h-2 bg-indigo-200 rounded"></div>
+                            <div class="w-1/2 h-3 bg-green-100 rounded"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-slate-800 text-sm group-hover:text-indigo-600 transition-colors">Tablero Kanban</h4>
+                        <p class="text-xs text-slate-500">Por hacer, En proceso y Hecho con notas adhesivas.</p>
+                    </div>
+                </div>
+
+                <!-- Brainstorming Grid -->
+                <div data-template="brainstorm" class="template-card border border-slate-200 rounded-2xl p-4 hover:border-indigo-500 hover:shadow-xl cursor-pointer transition-all flex flex-col gap-2 group">
+                    <div class="w-full h-24 bg-indigo-50/50 rounded-xl p-2 border border-indigo-100 flex flex-wrap gap-2 items-center justify-center">
+                        <div class="w-7 h-7 bg-yellow-200 rounded-md shadow-xs"></div>
+                        <div class="w-7 h-7 bg-pink-200 rounded-md shadow-xs"></div>
+                        <div class="w-7 h-7 bg-blue-200 rounded-md shadow-xs"></div>
+                        <div class="w-7 h-7 bg-green-200 rounded-md shadow-xs"></div>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-slate-800 text-sm group-hover:text-indigo-600 transition-colors">Lluvia de Ideas</h4>
+                        <p class="text-xs text-slate-500">Marco de ideación con notas clasificadas por colores.</p>
+                    </div>
+                </div>
+
+                <!-- Mind Map -->
+                <div data-template="mindmap" class="template-card border border-slate-200 rounded-2xl p-4 hover:border-indigo-500 hover:shadow-xl cursor-pointer transition-all flex flex-col gap-2 group">
+                    <div class="w-full h-24 bg-indigo-50/50 rounded-xl flex items-center justify-center relative border border-indigo-100">
+                        <div class="w-12 h-7 bg-indigo-600 rounded-full flex items-center justify-center text-[9px] text-white font-bold z-10 shadow">Idea</div>
+                        <div class="absolute w-24 h-px bg-indigo-300"></div>
+                        <div class="absolute h-14 w-px bg-indigo-300"></div>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-slate-800 text-sm group-hover:text-indigo-600 transition-colors">Mapa Mental</h4>
+                        <p class="text-xs text-slate-500">Nodo central con conectores hacia conceptos secundarios.</p>
+                    </div>
+                </div>
+
+                <!-- Retrospective -->
+                <div data-template="retro" class="template-card border border-slate-200 rounded-2xl p-4 hover:border-indigo-500 hover:shadow-xl cursor-pointer transition-all flex flex-col gap-2 group">
+                    <div class="w-full h-24 bg-indigo-50/50 rounded-xl grid grid-cols-3 gap-1 p-2 border border-indigo-100">
+                        <div class="bg-emerald-100 rounded p-1"><span class="text-[8px] font-bold text-emerald-800">EMPEZAR</span></div>
+                        <div class="bg-rose-100 rounded p-1"><span class="text-[8px] font-bold text-rose-800">PARAR</span></div>
+                        <div class="bg-blue-100 rounded p-1"><span class="text-[8px] font-bold text-blue-800">CONTINUAR</span></div>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-slate-800 text-sm group-hover:text-indigo-600 transition-colors">Retrospectiva (Start / Stop / Continue)</h4>
+                        <p class="text-xs text-slate-500">3 columnas para dinámicas de mejora de equipo.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: SHORTCUTS -->
+    <div id="modal-shortcuts" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 border border-slate-100 flex flex-col gap-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 class="text-lg font-bold text-slate-900">Atajos de Teclado</h3>
+                <button class="close-modal text-slate-400 hover:text-slate-600 text-lg p-1">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="text-xs text-slate-600 space-y-2">
+                <div class="flex justify-between py-1 border-b border-slate-100"><span class="font-semibold">Puntero / Seleccionar</span> <kbd class="px-2 py-0.5 bg-slate-100 rounded border font-mono">V</kbd></div>
+                <div class="flex justify-between py-1 border-b border-slate-100"><span class="font-semibold">Mover Lienzo (Mano)</span> <kbd class="px-2 py-0.5 bg-slate-100 rounded border font-mono">H / Espacio</kbd></div>
+                <div class="flex justify-between py-1 border-b border-slate-100"><span class="font-semibold">Nota Adhesiva</span> <kbd class="px-2 py-0.5 bg-slate-100 rounded border font-mono">N</kbd></div>
+                <div class="flex justify-between py-1 border-b border-slate-100"><span class="font-semibold">Texto</span> <kbd class="px-2 py-0.5 bg-slate-100 rounded border font-mono">T</kbd></div>
+                <div class="flex justify-between py-1 border-b border-slate-100"><span class="font-semibold">Lápiz</span> <kbd class="px-2 py-0.5 bg-slate-100 rounded border font-mono">P</kbd></div>
+                <div class="flex justify-between py-1 border-b border-slate-100"><span class="font-semibold">Líneas y Flechas</span> <kbd class="px-2 py-0.5 bg-slate-100 rounded border font-mono">A</kbd></div>
+                <div class="flex justify-between py-1 border-b border-slate-100"><span class="font-semibold">Borrador</span> <kbd class="px-2 py-0.5 bg-slate-100 rounded border font-mono">E</kbd></div>
+                <div class="flex justify-between py-1 border-b border-slate-100"><span class="font-semibold">Marcos</span> <kbd class="px-2 py-0.5 bg-slate-100 rounded border font-mono">F</kbd></div>
+                <div class="flex justify-between py-1 border-b border-slate-100"><span class="font-semibold">Comentarios</span> <kbd class="px-2 py-0.5 bg-slate-100 rounded border font-mono">C</kbd></div>
+                <div class="flex justify-between py-1 border-b border-slate-100"><span class="font-semibold">Deshacer / Rehacer</span> <kbd class="px-2 py-0.5 bg-slate-100 rounded border font-mono">Ctrl + Z / Y</kbd></div>
+                <div class="flex justify-between py-1"><span class="font-semibold">Copiar / Pegar / Duplicar</span> <kbd class="px-2 py-0.5 bg-slate-100 rounded border font-mono">Ctrl+C / V / D</kbd></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- COMMENTS THREAD DRAWER -->
+    <div id="comment-drawer" class="fixed right-4 top-20 bottom-20 w-80 z-40 glass-panel p-4 rounded-3xl shadow-2xl border border-slate-200 hidden flex flex-col justify-between">
+        <div>
+            <div class="flex justify-between items-center border-b border-slate-200 pb-3 mb-3">
+                <h4 class="font-bold text-sm text-slate-800 flex items-center gap-2">
+                    <i class="fa-regular fa-comment-dots text-indigo-600"></i> Hilo de Comentarios
+                </h4>
+                <button id="btn-close-comment" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="comment-messages" class="flex flex-col gap-2 max-h-[380px] overflow-y-auto pr-1"></div>
+        </div>
+        <div class="flex flex-col gap-2 pt-3 border-t border-slate-200">
+            <input type="text" id="comment-input" placeholder="Escribe un comentario..." class="w-full text-xs p-2.5 rounded-xl border border-slate-200 outline-none focus:border-indigo-500">
+            <button id="btn-send-comment" class="w-full py-2 bg-indigo-600 text-white font-semibold text-xs rounded-xl hover:bg-indigo-700 transition-colors">Publicar</button>
+        </div>
+    </div>
+
+    <!-- MAIN APPLICATION ENGINE SCRIPT -->
+    <script>
+        /**
+         * MiroBoard Pro - Main Engine
+         */
+        const canvas = document.getElementById('board-canvas');
+        const ctx = canvas.getContext('2d');
+        const minimapCanvas = document.getElementById('minimap-canvas');
+        const minimapCtx = minimapCanvas.getContext('2d');
+        const textEditor = document.getElementById('text-editor');
+        const contextToolbar = document.getElementById('context-toolbar');
+
+        // APPLICATION STATE
+        const state = {
+            pan: { x: window.innerWidth / 2 - 400, y: window.innerHeight / 2 - 300 },
+            zoom: 1.0,
+            minZoom: 0.05, // 5%
+            maxZoom: 5.0,  // 500%
+            gridType: 'dots', // 'dots', 'lines', 'none'
+            snapToGrid: false,
+            gridSize: 20,
+
+            tool: 'select', // 'select', 'hand', 'sticky', 'text', 'pencil', 'highlighter', 'rect', 'rounded-rect', 'circle', 'triangle', 'diamond', 'star', 'callout', 'arrow', 'double-arrow', 'line', 'curved', 'eraser', 'frame', 'comment'
+            
+            // Tool sub-configurations
+            stickyColor: '#fef08a',
+            pencilColor: '#1e293b',
+            pencilWidth: 3,
+            highlighterColor: 'rgba(255, 229, 0, 0.4)',
+            highlighterWidth: 20,
+            activeLineType: 'arrow',
+            activeShapeType: 'rect',
+            activeFrameType: 'custom',
+
+            activeFill: '#ffffff',
+            activeStroke: '#1e293b',
+            activeStrokeWidth: 2,
+            activeStrokeStyle: 'solid', // 'solid', 'dashed', 'dotted'
+            activeOpacity: 1.0,
+
+            elements: [],
+            selectedIds: [],
+            copiedElements: [],
+
+            // Interactions
+            isPanning: false,
+            isDragging: false,
+            isDrawing: false,
+            isResizing: false,
+            isSelectingBox: false,
+            isErasing: false,
+
+            startPan: { x: 0, y: 0 },
+            startMouse: { x: 0, y: 0 },
+            selectionBox: null,
+            resizeHandle: null,
+            activePath: [],
+
+            // Align snap guides
+            snapGuides: [],
+
+            // Undo / Redo Stack
+            history: [],
+            historyIndex: -1,
+            editingElementId: null,
+            activeCommentId: null
+        };
+
+        // INITIALIZATION
+        window.addEventListener('load', () => {
+            resizeCanvas();
+            loadFromLocalStorage();
+            if (state.elements.length === 0) {
+                loadTemplate('kanban');
+            } else {
+                saveState();
+            }
+            requestAnimationFrame(render);
+        });
+
+        window.addEventListener('resize', () => {
+            resizeCanvas();
+            render();
+        });
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        // LOCAL STORAGE & HISTORY
+        function saveToLocalStorage() {
+            try {
+                const data = {
+                    title: document.getElementById('board-title-input').value,
+                    elements: state.elements.map(el => {
+                        // Exclude image DOM element from serialization
+                        const { imgElement, ...rest } = el;
+                        return rest;
+                    }),
+                    pan: state.pan,
+                    zoom: state.zoom,
+                    gridType: state.gridType
+                };
+                localStorage.setItem('miroboard_pro_data', JSON.stringify(data));
+            } catch(e) { console.error('LocalStorage save error', e); }
+        }
+
+        function loadFromLocalStorage() {
+            const saved = localStorage.getItem('miroboard_pro_data');
+            if (saved) {
+                try {
+                    const data = JSON.parse(saved);
+                    state.elements = (data.elements || []).map(el => {
+                        if (el.type === 'image' && el.src) {
+                            const img = new Image();
+                            img.src = el.src;
+                            el.imgElement = img;
+                        }
+                        return el;
+                    });
+                    state.pan = data.pan || state.pan;
+                    state.zoom = data.zoom || state.zoom;
+                    state.gridType = data.gridType || 'dots';
+                    if (data.title) document.getElementById('board-title-input').value = data.title;
+                    updateGridButtons();
+                } catch (e) { console.error('LocalStorage load error', e); }
+            }
+        }
+
+        function saveState() {
+            if (state.historyIndex < state.history.length - 1) {
+                state.history = state.history.slice(0, state.historyIndex + 1);
+            }
+            const snapshot = JSON.stringify(state.elements.map(el => {
+                const { imgElement, ...rest } = el;
+                return rest;
+            }));
+            state.history.push(snapshot);
+            state.historyIndex = state.history.length - 1;
+            updateUndoRedoButtons();
+            saveToLocalStorage();
+        }
+
+        function undo() {
+            if (state.historyIndex > 0) {
+                state.historyIndex--;
+                restoreSnapshot(state.history[state.historyIndex]);
+            }
+        }
+
+        function redo() {
+            if (state.historyIndex < state.history.length - 1) {
+                state.historyIndex++;
+                restoreSnapshot(state.history[state.historyIndex]);
+            }
+        }
+
+        function restoreSnapshot(snapshot) {
+            state.elements = JSON.parse(snapshot).map(el => {
+                if (el.type === 'image' && el.src) {
+                    const img = new Image();
+                    img.src = el.src;
+                    el.imgElement = img;
+                }
+                return el;
+            });
+            state.selectedIds = [];
+            updateContextToolbar();
+            render();
+            updateUndoRedoButtons();
+        }
+
+        function updateUndoRedoButtons() {
+            document.getElementById('btn-undo').disabled = state.historyIndex <= 0;
+            document.getElementById('btn-redo').disabled = state.historyIndex >= state.history.length - 1;
+        }
+
+        // COORDINATE TRANSLATIONS
+        function screenToWorld(sx, sy) {
+            return {
+                x: (sx - state.pan.x) / state.zoom,
+                y: (sy - state.pan.y) / state.zoom
+            };
+        }
+
+        function worldToScreen(wx, wy) {
+            return {
+                x: wx * state.zoom + state.pan.x,
+                y: wy * state.zoom + state.pan.y
+            };
+        }
+
+        function snap(val) {
+            return state.snapToGrid ? Math.round(val / state.gridSize) * state.gridSize : val;
+        }
+
+        // MAIN CANVAS RENDER ENGINE
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. Grid Background
+            drawGrid();
+
+            ctx.save();
+            ctx.translate(state.pan.x, state.pan.y);
+            ctx.scale(state.zoom, state.zoom);
+
+            // 2. Render Elements
+            state.elements.forEach(el => drawElement(el));
+
+            // 3. Render Active Freehand Path (Pencil / Highlighter)
+            if (state.isDrawing && state.activePath.length > 1) {
+                const isHigh = state.tool === 'highlighter';
+                drawPath(
+                    state.activePath,
+                    isHigh ? state.highlighterColor : state.pencilColor,
+                    isHigh ? state.highlighterWidth : state.pencilWidth,
+                    isHigh ? 0.4 : 1.0
+                );
+            }
+
+            // 4. Alignment Snap Guides
+            state.snapGuides.forEach(g => {
+                ctx.strokeStyle = '#ec4899';
+                ctx.lineWidth = 1 / state.zoom;
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                if (g.type === 'v') { ctx.moveTo(g.pos, -10000); ctx.lineTo(g.pos, 10000); }
+                else { ctx.moveTo(-10000, g.pos); ctx.lineTo(10000, g.pos); }
+                ctx.stroke();
+                ctx.setLineDash([]);
+            });
+
+            // 5. Selection Bounds & Handles
+            if (state.selectedIds.length > 0) {
+                const bounds = getCombinedBounds(state.selectedIds);
+                if (bounds) drawSelectionBounds(bounds);
+            }
+
+            // 6. Marquee Selection Rectangle
+            if (state.isSelectingBox && state.selectionBox) {
+                ctx.strokeStyle = '#6366f1';
+                ctx.lineWidth = 1.5 / state.zoom;
+                ctx.fillStyle = 'rgba(99, 102, 241, 0.1)';
+                const sb = state.selectionBox;
+                ctx.fillRect(sb.x, sb.y, sb.width, sb.height);
+                ctx.strokeRect(sb.x, sb.y, sb.width, sb.height);
+            }
+
+            ctx.restore();
+
+            // Render Minimap
+            renderMinimap();
+
+            // Floating Context Toolbar position update
+            if (state.selectedIds.length > 0) updateContextToolbarPosition();
+        }
+
+        // GRID DRAWING
+        function drawGrid() {
+            if (state.gridType === 'none') return;
+            const step = state.gridSize * state.zoom;
+            if (step < 8) return;
+
+            const startX = state.pan.x % step;
+            const startY = state.pan.y % step;
+
+            ctx.save();
+            if (state.gridType === 'dots') {
+                ctx.fillStyle = '#cbd5e1';
+                for (let x = startX; x < canvas.width; x += step) {
+                    for (let y = startY; y < canvas.height; y += step) {
+                        ctx.beginPath();
+                        ctx.arc(x, y, 1.2, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+            } else if (state.gridType === 'lines') {
+                ctx.strokeStyle = '#e2e8f0';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                for (let x = startX; x < canvas.width; x += step) { ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); }
+                for (let y = startY; y < canvas.height; y += step) { ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); }
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        // DRAW ELEMENT FACTORY
+        function drawElement(el) {
+            ctx.save();
+            ctx.globalAlpha = el.opacity ?? 1.0;
+
+            // Setup Line Dash
+            if (el.strokeStyle === 'dashed') ctx.setLineDash([8, 6]);
+            else if (el.strokeStyle === 'dotted') ctx.setLineDash([3, 3]);
+            else ctx.setLineDash([]);
+
+            switch (el.type) {
+                case 'sticky':
+                    // Card Shadow
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+                    ctx.beginPath();
+                    ctx.roundRect(el.x + 4, el.y + 4, el.width, el.height, 12);
+                    ctx.fill();
+
+                    // Main Sticky Body
+                    ctx.fillStyle = el.color || '#fef08a';
+                    ctx.beginPath();
+                    ctx.roundRect(el.x, el.y, el.width, el.height, 12);
+                    ctx.fill();
+
+                    // Text
+                    if (el.text && state.editingElementId !== el.id) {
+                        ctx.fillStyle = '#1e293b';
+                        ctx.font = `${el.fontWeight || ''} ${el.fontStyle || ''} ${el.fontSize || 16}px Inter, sans-serif`;
+                        drawWrappedText(ctx, el.text, el.x + 14, el.y + 26, el.width - 28, (el.fontSize || 16) * 1.3);
+                    }
+                    break;
+
+                case 'rect':
+                case 'rounded-rect':
+                    ctx.fillStyle = el.color || '#ffffff';
+                    ctx.strokeStyle = el.strokeColor || '#1e293b';
+                    ctx.lineWidth = el.strokeWidth ?? 2;
+                    ctx.beginPath();
+                    ctx.roundRect(el.x, el.y, el.width, el.height, el.type === 'rounded-rect' ? 16 : 0);
+                    if (el.color !== 'transparent') ctx.fill();
+                    if (el.strokeWidth > 0) ctx.stroke();
+
+                    if (el.text && state.editingElementId !== el.id) {
+                        ctx.fillStyle = '#1e293b';
+                        ctx.font = `${el.fontWeight || ''} ${el.fontStyle || ''} ${el.fontSize || 16}px Inter, sans-serif`;
+                        drawWrappedText(ctx, el.text, el.x + 10, el.y + el.height / 2, el.width - 20, (el.fontSize || 16) * 1.3, 'center');
+                    }
+                    break;
+
+                case 'circle':
+                    ctx.fillStyle = el.color || '#ffffff';
+                    ctx.strokeStyle = el.strokeColor || '#1e293b';
+                    ctx.lineWidth = el.strokeWidth ?? 2;
+                    ctx.beginPath();
+                    ctx.ellipse(el.x + el.width/2, el.y + el.height/2, Math.abs(el.width/2), Math.abs(el.height/2), 0, 0, Math.PI * 2);
+                    if (el.color !== 'transparent') ctx.fill();
+                    if (el.strokeWidth > 0) ctx.stroke();
+
+                    if (el.text && state.editingElementId !== el.id) {
+                        ctx.fillStyle = '#1e293b';
+                        ctx.font = `${el.fontSize || 16}px Inter, sans-serif`;
+                        drawWrappedText(ctx, el.text, el.x + 10, el.y + el.height / 2, el.width - 20, (el.fontSize || 16) * 1.3, 'center');
+                    }
+                    break;
+
+                case 'triangle':
+                    ctx.fillStyle = el.color || '#ffffff';
+                    ctx.strokeStyle = el.strokeColor || '#1e293b';
+                    ctx.lineWidth = el.strokeWidth ?? 2;
+                    ctx.beginPath();
+                    ctx.moveTo(el.x + el.width / 2, el.y);
+                    ctx.lineTo(el.x + el.width, el.y + el.height);
+                    ctx.lineTo(el.x, el.y + el.height);
+                    ctx.closePath();
+                    if (el.color !== 'transparent') ctx.fill();
+                    if (el.strokeWidth > 0) ctx.stroke();
+                    break;
+
+                case 'diamond':
+                    ctx.fillStyle = el.color || '#ffffff';
+                    ctx.strokeStyle = el.strokeColor || '#1e293b';
+                    ctx.lineWidth = el.strokeWidth ?? 2;
+                    ctx.beginPath();
+                    ctx.moveTo(el.x + el.width / 2, el.y);
+                    ctx.lineTo(el.x + el.width, el.y + el.height / 2);
+                    ctx.lineTo(el.x + el.width / 2, el.y + el.height);
+                    ctx.lineTo(el.x, el.y + el.height / 2);
+                    ctx.closePath();
+                    if (el.color !== 'transparent') ctx.fill();
+                    if (el.strokeWidth > 0) ctx.stroke();
+                    break;
+
+                case 'hexagon':
+                    ctx.fillStyle = el.color || '#ffffff';
+                    ctx.strokeStyle = el.strokeColor || '#1e293b';
+                    ctx.lineWidth = el.strokeWidth ?? 2;
+                    ctx.beginPath();
+                    const cx = el.x + el.width / 2;
+                    const cy = el.y + el.height / 2;
+                    const rx = el.width / 2;
+                    const ry = el.height / 2;
+                    for (let i = 0; i < 6; i++) {
+                        const angle = (Math.PI / 3) * i;
+                        const x = cx + rx * Math.cos(angle);
+                        const y = cy + ry * Math.sin(angle);
+                        if (i === 0) ctx.moveTo(x, y);
+                        else ctx.lineTo(x, y);
+                    }
+                    ctx.closePath();
+                    if (el.color !== 'transparent') ctx.fill();
+                    if (el.strokeWidth > 0) ctx.stroke();
+                    break;
+
+                case 'star':
+                    drawStar(ctx, el.x + el.width/2, el.y + el.height/2, 5, el.width/2, el.width/4, el.color, el.strokeColor, el.strokeWidth);
+                    break;
+
+                case 'callout':
+                    ctx.fillStyle = el.color || '#ffffff';
+                    ctx.strokeStyle = el.strokeColor || '#1e293b';
+                    ctx.lineWidth = el.strokeWidth ?? 2;
+                    const r = 12, h = el.height - 20;
+                    ctx.beginPath();
+                    ctx.moveTo(el.x + r, el.y);
+                    ctx.lineTo(el.x + el.width - r, el.y);
+                    ctx.quadraticCurveTo(el.x + el.width, el.y, el.x + el.width, el.y + r);
+                    ctx.lineTo(el.x + el.width, el.y + h - r);
+                    ctx.quadraticCurveTo(el.x + el.width, el.y + h, el.x + el.width - r, el.y + h);
+                    ctx.lineTo(el.x + 40, el.y + h);
+                    ctx.lineTo(el.x + 20, el.y + el.height);
+                    ctx.lineTo(el.x + 25, el.y + h);
+                    ctx.lineTo(el.x + r, el.y + h);
+                    ctx.quadraticCurveTo(el.x, el.y + h, el.x, el.y + h - r);
+                    ctx.quadraticCurveTo(el.x, el.y, el.x + r, el.y);
+                    ctx.closePath();
+                    if (el.color !== 'transparent') ctx.fill();
+                    if (el.strokeWidth > 0) ctx.stroke();
+                    break;
+
+                case 'arrow':
+                case 'double-arrow':
+                case 'line':
+                case 'curved':
+                    ctx.strokeStyle = el.strokeColor || '#1e293b';
+                    ctx.lineWidth = el.strokeWidth || 2;
+                    ctx.beginPath();
+                    if (el.type === 'curved') {
+                        ctx.moveTo(el.x, el.y);
+                        ctx.quadraticCurveTo(el.x + el.width / 2, el.y - 30, el.x + el.width, el.y + el.height);
+                    } else {
+                        ctx.moveTo(el.x, el.y);
+                        ctx.lineTo(el.x + el.width, el.y + el.height);
+                    }
+                    ctx.stroke();
+
+                    // Arrow heads
+                    if (el.type === 'arrow' || el.type === 'double-arrow') {
+                        drawArrowHead(ctx, el.x + el.width, el.y + el.height, Math.atan2(el.height, el.width), el.strokeColor);
+                    }
+                    if (el.type === 'double-arrow') {
+                        drawArrowHead(ctx, el.x, el.y, Math.atan2(-el.height, -el.width), el.strokeColor);
+                    }
+                    break;
+
+                case 'pencil':
+                case 'highlighter':
+                    drawPath(el.points, el.strokeColor, el.strokeWidth, el.type === 'highlighter' ? 0.4 : el.opacity);
+                    break;
+
+                case 'text':
+                    if (state.editingElementId !== el.id) {
+                        ctx.fillStyle = el.strokeColor || '#1e293b';
+                        ctx.font = `${el.fontWeight || ''} ${el.fontStyle || ''} ${el.fontSize || 20}px Inter, sans-serif`;
+                        drawWrappedText(ctx, el.text || 'Texto', el.x, el.y + (el.fontSize || 20), el.width, (el.fontSize || 20) * 1.2, 'left');
+                    }
+                    break;
+
+                case 'frame':
+                    // Frame Header Badge
+                    ctx.fillStyle = '#4262ff';
+                    ctx.beginPath();
+                    ctx.roundRect(el.x, el.y - 30, Math.max(140, ctx.measureText(el.title || 'Marco').width + 24), 30, [8, 8, 0, 0]);
+                    ctx.fill();
+
+                    // Title
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 13px Inter, sans-serif';
+                    ctx.fillText(el.title || 'Marco', el.x + 12, el.y - 10);
+
+                    // Frame Border & Background
+                    ctx.strokeStyle = '#4262ff';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([8, 6]);
+                    ctx.fillStyle = 'rgba(241, 245, 249, 0.25)';
+                    ctx.beginPath();
+                    ctx.roundRect(el.x, el.y, el.width, el.height, 12);
+                    ctx.fill();
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    break;
+
+                case 'comment':
+                    // Comment Pin Badge
+                    ctx.fillStyle = el.resolved ? '#10b981' : '#6366f1';
+                    ctx.shadowColor = 'rgba(0,0,0,0.15)';
+                    ctx.shadowBlur = 8;
+                    ctx.beginPath();
+                    ctx.arc(el.x, el.y, 16, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 12px Inter, sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText((el.author || 'U')[0].toUpperCase(), el.x, el.y + 4);
+                    ctx.textAlign = 'left';
+                    break;
+
+                case 'image':
+                    if (el.imgElement && el.imgElement.complete) {
+                        ctx.drawImage(el.imgElement, el.x, el.y, el.width, el.height);
+                    } else {
+                        ctx.strokeStyle = '#cbd5e1';
+                        ctx.strokeRect(el.x, el.y, el.width, el.height);
+                    }
+                    break;
+            }
+
+            // Lock Indicator
+            if (el.locked) {
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.6)';
+                ctx.beginPath();
+                ctx.arc(el.x + el.width - 12, el.y + 12, 10, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '10px FontAwesome';
+                ctx.fillText('\uf023', el.x + el.width - 15, el.y + 15);
+            }
+
+            ctx.restore();
+        }
+
+        // DRAW HELPERS
+        function drawPath(points, color, width, opacity = 1.0) {
+            if (!points || points.length < 2) return;
+            ctx.save();
+            ctx.globalAlpha = opacity;
+            ctx.strokeStyle = color || '#1e293b';
+            ctx.lineWidth = width || 3;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            for (let i = 1; i < points.length; i++) {
+                ctx.lineTo(points[i].x, points[i].y);
+            }
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawStar(ctx, cx, cy, spikes, outerRadius, innerRadius, fill, stroke, strokeW) {
+            let rot = Math.PI / 2 * 3;
+            let x = cx, y = cy;
+            let step = Math.PI / spikes;
+
+            ctx.beginPath();
+            ctx.moveTo(cx, cy - outerRadius);
+            for (let i = 0; i < spikes; i++) {
+                x = cx + Math.cos(rot) * outerRadius;
+                y = cy + Math.sin(rot) * outerRadius;
+                ctx.lineTo(x, y);
+                rot += step;
+
+                x = cx + Math.cos(rot) * innerRadius;
+                y = cy + Math.sin(rot) * innerRadius;
+                ctx.lineTo(x, y);
+                rot += step;
+            }
+            ctx.lineTo(cx, cy - outerRadius);
+            ctx.closePath();
+            if (fill && fill !== 'transparent') { ctx.fillStyle = fill; ctx.fill(); }
+            if (strokeW > 0) { ctx.strokeStyle = stroke; ctx.lineWidth = strokeW; ctx.stroke(); }
+        }
+
+        function drawArrowHead(ctx, x, y, angle, color) {
+            const headLen = 14;
+            ctx.save();
+            ctx.fillStyle = color || '#1e293b';
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x - headLen * Math.cos(angle - Math.PI / 6), y - headLen * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(x - headLen * Math.cos(angle + Math.PI / 6), y - headLen * Math.sin(angle + Math.PI / 6));
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, align = 'left') {
+            if (!text) return;
+            const lines = text.split('\n');
+            let curY = y;
+
+            lines.forEach(line => {
+                const words = line.split(' ');
+                let currentLine = '';
+
+                for (let n = 0; n < words.length; n++) {
+                    const testLine = currentLine + words[n] + ' ';
+                    const metrics = ctx.measureText(testLine);
+                    if (metrics.width > maxWidth && n > 0) {
+                        ctx.textAlign = align;
+                        ctx.fillText(currentLine, x, curY);
+                        currentLine = words[n] + ' ';
+                        curY += lineHeight;
+                    } else {
+                        currentLine = testLine;
+                    }
+                }
+                ctx.textAlign = align;
+                ctx.fillText(currentLine, x, curY);
+                curY += lineHeight;
+            });
+        }
+
+        // BOUNDS & RESIZE HANDLES
+        function getCombinedBounds(ids) {
+            const selected = state.elements.filter(el => ids.includes(el.id));
+            if (selected.length === 0) return null;
+
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            selected.forEach(el => {
+                if (el.type === 'pencil' || el.type === 'highlighter') {
+                    el.points.forEach(p => {
+                        minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+                        maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y);
+                    });
+                } else {
+                    minX = Math.min(minX, el.x); minY = Math.min(minY, el.y);
+                    maxX = Math.max(maxX, el.x + el.width); maxY = Math.max(maxY, el.y + el.height);
+                }
+            });
+
+            return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+        }
+
+        function drawSelectionBounds(b) {
+            ctx.strokeStyle = '#4262ff';
+            ctx.lineWidth = 1.5 / state.zoom;
+            ctx.strokeRect(b.x, b.y, b.width, b.height);
+
+            if (state.selectedIds.length === 1) {
+                const handleSize = 9 / state.zoom;
+                const handles = getHandlePositions(b);
+
+                ctx.fillStyle = '#ffffff';
+                ctx.strokeStyle = '#4262ff';
+                ctx.lineWidth = 1.5 / state.zoom;
+
+                Object.values(handles).forEach(h => {
+                    ctx.beginPath();
+                    ctx.rect(h.x - handleSize/2, h.y - handleSize/2, handleSize, handleSize);
+                    ctx.fill();
+                    ctx.stroke();
+                });
+            }
+        }
+
+        function getHandlePositions(b) {
+            return {
+                nw: { x: b.x, y: b.y },
+                ne: { x: b.x + b.width, y: b.y },
+                se: { x: b.x + b.width, y: b.y + b.height },
+                sw: { x: b.x, y: b.y + b.height },
+                n:  { x: b.x + b.width / 2, y: b.y },
+                e:  { x: b.x + b.width, y: b.y + b.height / 2 },
+                s:  { x: b.x + b.width / 2, y: b.y + b.height },
+                w:  { x: b.x, y: b.y + b.height / 2 }
+            };
+        }
+
+        // EVENT LISTENERS: MOUSE, TOUCH, WHEEL
+        canvas.addEventListener('mousedown', onMouseDown);
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+        canvas.addEventListener('wheel', onWheel, { passive: false });
+        canvas.addEventListener('dblclick', onDoubleClick);
+
+        // DRAG AND DROP IMAGES
+        const canvasContainer = document.getElementById('canvas-container');
+        canvasContainer.addEventListener('dragover', (e) => e.preventDefault());
+        canvasContainer.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].type.startsWith('image/')) {
+                const worldPos = screenToWorld(e.clientX, e.clientY);
+                loadImageFile(files[0], worldPos);
+            }
+        });
+
+        document.getElementById('image-upload-input').addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                const centerPos = screenToWorld(window.innerWidth / 2, window.innerHeight / 2);
+                loadImageFile(e.target.files[0], centerPos);
+            }
+        });
+
+        function loadImageFile(file, pos) {
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                const img = new Image();
+                img.onload = function() {
+                    const aspect = img.width / img.height;
+                    const width = 240;
+                    const height = width / aspect;
+                    const newEl = {
+                        id: generateId(),
+                        type: 'image',
+                        x: pos.x - width / 2,
+                        y: pos.y - height / 2,
+                        width: width,
+                        height: height,
+                        src: evt.target.result,
+                        imgElement: img
+                    };
+                    state.elements.push(newEl);
+                    state.selectedIds = [newEl.id];
+                    saveState();
+                    render();
+                };
+                img.src = evt.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function onMouseDown(e) {
+            closeAllFlyouts();
+            if (e.button === 1 || state.tool === 'hand' || e.spaceKey) {
+                state.isPanning = true;
+                state.startPan = { x: e.clientX - state.pan.x, y: e.clientY - state.pan.y };
+                canvas.style.cursor = 'grabbing';
+                return;
+            }
+
+            if (e.button !== 0) return;
+
+            const worldPos = screenToWorld(e.clientX, e.clientY);
+            state.startMouse = { x: worldPos.x, y: worldPos.y };
+
+            // Resize handle check
+            if (state.selectedIds.length === 1) {
+                const bounds = getCombinedBounds(state.selectedIds);
+                const handle = hitTestHandle(worldPos, bounds);
+                if (handle) {
+                    state.isResizing = true;
+                    state.resizeHandle = handle;
+                    return;
+                }
+            }
+
+            if (state.tool === 'select') {
+                const hit = hitTestElement(worldPos);
+                if (hit) {
+                    if (e.shiftKey) {
+                        if (state.selectedIds.includes(hit.id)) {
+                            state.selectedIds = state.selectedIds.filter(id => id !== hit.id);
+                        } else { state.selectedIds.push(hit.id); }
+                    } else {
+                        if (!state.selectedIds.includes(hit.id)) state.selectedIds = [hit.id];
+                    }
+                    if (!hit.locked) state.isDragging = true;
+                } else {
+                    if (!e.shiftKey) state.selectedIds = [];
+                    state.isSelectingBox = true;
+                    state.selectionBox = { x: worldPos.x, y: worldPos.y, width: 0, height: 0 };
+                }
+                updateContextToolbar();
+            } else if (state.tool === 'pencil' || state.tool === 'highlighter') {
+                state.isDrawing = true;
+                state.activePath = [{ x: worldPos.x, y: worldPos.y }];
+            } else if (state.tool === 'eraser') {
+                state.isErasing = true;
+                eraseAt(worldPos);
+            } else if (state.tool === 'comment') {
+                createCommentAt(worldPos);
+            } else {
+                createElementAt(state.tool, worldPos);
+            }
+
+            render();
+        }
+
+        function onMouseMove(e) {
+            if (state.isPanning) {
+                state.pan.x = e.clientX - state.startPan.x;
+                state.pan.y = e.clientY - state.startPan.y;
+                render();
+                return;
+            }
+
+            const worldPos = screenToWorld(e.clientX, e.clientY);
+
+            if (state.isDragging && state.selectedIds.length > 0) {
+                let dx = worldPos.x - state.startMouse.x;
+                let dy = worldPos.y - state.startMouse.y;
+
+                // Snap Guides Logic
+                state.snapGuides = [];
+                if (state.snapToGrid) {
+                    dx = snap(worldPos.x) - snap(state.startMouse.x);
+                    dy = snap(worldPos.y) - snap(state.startMouse.y);
+                }
+
+                state.elements.forEach(el => {
+                    if (state.selectedIds.includes(el.id) && !el.locked) {
+                        if (el.type === 'pencil' || el.type === 'highlighter') {
+                            el.points.forEach(p => { p.x += dx; p.y += dy; });
+                        } else {
+                            el.x += dx; el.y += dy;
+                        }
+                    }
+                });
+
+                state.startMouse = { x: worldPos.x, y: worldPos.y };
+                render();
+                return;
+            }
+
+            if (state.isResizing && state.selectedIds.length === 1) {
+                const el = state.elements.find(e => e.id === state.selectedIds[0]);
+                if (el && !el.locked) {
+                    resizeElement(el, state.resizeHandle, worldPos);
+                    render();
+                }
+                return;
+            }
+
+            if (state.isDrawing) {
+                state.activePath.push({ x: worldPos.x, y: worldPos.y });
+                render();
+                return;
+            }
+
+            if (state.isErasing) {
+                eraseAt(worldPos);
+                render();
+                return;
+            }
+
+            if (state.isSelectingBox) {
+                state.selectionBox.width = worldPos.x - state.selectionBox.x;
+                state.selectionBox.height = worldPos.y - state.selectionBox.y;
+
+                const bx = Math.min(state.selectionBox.x, state.selectionBox.x + state.selectionBox.width);
+                const by = Math.min(state.selectionBox.y, state.selectionBox.y + state.selectionBox.height);
+                const bw = Math.abs(state.selectionBox.width);
+                const bh = Math.abs(state.selectionBox.height);
+
+                state.selectedIds = state.elements.filter(el => {
+                    return el.x >= bx && el.x + el.width <= bx + bw &&
+                           el.y >= by && el.y + el.height <= by + bh;
+                }).map(el => el.id);
+
+                updateContextToolbar();
+                render();
+            }
+        }
+
+        function onMouseUp() {
+            if (state.isPanning) {
+                state.isPanning = false;
+                canvas.style.cursor = state.tool === 'hand' ? 'grab' : 'default';
+            }
+
+            if (state.isDrawing) {
+                state.isDrawing = false;
+                if (state.activePath.length > 1) {
+                    const isHigh = state.tool === 'highlighter';
+                    const newEl = {
+                        id: generateId(),
+                        type: isHigh ? 'highlighter' : 'pencil',
+                        points: state.activePath,
+                        strokeColor: isHigh ? state.highlighterColor : state.pencilColor,
+                        strokeWidth: isHigh ? state.highlighterWidth : state.pencilWidth,
+                        opacity: isHigh ? 0.4 : 1.0
+                    };
+                    state.elements.push(newEl);
+                    saveState();
+                }
+                state.activePath = [];
+            }
+
+            if (state.isErasing) {
+                state.isErasing = false;
+                saveState();
+            }
+
+            if (state.isDragging || state.isResizing) {
+                state.isDragging = false;
+                state.isResizing = false;
+                state.snapGuides = [];
+                saveState();
+            }
+
+            if (state.isSelectingBox) {
+                state.isSelectingBox = false;
+                state.selectionBox = null;
+            }
+
+            render();
+        }
+
+        // SMOOTH WHEEL ZOOM (5% to 500%)
+        function onWheel(e) {
+            e.preventDefault();
+            const zoomFactor = e.deltaY < 0 ? 1.12 : 0.88;
+            const newZoom = Math.max(state.minZoom, Math.min(state.maxZoom, state.zoom * zoomFactor));
+
+            const mouseWorld = screenToWorld(e.clientX, e.clientY);
+            state.pan.x = e.clientX - mouseWorld.x * newZoom;
+            state.pan.y = e.clientY - mouseWorld.y * newZoom;
+            state.zoom = newZoom;
+
+            document.getElementById('zoom-level-btn').innerText = `${Math.round(state.zoom * 100)}%`;
+            render();
+        }
+
+        function onDoubleClick(e) {
+            const worldPos = screenToWorld(e.clientX, e.clientY);
+            const hit = hitTestElement(worldPos);
+
+            if (hit) {
+                if (hit.type === 'comment') {
+                    openCommentDrawer(hit);
+                } else if (['sticky', 'text', 'rect', 'rounded-rect', 'circle', 'frame'].includes(hit.type)) {
+                    startTextEditing(hit);
+                }
+            }
+        }
+
+        // ERASER LOGIC
+        function eraseAt(pos) {
+            state.elements = state.elements.filter(el => {
+                if (el.type === 'pencil' || el.type === 'highlighter') {
+                    return !el.points.some(p => Math.hypot(p.x - pos.x, p.y - pos.y) < 12);
+                }
+                return !(pos.x >= el.x && pos.x <= el.x + el.width && pos.y >= el.y && pos.y <= el.y + el.height);
+            });
+        }
+
+        // ELEMENT CREATION
+        function createElementAt(toolType, pos) {
+            const px = snap(pos.x);
+            const py = snap(pos.y);
+
+            let newEl = {
+                id: generateId(),
+                type: toolType,
+                x: px,
+                y: py,
+                width: 160,
+                height: 120,
+                color: state.activeFill,
+                strokeColor: state.activeStroke,
+                strokeWidth: state.activeStrokeWidth,
+                strokeStyle: state.activeStrokeStyle,
+                opacity: state.activeOpacity,
+                fontSize: 16,
+                text: ''
+            };
+
+            switch (toolType) {
+                case 'sticky':
+                    newEl.color = state.stickyColor;
+                    newEl.width = 160; newEl.height = 160;
+                    newEl.text = 'Nueva nota...';
+                    break;
+
+                case 'text':
+                    newEl.width = 200; newEl.height = 40;
+                    newEl.text = 'Escribe algo aquí...';
+                    newEl.fontSize = 20;
+                    break;
+
+                case 'arrow':
+                case 'double-arrow':
+                case 'line':
+                case 'curved':
+                    newEl.type = state.activeLineType;
+                    newEl.width = 140; newEl.height = 0;
+                    break;
+
+                case 'rect':
+                case 'rounded-rect':
+                case 'circle':
+                case 'triangle':
+                case 'diamond':
+                case 'star':
+                case 'callout':
+                    newEl.type = state.activeShapeType || 'rect';
+                    newEl.width = 150; newEl.height = 120;
+                    break;
+
+                case 'frame':
+                    newEl.type = 'frame';
+                    if (state.activeFrameType === '16:9') { newEl.width = 640; newEl.height = 360; newEl.title = '16:9 Presentación'; }
+                    else if (state.activeFrameType === 'a4') { newEl.width = 420; newEl.height = 594; newEl.title = 'Documento A4'; }
+                    else if (state.activeFrameType === 'mobile') { newEl.width = 280; newEl.height = 560; newEl.title = 'App Móvil'; }
+                    else { newEl.width = 400; newEl.height = 300; newEl.title = 'Marco Libre'; }
+                    break;
+            }
+
+            state.elements.push(newEl);
+            state.selectedIds = [newEl.id];
+            setTool('select');
+            saveState();
+            updateContextToolbar();
+            render();
+
+            if (toolType === 'sticky' || toolType === 'text') {
+                setTimeout(() => startTextEditing(newEl), 50);
+            }
+        }
+
+        // COMMENT PIN CREATION
+        function createCommentAt(pos) {
+            const author = prompt('Escribe tu nombre para el comentario:', 'Usuario');
+            if (!author) return;
+
+            const newEl = {
+                id: generateId(),
+                type: 'comment',
+                x: pos.x,
+                y: pos.y,
+                width: 32,
+                height: 32,
+                author: author,
+                comments: [{ author: author, text: 'Inicio de la discusión', time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }],
+                resolved: false
+            };
+
+            state.elements.push(newEl);
+            setTool('select');
+            saveState();
+            render();
+            openCommentDrawer(newEl);
+        }
+
+        function openCommentDrawer(commentEl) {
+            state.activeCommentId = commentEl.id;
+            const drawer = document.getElementById('comment-drawer');
+            const messagesContainer = document.getElementById('comment-messages');
+
+            messagesContainer.innerHTML = commentEl.comments.map(c => `
+                <div class="bg-slate-100 p-2.5 rounded-2xl flex flex-col gap-1">
+                    <div class="flex justify-between items-center text-[10px] font-bold text-slate-500">
+                        <span>${c.author}</span>
+                        <span>${c.time || ''}</span>
+                    </div>
+                    <p class="text-xs text-slate-800 font-medium">${c.text}</p>
+                </div>
+            `).join('');
+
+            drawer.classList.remove('hidden');
+        }
+
+        document.getElementById('btn-close-comment').addEventListener('click', () => {
+            document.getElementById('comment-drawer').classList.add('hidden');
+            state.activeCommentId = null;
+        });
+
+        document.getElementById('btn-send-comment').addEventListener('click', () => {
+            const input = document.getElementById('comment-input');
+            if (!input.value.trim() || !state.activeCommentId) return;
+
+            const commentEl = state.elements.find(e => e.id === state.activeCommentId);
+            if (commentEl) {
+                commentEl.comments.push({
+                    author: 'Tú',
+                    text: input.value.trim(),
+                    time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+                });
+                input.value = '';
+                saveState();
+                openCommentDrawer(commentEl);
+            }
+        });
+
+        // TEXT EDITING OVERLAY
+        function startTextEditing(el) {
+            state.editingElementId = el.id;
+            const screenPos = worldToScreen(el.x, el.y);
+
+            textEditor.style.left = `${screenPos.x}px`;
+            textEditor.style.top = `${screenPos.y}px`;
+            textEditor.style.width = `${el.width * state.zoom}px`;
+            textEditor.style.height = `${el.height * state.zoom}px`;
+            textEditor.style.fontSize = `${(el.fontSize || 16) * state.zoom}px`;
+            textEditor.style.color = '#1e293b';
+            textEditor.value = el.type === 'frame' ? (el.title || '') : (el.text || '');
+
+            textEditor.classList.remove('hidden');
+            textEditor.focus();
+            textEditor.select();
+
+            textEditor.onblur = () => finishTextEditing(el);
+            textEditor.onkeydown = (e) => {
+                if (e.key === 'Escape') textEditor.blur();
+            };
+        }
+
+        function finishTextEditing(el) {
+            if (!state.editingElementId) return;
+
+            if (el.type === 'frame') el.title = textEditor.value.trim() || 'Marco';
+            else el.text = textEditor.value;
+
+            textEditor.classList.add('hidden');
+            state.editingElementId = null;
+            saveState();
+            render();
+        }
+
+        // RESIZING ENGINE
+        function resizeElement(el, handle, pos) {
+            const minSize = 30;
+            switch (handle) {
+                case 'se':
+                    el.width = Math.max(minSize, pos.x - el.x);
+                    el.height = Math.max(minSize, pos.y - el.y);
+                    break;
+                case 'sw':
+                    const nw = el.x + el.width - pos.x;
+                    if (nw > minSize) { el.x = pos.x; el.width = nw; }
+                    el.height = Math.max(minSize, pos.y - el.y);
+                    break;
+                case 'ne':
+                    el.width = Math.max(minSize, pos.x - el.x);
+                    const nh = el.y + el.height - pos.y;
+                    if (nh > minSize) { el.y = pos.y; el.height = nh; }
+                    break;
+        // TOOL SELECTOR & FLYOUT MENU MANAGERS
+        function closeAllFlyouts() {
+            document.querySelectorAll('.tool-flyout').forEach(f => f.classList.add('hidden'));
+        }
+
+        function toggleFlyout(flyoutId) {
+            const flyout = document.getElementById(flyoutId);
+            if (!flyout) return;
+            const isHidden = flyout.classList.contains('hidden');
+            closeAllFlyouts();
+            if (isHidden) {
+                flyout.classList.remove('hidden');
+            }
+        }
+
+        function setTool(toolName) {
+            state.tool = toolName;
+            document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+
+            const activeBtn = document.querySelector(`[data-tool="${toolName}"]`);
+            if (activeBtn) activeBtn.classList.add('active');
+
+            canvas.style.cursor = toolName === 'hand' ? 'grab' : toolName === 'select' ? 'default' : 'crosshair';
+        }
+
+        // Sidebar Trigger Click Handlers (Flyout Toggle on Click)
+        document.getElementById('tool-select').addEventListener('click', () => { closeAllFlyouts(); setTool('select'); });
+        document.getElementById('tool-hand').addEventListener('click', () => { closeAllFlyouts(); setTool('hand'); });
+        document.getElementById('tool-text').addEventListener('click', () => { closeAllFlyouts(); setTool('text'); });
+        document.getElementById('tool-eraser').addEventListener('click', () => { closeAllFlyouts(); setTool('eraser'); });
+        document.getElementById('tool-comment').addEventListener('click', () => { closeAllFlyouts(); setTool('comment'); });
+
+        document.getElementById('tool-sticky').addEventListener('click', (e) => { e.stopPropagation(); toggleFlyout('flyout-sticky'); setTool('sticky'); });
+        document.getElementById('tool-pencil').addEventListener('click', (e) => { e.stopPropagation(); toggleFlyout('flyout-pencil'); setTool('pencil'); });
+        document.getElementById('tool-highlighter').addEventListener('click', (e) => { e.stopPropagation(); toggleFlyout('flyout-highlighter'); setTool('highlighter'); });
+        document.getElementById('tool-shapes').addEventListener('click', (e) => { e.stopPropagation(); toggleFlyout('flyout-shapes'); setTool(state.activeShapeType || 'rect'); });
+        document.getElementById('tool-lines').addEventListener('click', (e) => { e.stopPropagation(); toggleFlyout('flyout-lines'); setTool(state.activeLineType || 'arrow'); });
+        document.getElementById('tool-frame').addEventListener('click', (e) => { e.stopPropagation(); toggleFlyout('flyout-frame'); setTool('frame'); });
+
+        // Tool Submenu Item Selection Handlers
+        document.querySelectorAll('.color-dot').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                state.stickyColor = btn.getAttribute('data-color');
+                setTool('sticky');
+                closeAllFlyouts();
+            });
+        });
+
+        document.querySelectorAll('.pencil-color-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                state.pencilColor = btn.getAttribute('data-pencil-color');
+                setTool('pencil');
+                closeAllFlyouts();
+            });
+        });
+
+        document.querySelectorAll('.high-color-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                state.highlighterColor = btn.getAttribute('data-high-color');
+                setTool('highlighter');
+                closeAllFlyouts();
+            });
+        });
+
+        document.querySelectorAll('.shape-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                state.activeShapeType = btn.getAttribute('data-shape');
+                document.getElementById('current-shape-icon').className = btn.querySelector('i').className;
+                setTool(state.activeShapeType);
+                closeAllFlyouts();
+            });
+        });
+
+        document.querySelectorAll('.line-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                state.activeLineType = btn.getAttribute('data-line');
+                setTool(state.activeLineType);
+                closeAllFlyouts();
+            });
+        });
+
+        document.querySelectorAll('.frame-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                state.activeFrameType = btn.getAttribute('data-frame');
+                setTool('frame');
+                closeAllFlyouts();
+            });
+        });
+
+        // Close flyouts on window click outside sidebar
+        window.addEventListener('click', (e) => {
+            if (!e.target.closest('aside') && !e.target.closest('.tool-flyout')) {
+                closeAllFlyouts();
+            }
+        });
+
+        document.getElementById('pencil-width').addEventListener('input', (e) => state.pencilWidth = parseInt(e.target.value));
+        document.getElementById('highlighter-width').addEventListener('input', (e) => state.highlighterWidth = parseInt(e.target.value));
+
+        // FLOATING CONTEXT TOOLBAR UPDATES & LISTENERS
+        function updateContextToolbar() {
+            if (state.selectedIds.length === 0) {
+                contextToolbar.classList.add('hidden');
+                return;
+            }
+
+            const firstEl = state.elements.find(el => el.id === state.selectedIds[0]);
+            if (!firstEl) return;
+
+            document.getElementById('ctx-fill-color').value = firstEl.color || '#ffffff';
+            document.getElementById('ctx-stroke-color').value = firstEl.strokeColor || '#1e293b';
+            document.getElementById('ctx-stroke-width').value = firstEl.strokeWidth ?? 2;
+            document.getElementById('ctx-stroke-style').value = firstEl.strokeStyle || 'solid';
+            document.getElementById('ctx-opacity').value = firstEl.opacity ?? 1.0;
+            document.getElementById('ctx-font-size').value = firstEl.fontSize || 16;
+
+            const lockIcon = document.getElementById('ctx-lock-icon');
+            lockIcon.className = firstEl.locked ? "fa-solid fa-lock text-xs text-amber-600" : "fa-solid fa-unlock text-xs";
+
+            contextToolbar.classList.remove('hidden');
+            updateContextToolbarPosition();
+        }
+
+        function updateContextToolbarPosition() {
+            const bounds = getCombinedBounds(state.selectedIds);
+            if (!bounds) return;
+
+            const screenPos = worldToScreen(bounds.x + bounds.width / 2, bounds.y);
+            contextToolbar.style.left = `${screenPos.x}px`;
+            contextToolbar.style.top = `${Math.max(80, screenPos.y - 65)}px`;
+            contextToolbar.style.transform = 'translateX(-50%)';
+        }
+
+        // Context Toolbar Event Inputs
+        document.getElementById('ctx-fill-color').addEventListener('input', (e) => {
+            state.elements.forEach(el => { if (state.selectedIds.includes(el.id)) el.color = e.target.value; });
+            saveState(); render();
+        });
+
+        document.getElementById('ctx-stroke-color').addEventListener('input', (e) => {
+            state.elements.forEach(el => { if (state.selectedIds.includes(el.id)) el.strokeColor = e.target.value; });
+            saveState(); render();
+        });
+
+        document.getElementById('ctx-stroke-width').addEventListener('change', (e) => {
+            state.elements.forEach(el => { if (state.selectedIds.includes(el.id)) el.strokeWidth = parseInt(e.target.value); });
+            saveState(); render();
+        });
+
+        document.getElementById('ctx-stroke-style').addEventListener('change', (e) => {
+            state.elements.forEach(el => { if (state.selectedIds.includes(el.id)) el.strokeStyle = e.target.value; });
+            saveState(); render();
+        });
+
+        document.getElementById('ctx-opacity').addEventListener('input', (e) => {
+            state.elements.forEach(el => { if (state.selectedIds.includes(el.id)) el.opacity = parseFloat(e.target.value); });
+            saveState(); render();
+        });
+
+        document.getElementById('ctx-font-size').addEventListener('change', (e) => {
+            state.elements.forEach(el => { if (state.selectedIds.includes(el.id)) el.fontSize = parseInt(e.target.value); });
+            saveState(); render();
+        });
+
+        document.getElementById('ctx-bold').addEventListener('click', () => {
+            state.elements.forEach(el => {
+                if (state.selectedIds.includes(el.id)) el.fontWeight = el.fontWeight === 'bold' ? 'normal' : 'bold';
+            });
+            saveState(); render();
+        });
+
+        document.getElementById('ctx-italic').addEventListener('click', () => {
+            state.elements.forEach(el => {
+                if (state.selectedIds.includes(el.id)) el.fontStyle = el.fontStyle === 'italic' ? 'normal' : 'italic';
+            });
+            saveState(); render();
+        });
+
+        document.getElementById('ctx-bring-front').addEventListener('click', () => {
+            const selected = state.elements.filter(el => state.selectedIds.includes(el.id));
+            state.elements = state.elements.filter(el => !state.selectedIds.includes(el.id)).concat(selected);
+            saveState(); render();
+        });
+
+        document.getElementById('ctx-send-back').addEventListener('click', () => {
+            const selected = state.elements.filter(el => state.selectedIds.includes(el.id));
+            state.elements = selected.concat(state.elements.filter(el => !state.selectedIds.includes(el.id)));
+            saveState(); render();
+        });
+
+        document.getElementById('ctx-duplicate').addEventListener('click', duplicateSelected);
+
+        document.getElementById('ctx-lock').addEventListener('click', () => {
+            state.elements.forEach(el => {
+                if (state.selectedIds.includes(el.id)) el.locked = !el.locked;
+            });
+            saveState(); updateContextToolbar(); render();
+        });
+
+        document.getElementById('ctx-delete').addEventListener('click', deleteSelected);
+
+        function duplicateSelected() {
+            const newIds = [];
+            state.elements.forEach(el => {
+                if (state.selectedIds.includes(el.id)) {
+                    const copy = JSON.parse(JSON.stringify(el));
+                    copy.id = generateId();
+                    copy.x += 20; copy.y += 20;
+                    if (copy.type === 'image' && el.imgElement) copy.imgElement = el.imgElement;
+                    state.elements.push(copy);
+                    newIds.push(copy.id);
+                }
+            });
+            state.selectedIds = newIds;
+            saveState(); render(); updateContextToolbar();
+        }
+
+        function deleteSelected() {
+            state.elements = state.elements.filter(el => !state.selectedIds.includes(el.id));
+            state.selectedIds = [];
+            saveState(); render(); updateContextToolbar();
+        }
+
+        // MINIMAP ENGINE
+        function renderMinimap() {
+            const container = document.getElementById('minimap-container');
+            if (container.classList.contains('hidden')) return;
+
+            minimapCtx.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
+
+            if (state.elements.length === 0) return;
+
+            const bounds = getCombinedBounds(state.elements.map(e => e.id));
+            if (!bounds) return;
+
+            const padding = 200;
+            const fullW = bounds.width + padding * 2;
+            const fullH = bounds.height + padding * 2;
+
+            const scale = Math.min(minimapCanvas.width / fullW, minimapCanvas.height / fullH);
+
+            minimapCtx.save();
+            minimapCtx.scale(scale, scale);
+            minimapCtx.translate(-bounds.x + padding, -bounds.y + padding);
+
+            // Draw Elements Mini
+            state.elements.forEach(el => {
+                minimapCtx.fillStyle = el.color && el.color !== 'transparent' ? el.color : '#cbd5e1';
+                minimapCtx.fillRect(el.x, el.y, el.width || 40, el.height || 40);
+            });
+
+            // Draw Current Viewport Rect
+            const viewWorldStart = screenToWorld(0, 0);
+            const viewWorldEnd = screenToWorld(window.innerWidth, window.innerHeight);
+
+            minimapCtx.strokeStyle = '#ef4444';
+            minimapCtx.lineWidth = 2 / scale;
+            minimapCtx.strokeRect(viewWorldStart.x, viewWorldStart.y, viewWorldEnd.x - viewWorldStart.x, viewWorldEnd.y - viewWorldStart.y);
+
+            minimapCtx.restore();
+        }
+
+        document.getElementById('btn-toggle-minimap').addEventListener('click', () => {
+            document.getElementById('minimap-container').classList.toggle('hidden');
+            render();
+        });
+
+        document.getElementById('btn-close-minimap').addEventListener('click', () => {
+            document.getElementById('minimap-container').classList.add('hidden');
+        });
+
+        // ZOOM BAR BUTTONS & PRESETS
+        document.getElementById('btn-zoom-in').addEventListener('click', () => setZoom(state.zoom * 1.2));
+        document.getElementById('btn-zoom-out').addEventListener('click', () => setZoom(state.zoom / 1.2));
+        document.getElementById('btn-zoom-fit').addEventListener('click', fitToScreen);
+        document.getElementById('btn-zoom-selection').addEventListener('click', fitToSelection);
+
+        document.querySelectorAll('.zoom-preset').forEach(btn => {
+            btn.addEventListener('click', () => setZoom(parseFloat(btn.getAttribute('data-zoom'))));
+        });
+
+        function setZoom(newZoom) {
+            state.zoom = Math.max(state.minZoom, Math.min(state.maxZoom, newZoom));
+            document.getElementById('zoom-level-btn').innerText = `${Math.round(state.zoom * 100)}%`;
+            render();
+        }
+
+        function fitToScreen() {
+            if (state.elements.length === 0) {
+                state.zoom = 1.0;
+                state.pan = { x: window.innerWidth / 2 - 400, y: window.innerHeight / 2 - 300 };
+            } else {
+                const bounds = getCombinedBounds(state.elements.map(e => e.id));
+                const padding = 120;
+                const scaleX = (window.innerWidth - padding * 2) / bounds.width;
+                const scaleY = (window.innerHeight - padding * 2) / bounds.height;
+                state.zoom = Math.max(state.minZoom, Math.min(1.5, Math.min(scaleX, scaleY)));
+                state.pan.x = (window.innerWidth - bounds.width * state.zoom) / 2 - bounds.x * state.zoom;
+                state.pan.y = (window.innerHeight - bounds.height * state.zoom) / 2 - bounds.y * state.zoom;
+            }
+            document.getElementById('zoom-level-btn').innerText = `${Math.round(state.zoom * 100)}%`;
+            render();
+        }
+
+        function fitToSelection() {
+            if (state.selectedIds.length === 0) return fitToScreen();
+            const bounds = getCombinedBounds(state.selectedIds);
+            const padding = 120;
+            const scaleX = (window.innerWidth - padding * 2) / bounds.width;
+            const scaleY = (window.innerHeight - padding * 2) / bounds.height;
+            state.zoom = Math.max(state.minZoom, Math.min(2.0, Math.min(scaleX, scaleY)));
+            state.pan.x = (window.innerWidth - bounds.width * state.zoom) / 2 - bounds.x * state.zoom;
+            state.pan.y = (window.innerHeight - bounds.height * state.zoom) / 2 - bounds.y * state.zoom;
+            document.getElementById('zoom-level-btn').innerText = `${Math.round(state.zoom * 100)}%`;
+            render();
+        }
+
+        // GRID CONTROLS
+        document.getElementById('btn-grid-dots').addEventListener('click', () => setGridType('dots'));
+        document.getElementById('btn-grid-lines').addEventListener('click', () => setGridType('lines'));
+        document.getElementById('btn-grid-none').addEventListener('click', () => setGridType('none'));
+
+        function setGridType(type) {
+            state.gridType = type;
+            updateGridButtons();
+            render(); saveToLocalStorage();
+        }
+
+        function updateGridButtons() {
+            ['dots', 'lines', 'none'].forEach(t => {
+                const btn = document.getElementById(`btn-grid-${t}`);
+                btn.className = state.gridType === t ? "px-2.5 py-1 rounded-lg font-medium bg-white shadow-sm text-indigo-600" : "px-2.5 py-1 rounded-lg font-medium text-slate-600 hover:text-slate-900";
+            });
+        }
+
+        document.getElementById('btn-snap-grid').addEventListener('click', () => {
+            state.snapToGrid = !state.snapToGrid;
+            document.getElementById('snap-icon').className = state.snapToGrid ? "fa-solid fa-magnet text-xs text-indigo-600" : "fa-solid fa-magnet text-xs text-slate-400";
+        });
+
+        // ACTIONS: UNDO, REDO, CLEAR, EXPORTS
+        document.getElementById('btn-undo').addEventListener('click', undo);
+        document.getElementById('btn-redo').addEventListener('click', redo);
+
+        document.getElementById('btn-clear-canvas').addEventListener('click', () => {
+            if (confirm('¿Deseas vaciar toda la pizarra?')) {
+                state.elements = [];
+                state.selectedIds = [];
+                saveState(); render();
+            }
+        });
+
+        // EXPORT PNG
+        document.getElementById('btn-export-png').addEventListener('click', () => {
+            if (state.elements.length === 0) return alert('La pizarra está vacía.');
+            const bounds = getCombinedBounds(state.elements.map(e => e.id));
+            const padding = 60;
+
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = bounds.width + padding * 2;
+            tempCanvas.height = bounds.height + padding * 2;
+
+            tempCtx.fillStyle = '#ffffff';
+            tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+            tempCtx.translate(-bounds.x + padding, -bounds.y + padding);
+
+            const origCtx = window.ctx;
+            window.ctx = tempCtx;
+            state.elements.forEach(el => drawElement(el));
+            window.ctx = origCtx;
+
+            const a = document.createElement('a');
+            a.download = `${document.getElementById('board-title-input').value || 'pizarra'}.png`;
+            a.href = tempCanvas.toDataURL('image/png');
+            a.click();
+        });
+
+        // EXPORT SVG
+        document.getElementById('btn-export-svg').addEventListener('click', () => {
+            if (state.elements.length === 0) return alert('La pizarra está vacía.');
+            const bounds = getCombinedBounds(state.elements.map(e => e.id));
+            let svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${bounds.width + 100}" height="${bounds.height + 100}" viewBox="${bounds.x - 50} ${bounds.y - 50} ${bounds.width + 100} ${bounds.height + 100}">\n`;
+
+            state.elements.forEach(el => {
+                if (el.type === 'rect' || el.type === 'sticky') {
+                    svgStr += `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" fill="${el.color || '#fff'}" stroke="${el.strokeColor || '#000'}" stroke-width="${el.strokeWidth || 1}" rx="8"/>\n`;
+                } else if (el.type === 'circle') {
+                    svgStr += `<ellipse cx="${el.x + el.width/2}" cy="${el.y + el.height/2}" rx="${el.width/2}" ry="${el.height/2}" fill="${el.color || '#fff'}" stroke="${el.strokeColor || '#000'}"/>\n`;
+                }
+            });
+            svgStr += `</svg>`;
+
+            const blob = new Blob([svgStr], {type: 'image/svg+xml'});
+            const a = document.createElement('a');
+            a.download = `${document.getElementById('board-title-input').value || 'pizarra'}.svg`;
+            a.href = URL.createObjectURL(blob);
+            a.click();
+        });
+
+        // EXPORT / IMPORT JSON
+        document.getElementById('btn-export-json').addEventListener('click', () => {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.elements, null, 2));
+            const a = document.createElement('a');
+            a.download = `${document.getElementById('board-title-input').value || 'pizarra'}.json`;
+            a.href = dataStr;
+            a.click();
+        });
+
+        document.getElementById('import-file-input').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const imported = JSON.parse(evt.target.result);
+                    if (Array.isArray(imported)) {
+                        state.elements = imported;
+                        saveState(); fitToScreen();
+                    }
+                } catch(err) { alert('Archivo JSON inválido.'); }
+            };
+            reader.readAsText(file);
+        });
+
+        // MODALS & TEMPLATES
+        document.getElementById('btn-open-templates').addEventListener('click', () => {
+            document.getElementById('modal-templates').classList.remove('hidden');
+        });
+
+        document.querySelectorAll('.close-modal').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.getElementById('modal-templates').classList.add('hidden');
+                document.getElementById('modal-shortcuts').classList.add('hidden');
+            });
+        });
+
+        document.querySelectorAll('.template-card').forEach(card => {
+            card.addEventListener('click', () => {
+                loadTemplate(card.getAttribute('data-template'));
+                document.getElementById('modal-templates').classList.add('hidden');
+            });
+        });
+
+        function loadTemplate(name) {
+            state.elements = [];
+            state.selectedIds = [];
+
+            if (name === 'kanban') {
+                state.elements = [
+                    { id: 'f1', type: 'frame', x: 100, y: 100, width: 280, height: 500, title: 'Por Hacer' },
+                    { id: 'f2', type: 'frame', x: 410, y: 100, width: 280, height: 500, title: 'En Proceso' },
+                    { id: 'f3', type: 'frame', x: 720, y: 100, width: 280, height: 500, title: 'Hecho' },
+                    { id: 's1', type: 'sticky', x: 120, y: 150, width: 240, height: 110, color: '#fef08a', text: 'Investigación de usuarios' },
+                    { id: 's2', type: 'sticky', x: 120, y: 280, width: 240, height: 110, color: '#fed7aa', text: 'Diseñar interfaz UI' },
+                    { id: 's3', type: 'sticky', x: 430, y: 150, width: 240, height: 110, color: '#bfdbfe', text: 'Desarrollar Canvas Engine' },
+                    { id: 's4', type: 'sticky', x: 740, y: 150, width: 240, height: 110, color: '#bbf7d0', text: 'Publicar versión 1.0' }
+                ];
+            } else if (name === 'brainstorm') {
+                state.elements = [
+                    { id: 'f1', type: 'frame', x: 100, y: 100, width: 700, height: 480, title: 'Ideación - Nuevas Funciones' },
+                    { id: 's1', type: 'sticky', x: 140, y: 160, width: 160, height: 120, color: '#fef08a', text: '¿Integración con IA?' },
+                    { id: 's2', type: 'sticky', x: 330, y: 160, width: 160, height: 120, color: '#fbcfe8', text: 'Modo Oscuro' },
+                    { id: 's3', type: 'sticky', x: 520, y: 160, width: 160, height: 120, color: '#e9d5ff', text: 'Videollamada en vivo' }
+                ];
+            } else if (name === 'mindmap') {
+                state.elements = [
+                    { id: 'c1', type: 'circle', x: 400, y: 300, width: 160, height: 100, color: '#e0e7ff', strokeColor: '#4338ca', strokeWidth: 3, text: 'Lanzamiento App' },
+                    { id: 's1', type: 'sticky', x: 140, y: 140, width: 150, height: 100, color: '#fef08a', text: 'Estrategia SEO' },
+                    { id: 's2', type: 'sticky', x: 670, y: 140, width: 150, height: 100, color: '#fbcfe8', text: 'Redes Sociales' },
+                    { id: 'a1', type: 'arrow', x: 390, y: 290, width: -100, height: -60, strokeColor: '#6366f1', strokeWidth: 2 },
+                    { id: 'a2', type: 'arrow', x: 570, y: 290, width: 100, height: -60, strokeColor: '#6366f1', strokeWidth: 2 }
+                ];
+            } else if (name === 'retro') {
+                state.elements = [
+                    { id: 'f1', type: 'frame', x: 100, y: 100, width: 280, height: 480, title: 'Empezar a hacer' },
+                    { id: 'f2', type: 'frame', x: 410, y: 100, width: 280, height: 480, title: 'Dejar de hacer' },
+                    { id: 'f3', type: 'frame', x: 720, y: 100, width: 280, height: 480, title: 'Continuar haciendo' },
+                    { id: 's1', type: 'sticky', x: 120, y: 160, width: 240, height: 100, color: '#bbf7d0', text: 'Automatizar Tests' },
+                    { id: 's2', type: 'sticky', x: 430, y: 160, width: 240, height: 100, color: '#fbcfe8', text: 'Reuniones de más de 1h' }
+                ];
+            }
+
+            saveState();
+            fitToScreen();
+        }
+
+        // KEYBOARD SHORTCUTS
+        document.getElementById('btn-shortcuts').addEventListener('click', () => {
+            document.getElementById('modal-shortcuts').classList.remove('hidden');
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            if (e.key === 'v' || e.key === 'V') setTool('select');
+            if (e.key === 'h' || e.key === 'H') setTool('hand');
+            if (e.key === 'n' || e.key === 'N') setTool('sticky');
+            if (e.key === 't' || e.key === 'T') setTool('text');
+            if (e.key === 'p' || e.key === 'P') setTool('pencil');
+            if (e.key === 'a' || e.key === 'A') setTool('arrow');
+            if (e.key === 'e' || e.key === 'E') setTool('eraser');
+            if (e.key === 'f' || e.key === 'F') setTool('frame');
+            if (e.key === 'c' || e.key === 'C') setTool('comment');
+            if (e.key === '?') document.getElementById('modal-shortcuts').classList.remove('hidden');
+
+            if (e.key === 'Delete' || e.key === 'Backspace') deleteSelected();
+
+            if (e.ctrlKey && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); undo(); }
+            if (e.ctrlKey && (e.key === 'y' || e.key === 'Y')) { e.preventDefault(); redo(); }
+
+            if (e.ctrlKey && (e.key === 'c' || e.key === 'C')) {
+                state.copiedElements = state.elements.filter(el => state.selectedIds.includes(el.id));
+            }
+            if (e.ctrlKey && (e.key === 'v' || e.key === 'V')) {
+                if (state.copiedElements.length > 0) {
+                    const newIds = [];
+                    state.copiedElements.forEach(el => {
+                        const copy = JSON.parse(JSON.stringify(el));
+                        copy.id = generateId();
+                        copy.x += 30; copy.y += 30;
+                        state.elements.push(copy);
+                        newIds.push(copy.id);
+                    });
+                    state.selectedIds = newIds;
+                    saveState(); render();
+                }
+            }
+            if (e.ctrlKey && (e.key === 'd' || e.key === 'D')) { e.preventDefault(); duplicateSelected(); }
+
+            if (e.key === ' ') {
+                e.preventDefault();
+                canvas.style.cursor = 'grabbing';
+                state.isPanning = true;
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.key === ' ') {
+                state.isPanning = false;
+                canvas.style.cursor = state.tool === 'hand' ? 'grab' : 'default';
+            }
+        });
+
+        function generateId() {
+            return '_' + Math.random().toString(36).substr(2, 9);
+        }
+    </script>
+</body>
+</html>
