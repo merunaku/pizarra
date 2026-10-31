@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Prueba de Integración Google Drive - Profesor/Alumnos</title>
+  <title>Conexión Google Drive - Integración Pizarra</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -53,7 +53,7 @@
 </head>
 <body>
 
-  <h2>Conexión Google Drive (Control de Roles)</h2>
+  <h2>Conexión a Google Drive</h2>
 
   <!-- 1. Autenticación -->
   <div class="box">
@@ -63,15 +63,15 @@
     <p id="roleBadge"></p>
   </div>
 
-  <!-- 2. Zona de Profesor (Edición/Guardado) -->
+  <!-- 2. Zona de Profesor -->
   <div class="box">
-    <h3>2. Panel de Profesor (Solo Edición)</h3>
-    <p>Guarda una pizarra de prueba en Google Drive. Se compartirá automáticamente en modo lectura pública.</p>
+    <h3>2. Panel de Profesor (Edición/Guardado)</h3>
+    <p>Guarda una pizarra en tu Google Drive. Se compartirá automáticamente en modo lectura para cualquier alumno.</p>
     <input type="text" id="boardTitle" placeholder="Nombre de la clase/pizarra" style="padding: 8px; width: 60%;" disabled>
     <button id="saveBtn" onclick="saveWhiteboardTest()" disabled>Guardar Pizarra en Drive</button>
   </div>
 
-  <!-- 3. Zona de Alumnos y Profesor (Lectura/Carga) -->
+  <!-- 3. Zona de Alumnos y Profesor -->
   <div class="box">
     <h3>3. Pizarras Disponibles (Profesor y Alumnos)</h3>
     <button id="listBtn" onclick="listWhiteboards()" disabled>Buscar / Actualizar Pizarras</button>
@@ -81,13 +81,13 @@
   <!-- 4. Vista previa de datos cargados -->
   <div class="box">
     <h3>Contenido de la Pizarra Seleccionada</h3>
-    <pre id="fileContent" style="background: #eee; padding: 10px; border-radius: 4px;">Selecciona una pizarra para ver sus datos.</pre>
+    <pre id="fileContent" style="background: #eee; padding: 10px; border-radius: 4px; overflow-x: auto;">Selecciona una pizarra para ver sus datos.</pre>
   </div>
 
   <script>
-    // ⚠️ CONFIGURACIÓN:
-    const CLIENT_ID = 'TU_CLIENT_ID_AQUI.apps.googleusercontent.com';
-    const TEACHER_EMAIL = 'tu_correo_profesor@gmail.com'; // Correo exacto del profesor
+      // Configuración de credenciales y roles
+      const CLIENT_ID = '105539045721-rqso8ee1qvak0f35lm72dl0iqgaisqqe.apps.googleusercontent.com';
+      const TEACHER_EMAIL = 'ingeniero.diego.bustamante@gmail.com';
 
     const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email';
 
@@ -101,7 +101,11 @@
         client_id: CLIENT_ID,
         scope: SCOPES,
         callback: async (response) => {
-          if (response.error) return console.error(response);
+          if (response.error) {
+            console.error('Error OAuth:', response);
+            alert('Error al iniciar sesión: ' + response.error);
+            return;
+          }
           
           accessToken = response.access_token;
           await fetchUserProfile();
@@ -111,10 +115,6 @@
     }
 
     function handleAuthClick() {
-      if (CLIENT_ID.includes('TU_CLIENT_ID_AQUI')) {
-        alert('Ingresa un CLIENT_ID válido en el código.');
-        return;
-      }
       tokenClient.requestAccessToken({ prompt: 'consent' });
     }
 
@@ -151,11 +151,10 @@
       listWhiteboards();
     }
 
-    // GUARDAR (Solo Profesor): Crea archivo y le asigna permiso público de lectura
+    // GUARDAR (Solo Profesor)
     async function saveWhiteboardTest() {
       const title = document.getElementById('boardTitle').value.trim() || 'Clase sin título';
       
-      // Datos de ejemplo que representan el dibujo o estado de la pizarra
       const whiteboardData = {
         title: title,
         teacher: currentUserEmail,
@@ -173,7 +172,6 @@
       formData.append('file', new Blob([JSON.stringify(whiteboardData, null, 2)], { type: 'application/json' }));
 
       try {
-        // 1. Subir archivo
         const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
           method: 'POST',
           headers: { Authorization: `Bearer ${accessToken}` },
@@ -182,9 +180,8 @@
         const file = await response.json();
 
         if (response.ok) {
-          // 2. Hacerlo accesible a CUALQUIER alumno sin registrar correos previa
           await setPublicReadPermission(file.id);
-          alert('Pizarra guardada y publicada para los alumnos con éxito.');
+          alert('Pizarra guardada en Drive y compartida en modo lectura.');
           listWhiteboards();
         } else {
           alert('Error al guardar: ' + file.error.message);
@@ -194,7 +191,7 @@
       }
     }
 
-    // Otorga permiso de lectura a cualquiera que tenga acceso
+    // Asignar permiso de lectura pública
     async function setPublicReadPermission(fileId) {
       await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
         method: 'POST',
@@ -209,7 +206,7 @@
       });
     }
 
-    // LISTAR: Muestra las pizarras disponibles
+    // LISTAR Pizarras
     async function listWhiteboards() {
       try {
         const response = await fetch("https://www.googleapis.com/drive/v3/files?q=name+contains+'PIZARRA_'&fields=files(id,name,createdTime)", {
@@ -236,7 +233,7 @@
       }
     }
 
-    // LEER: Obtiene los datos del archivo seleccionado
+    // LEER Pizarra
     async function readWhiteboard(fileId) {
       try {
         const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
