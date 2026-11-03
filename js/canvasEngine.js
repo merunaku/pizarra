@@ -73,13 +73,51 @@ export function getElementBounds(el) {
 }
 
 /**
- * Determina si un punto dado está dentro de un elemento
+ * Distancia de un punto a un segmento rectilíneo
+ */
+function distToSegment(p, a, b) {
+    const l2 = (b.x - a.x) ** 2 + (b.y - a.y) ** 2;
+    if (l2 === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+    let t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / l2;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(p.x - (a.x + t * (b.x - a.x)), p.y - (a.y + t * (b.y - a.y)));
+}
+
+/**
+ * Distancia de un punto a una curva cuadrática Bézier
+ */
+function distToQuadraticCurve(p, p0, cp, p1) {
+    let minDist = Infinity;
+    const steps = 25;
+    let prev = p0;
+    for (let i = 1; i <= steps; i++) {
+        const t = i / steps;
+        const curr = {
+            x: (1 - t) * (1 - t) * p0.x + 2 * (1 - t) * t * cp.x + t * t * p1.x,
+            y: (1 - t) * (1 - t) * p0.y + 2 * (1 - t) * t * cp.y + t * t * p1.y
+        };
+        const d = distToSegment(p, prev, curr);
+        if (d < minDist) minDist = d;
+        prev = curr;
+    }
+    return minDist;
+}
+
+/**
+ * Determina si un punto dado está dentro de un elemento (Ajustado para conectores y curvas)
  */
 export function isPointInElement(pt, el) {
     if (el.type === 'connector') {
-        const endX = el.endX !== undefined ? el.endX : el.x + 100;
-        const endY = el.endY !== undefined ? el.endY : el.y + 100;
-        return Math.hypot(pt.x - el.x, pt.y - el.y) < 15 || Math.hypot(pt.x - endX, pt.y - endY) < 15;
+        const start = { x: el.x, y: el.y };
+        const end = { x: el.endX !== undefined ? el.endX : el.x + 100, y: el.endY !== undefined ? el.endY : el.y + 100 };
+        const threshold = Math.max(14, ((el.strokeWidth || 2) + 8)) / state.zoom;
+
+        if (el.connType && el.connType.startsWith('curved')) {
+            const cp = el.cp || { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 - 40 };
+            return distToQuadraticCurve(pt, start, cp, end) <= threshold;
+        } else {
+            return distToSegment(pt, start, end) <= threshold;
+        }
     }
     const b = getElementBounds(el);
     return pt.x >= b.x && pt.x <= b.x + b.width && pt.y >= b.y && pt.y <= b.y + b.height;
@@ -361,19 +399,24 @@ function drawConnector(ctx, el) {
     const startX = el.x, startY = el.y;
     const endX = el.endX !== undefined ? el.endX : el.x + 100;
     const endY = el.endY !== undefined ? el.endY : el.y + 100;
+    const arrowSize = el.arrowSize || Math.max(10, (el.strokeWidth || 2) * 3 + 4);
 
-    if (el.connType === 'curved') {
+    const isCurved = el.connType && el.connType.startsWith('curved');
+    const hasEndArrow = el.connType === 'arrow' || el.connType === 'double-arrow' || el.connType === 'curved-arrow' || el.connType === 'curved-double-arrow';
+    const hasStartArrow = el.connType === 'double-arrow' || el.connType === 'curved-double-arrow';
+
+    if (isCurved) {
         const cp = el.cp || { x: (startX + endX) / 2, y: (startY + endY) / 2 - 40 };
         ctx.beginPath();
         ctx.moveTo(startX, startY);
         ctx.quadraticCurveTo(cp.x, cp.y, endX, endY);
         ctx.stroke();
 
-        if (el.connType === 'arrow' || el.connType === 'double-arrow') {
-            drawArrowHead(ctx, cp.x, cp.y, endX, endY, el.strokeColor);
+        if (hasEndArrow) {
+            drawArrowHead(ctx, cp.x, cp.y, endX, endY, el.strokeColor, arrowSize);
         }
-        if (el.connType === 'double-arrow') {
-            drawArrowHead(ctx, cp.x, cp.y, startX, startY, el.strokeColor);
+        if (hasStartArrow) {
+            drawArrowHead(ctx, cp.x, cp.y, startX, startY, el.strokeColor, arrowSize);
         }
     } else {
         ctx.beginPath();
@@ -381,18 +424,17 @@ function drawConnector(ctx, el) {
         ctx.lineTo(endX, endY);
         ctx.stroke();
 
-        if (el.connType === 'arrow' || el.connType === 'double-arrow') {
-            drawArrowHead(ctx, startX, startY, endX, endY, el.strokeColor);
+        if (hasEndArrow) {
+            drawArrowHead(ctx, startX, startY, endX, endY, el.strokeColor, arrowSize);
         }
-        if (el.connType === 'double-arrow') {
-            drawArrowHead(ctx, endX, endY, startX, startY, el.strokeColor);
+        if (hasStartArrow) {
+            drawArrowHead(ctx, endX, endY, startX, startY, el.strokeColor, arrowSize);
         }
     }
     ctx.setLineDash([]);
 }
 
-function drawArrowHead(ctx, fromX, fromY, toX, toY, color) {
-    const headlen = 10;
+function drawArrowHead(ctx, fromX, fromY, toX, toY, color, headlen = 12) {
     const angle = Math.atan2(toY - fromY, toX - fromX);
     ctx.fillStyle = color || '#1e293b';
     ctx.beginPath();
