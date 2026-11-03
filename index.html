@@ -301,18 +301,21 @@
                 <i class="fa-solid fa-arrows-alt-h text-base"></i>
                 <i class="fa-solid fa-caret-right text-[9px] opacity-40"></i>
             </button>
-            <div id="menu-connector" class="flyout-menu hidden absolute left-full top-0 ml-3 glass-panel p-2 rounded-xl shadow-xl border border-slate-200 z-50 flex flex-col gap-1 w-40 bg-white">
-                <button class="conn-opt flex items-center gap-2 p-2 rounded-lg text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700" data-conn="line">
-                    <i class="fa-solid fa-minus"></i> Recta
+            <div id="menu-connector" class="flyout-menu flyout-bottom hidden absolute left-full ml-3 glass-panel p-2 rounded-xl shadow-xl border border-slate-200 z-50 flex flex-col gap-1 w-48 bg-white">
+                <button class="conn-opt flex items-center gap-2 p-1.5 rounded-lg text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700" data-conn="line">
+                    <i class="fa-solid fa-minus w-4 text-center"></i> Recta
                 </button>
-                <button class="conn-opt flex items-center gap-2 p-2 rounded-lg text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700" data-conn="arrow">
-                    <i class="fa-solid fa-arrow-right"></i> Flecha
+                <button class="conn-opt flex items-center gap-2 p-1.5 rounded-lg text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700" data-conn="arrow">
+                    <i class="fa-solid fa-arrow-right w-4 text-center"></i> Flecha Recta
                 </button>
-                <button class="conn-opt flex items-center gap-2 p-2 rounded-lg text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700" data-conn="double-arrow">
-                    <i class="fa-solid fa-arrow-right-arrow-left"></i> Doble Flecha
+                <button class="conn-opt flex items-center gap-2 p-1.5 rounded-lg text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700" data-conn="curved">
+                    <i class="fa-solid fa-route text-amber-500 w-4 text-center"></i> Curva
                 </button>
-                <button class="conn-opt flex items-center gap-2 p-2 rounded-lg text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700" data-conn="curved">
-                    <i class="fa-solid fa-route text-amber-500"></i> Curva
+                <button class="conn-opt flex items-center gap-2 p-1.5 rounded-lg text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700" data-conn="curved-arrow">
+                    <i class="fa-solid fa-arrow-trend-up text-amber-500 w-4 text-center"></i> Flecha Curva
+                </button>
+                <button class="conn-opt flex items-center gap-2 p-1.5 rounded-lg text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700" data-conn="curved-double-arrow">
+                    <i class="fa-solid fa-arrows-left-right-to-line text-amber-500 w-4 text-center"></i> Doble Flecha Curva
                 </button>
             </div>
         </div>
@@ -355,6 +358,12 @@
         <div id="ctx-group-width" class="flex items-center gap-1 w-20">
             <span class="text-[10px] font-bold text-slate-400 uppercase">Grosor</span>
             <input id="ctx-stroke-width" type="range" min="1" max="20" value="2" class="w-full accent-indigo-600" />
+        </div>
+
+        <!-- Arrow Size Control -->
+        <div id="ctx-group-arrow-size" class="hidden flex items-center gap-1 w-24">
+            <span class="text-[10px] font-bold text-slate-400 uppercase">Flecha</span>
+            <input id="ctx-arrow-size" type="range" min="6" max="32" value="14" class="w-full accent-indigo-600" title="Tamaño de punta de flecha" />
         </div>
 
         <!-- Stroke Style -->
