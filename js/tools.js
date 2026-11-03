@@ -305,35 +305,51 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
 
     // PEGAR IMÁGENES DESDE EL PORTAPAPELES (CTRL + V)
     window.addEventListener('paste', (e) => {
-        const items = e.clipboardData || e.clipboardData.items;
-        if (!items) return;
+        if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+            if (document.activeElement.id !== 'inline-text-editor') return;
+        }
 
-        for (let i = 0; i < items.length; i++) {
-            if (items[i].type.indexOf('image') !== -1) {
-                const blob = items[i].getAsFile();
-                const reader = new FileReader();
-                reader.onload = (evt) => {
-                    const img = new Image();
-                    img.src = evt.target.result;
-                    img.onload = () => {
-                        const center = screenToWorld(window.innerWidth / 2, window.innerHeight / 2, canvas);
-                        const newId = 'img_' + Date.now();
-                        state.elements.push({
-                            id: newId,
-                            type: 'image',
-                            x: center.x - img.width / 4,
-                            y: center.y - img.height / 4,
-                            width: img.width / 2,
-                            height: img.height / 2,
-                            src: evt.target.result,
-                            imgElement: img
-                        });
-                        saveState();
-                        if (renderCallback) renderCallback();
-                    };
-                };
-                reader.readAsDataURL(blob);
+        const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
+        const files = (e.clipboardData || e.originalEvent?.clipboardData)?.files;
+
+        if (files && files.length > 0) {
+            for (let i = 0; i < files.length; i++) {
+                if (files[i].type.startsWith('image/')) {
+                    processImageFile(files[i], canvas);
+                }
+            }
+        } else if (items) {
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    const blob = items[i].getAsFile();
+                    if (blob) processImageFile(blob, canvas);
+                }
             }
         }
     });
+}
+
+function processImageFile(blob, canvas) {
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+        const img = new Image();
+        img.src = evt.target.result;
+        img.onload = () => {
+            const center = screenToWorld(window.innerWidth / 2, window.innerHeight / 2, canvas);
+            const newId = 'img_' + Date.now();
+            state.elements.push({
+                id: newId,
+                type: 'image',
+                x: center.x - img.width / 4,
+                y: center.y - img.height / 4,
+                width: img.width / 2,
+                height: img.height / 2,
+                src: evt.target.result,
+                imgElement: img
+            });
+            saveState();
+            if (renderCallback) renderCallback();
+        };
+    };
+    reader.readAsDataURL(blob);
 }
