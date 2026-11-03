@@ -58,31 +58,38 @@ export function updateContextToolbar() {
     const groupFill = document.getElementById('ctx-group-fill');
     const groupStroke = document.getElementById('ctx-group-stroke');
     const groupWidth = document.getElementById('ctx-group-width');
+    const groupArrowSize = document.getElementById('ctx-group-arrow-size');
     const groupStyle = document.getElementById('ctx-stroke-style');
     const groupFont = document.getElementById('ctx-group-font');
     const groupSmoothing = document.getElementById('ctx-group-smoothing');
     const btnEditText = document.getElementById('ctx-edit-text');
     const sepEdit = document.getElementById('ctx-sep-edit');
 
-    [groupFill, groupStroke, groupWidth, groupStyle, groupFont, groupSmoothing, btnEditText, sepEdit].forEach(g => g && g.classList.remove('hidden'));
+    [groupFill, groupStroke, groupWidth, groupArrowSize, groupStyle, groupFont, groupSmoothing, btnEditText, sepEdit].forEach(g => g && g.classList.remove('hidden'));
 
     if (selected.type === 'text') {
-        [groupFill, groupStroke, groupWidth, groupStyle, groupSmoothing].forEach(g => g && g.classList.add('hidden'));
+        [groupFill, groupStroke, groupWidth, groupArrowSize, groupStyle, groupSmoothing].forEach(g => g && g.classList.add('hidden'));
     } else if (selected.type === 'sticky') {
-        [groupStroke, groupWidth, groupStyle, groupSmoothing].forEach(g => g && g.classList.add('hidden'));
+        [groupStroke, groupWidth, groupArrowSize, groupStyle, groupSmoothing].forEach(g => g && g.classList.add('hidden'));
     } else if (selected.type === 'pencil' || selected.type === 'highlighter') {
-        [groupFill, groupStyle, groupFont, btnEditText, sepEdit].forEach(g => g && g.classList.add('hidden'));
+        [groupFill, groupArrowSize, groupStyle, groupFont, btnEditText, sepEdit].forEach(g => g && g.classList.add('hidden'));
         if (groupSmoothing) {
             const smInput = document.getElementById('ctx-smoothing');
             if (smInput) smInput.value = selected.smoothing !== undefined ? selected.smoothing : state.smoothing;
         }
     } else if (selected.type === 'connector') {
         [groupFill, groupFont, groupSmoothing, btnEditText, sepEdit].forEach(g => g && g.classList.add('hidden'));
+        if (groupArrowSize) {
+            const arrowInput = document.getElementById('ctx-arrow-size');
+            if (arrowInput) arrowInput.value = selected.arrowSize || 14;
+        }
+    } else {
+        if (groupArrowSize) groupArrowSize.classList.add('hidden');
     }
 }
 
 /**
- * Conecta los eventos de la interfaz de usuario (botones, selectores, modales, etc.)
+ * Conecta los eventos de la interfaz de usuario
  */
 export function setupUIListeners(canvas, ctx, renderFn) {
     renderCallback = renderFn;
@@ -214,6 +221,20 @@ export function setupUIListeners(canvas, ctx, renderFn) {
             state.selectedIds.forEach(id => {
                 const el = state.elements.find(m => m.id === id);
                 if (el) { el.strokeWidth = parseInt(e.target.value); el.lineWidth = parseInt(e.target.value); }
+            });
+            saveState(); if (renderCallback) renderCallback();
+        });
+    }
+
+    const ctxArrowSize = document.getElementById('ctx-arrow-size');
+    if (ctxArrowSize) {
+        ctxArrowSize.addEventListener('input', (e) => {
+            const size = parseInt(e.target.value);
+            state.selectedIds.forEach(id => {
+                const el = state.elements.find(m => m.id === id);
+                if (el && el.type === 'connector') {
+                    el.arrowSize = size;
+                }
             });
             saveState(); if (renderCallback) renderCallback();
         });
