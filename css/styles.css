@@ -71,3 +71,31 @@ outline: none;
 overflow: hidden;
 display: none;
 }
+
+/ Active Tool Highlight */
+.tool-btn.active {
+background-color: #4f46e5 !important;
+color: #ffffff !important;
+box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
+}
+
+/* Compact Tool Buttons & Flyout Menus */
+.tool-btn {
+padding: 0.6rem !important;
+}
+
+.flyout-menu {
+max-height: calc(100vh - 120px);
+overflow-y: auto;
+}
+
+/* Flyout positioning fix for bottom sidebar items */
+.flyout-bottom {
+top: auto !important;
+bottom: 0 !important;
+}
+
+/* Color Swatches /
+.color-dot {
+width: 22px;
+height: 22px;
