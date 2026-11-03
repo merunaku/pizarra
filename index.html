@@ -3,88 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MiroBoard Pro - Pizarra Online Interactiva</title>
+    <title>Pizarra ProfeDiego - Pizarra Online Interactiva</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome 6 Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
     <!-- Google Identity Services (GIS) for Google Drive Login -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        
-        body {
-            font-family: 'Inter', sans-serif;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-
-        /* Glassmorphism Panel */
-        .glass-panel {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(226, 232, 240, 0.9);
-        }
-
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-        ::-webkit-scrollbar-track {
-            background: rgba(0, 0, 0, 0.04);
-        }
-        ::-webkit-scrollbar-thumb {
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 9999px;
-        }
-
-        /* Active Tool Highlight */
-        .tool-btn.active {
-            background-color: #4f46e5 !important;
-            color: #ffffff !important;
-            box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
-        }
-
-        /* Color Swatches */
-        .color-dot {
-            width: 22px;
-            height: 22px;
-            border-radius: 50%;
-            cursor: pointer;
-            transition: transform 0.12s ease, box-shadow 0.12s ease;
-            border: 2px solid rgba(0,0,0,0.12);
-        }
-        .color-dot:hover {
-            transform: scale(1.2);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-        }
-        .color-dot.active {
-            outline: 2px solid #4f46e5;
-            outline-offset: 2px;
-        }
-
-        canvas {
-            touch-action: none;
-        }
-
-        /* Inline Textarea Editor Overlay */
-        #inline-text-editor {
-            position: absolute;
-            z-index: 100;
-            background: rgba(255, 255, 255, 0.98);
-            border: 2px solid #4f46e5;
-            border-radius: 8px;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.25);
-            padding: 8px;
-            font-family: 'Inter', sans-serif;
-            resize: none;
-            outline: none;
-            overflow: hidden;
-            display: none;
-        }
-    </style>
+    <!-- Custom CSS Styles -->
+    <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body class="h-full w-full overflow-hidden text-slate-800 bg-slate-100 flex flex-col relative">
 
@@ -93,10 +20,10 @@
         <!-- Left: Logo & Board Title -->
         <div class="flex items-center gap-3">
             <div class="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-md shadow-indigo-200 font-bold text-lg">
-                <i class="fa-solid fa-square-poll-vertical"></i>
+                <i class="fa-solid fa-chalkboard-user"></i>
             </div>
             <div class="flex flex-col">
-                <input id="board-title" type="text" value="Mi Pizarra de Trabajo" class="font-bold text-sm text-slate-800 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-indigo-400 rounded px-1 -ml-1 transition-all hover:bg-slate-100/80" />
+                <input id="board-title" type="text" value="Pizarra ProfeDiego" class="font-bold text-sm text-slate-800 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-indigo-400 rounded px-1 -ml-1 transition-all hover:bg-slate-100/80" />
                 <span id="sync-status-badge" class="text-[10px] text-slate-500 font-medium -mt-1 ml-0.5 flex items-center gap-1">
                     <i class="fa-solid fa-circle text-[6px] text-emerald-500"></i> Local (Guardado Automático)
                 </span>
@@ -119,12 +46,18 @@
             </button>
         </div>
 
-        <!-- Right: Google Drive Login Account, Clear & Export -->
+        <!-- Right: Google Drive Account, Clear & Export -->
         <div class="flex items-center gap-2">
+            <!-- Google Drive Profile Header Badge -->
+            <div id="header-user-profile" class="hidden flex items-center gap-2 bg-emerald-50/80 border border-emerald-200 px-2.5 py-1 rounded-xl">
+                <img id="header-user-avatar" src="" alt="Avatar" class="w-5 h-5 rounded-full border border-emerald-500 object-cover" />
+                <span id="header-user-name" class="text-xs font-bold text-emerald-900 max-w-[90px] truncate"></span>
+            </div>
+
             <!-- Google Drive Account Button -->
             <button id="btn-gdrive-account" class="flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 px-3 py-1.5 rounded-xl font-semibold text-xs transition-all">
                 <i class="fa-brands fa-google-drive text-emerald-600 text-sm"></i>
-                <span id="gdrive-user-label">Conectar Google Drive</span>
+                <span id="gdrive-user-label">Google Drive</span>
             </button>
 
             <button id="btn-clear-board" title="Limpiar Pizarra" class="p-2 hover:bg-red-50 text-slate-500 hover:text-red-600 rounded-xl transition-all">
@@ -160,7 +93,7 @@
         </div>
     </header>
 
-    <!-- GOOGLE DRIVE INTEGRATION & ACCOUNT MODAL -->
+    <!-- GOOGLE DRIVE INTEGRATION MODAL -->
     <div id="modal-gdrive" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
         <div class="glass-panel w-full max-w-lg rounded-3xl shadow-2xl p-6 flex flex-col gap-5 border border-slate-200 bg-white">
             <div class="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -176,11 +109,11 @@
                 <button id="btn-close-gdrive" class="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100"><i class="fa-solid fa-xmark text-base"></i></button>
             </div>
 
-            <!-- Account Connection Status Box -->
+            <!-- Account Status Box -->
             <div id="gdrive-login-box" class="p-4 bg-emerald-50/70 border border-emerald-200 rounded-2xl flex flex-col gap-3">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-3">
-                        <img id="gdrive-user-avatar" src="https://placehold.co/40x40/10b981/ffffff?text=G" class="w-10 h-10 rounded-full border border-emerald-300 shadow-sm" />
+                        <img id="gdrive-user-avatar" src="https://placehold.co/40x40/10b981/ffffff?text=P" class="w-10 h-10 rounded-full border border-emerald-300 shadow-sm" />
                         <div class="flex flex-col">
                             <span id="gdrive-user-name" class="font-bold text-xs text-slate-800">Cuenta de Google</span>
                             <span id="gdrive-user-email" class="text-[11px] text-slate-500">No conectado</span>
@@ -200,19 +133,17 @@
 
             <!-- Drive File Operations -->
             <div class="flex flex-col gap-2.5">
-                <!-- Save directly to Google Drive Folder -->
                 <button id="btn-gdrive-save-direct" class="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 hover:bg-emerald-50/80 border border-slate-200 hover:border-emerald-300 text-slate-800 font-medium text-xs transition-all group">
                     <div class="flex items-center gap-3">
                         <i class="fa-solid fa-cloud-arrow-up text-emerald-600 text-xl group-hover:scale-110 transition-transform"></i>
                         <div class="flex flex-col text-left">
                             <span class="font-bold text-slate-800">Guardar Pizarra en Google Drive</span>
-                            <span class="text-[10px] text-slate-500">Crea o actualiza el archivo en la carpeta 'MiroBoard Pro' de tu Drive</span>
+                            <span class="text-[10px] text-slate-500">Crea o actualiza el archivo en la carpeta 'Pizarra ProfeDiego'</span>
                         </div>
                     </div>
                     <i class="fa-solid fa-angle-right text-slate-400 group-hover:text-emerald-600"></i>
                 </button>
 
-                <!-- List & Load Saved Pizarras from Google Drive -->
                 <button id="btn-gdrive-list-files" class="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 hover:bg-indigo-50/80 border border-slate-200 hover:border-indigo-300 text-slate-800 font-medium text-xs transition-all group">
                     <div class="flex items-center gap-3">
                         <i class="fa-solid fa-folder-open text-indigo-600 text-xl group-hover:scale-110 transition-transform"></i>
@@ -224,7 +155,6 @@
                     <i class="fa-solid fa-angle-right text-slate-400 group-hover:text-indigo-600"></i>
                 </button>
 
-                <!-- Auto-Sync Toggle -->
                 <div class="flex items-center justify-between p-3 bg-slate-100/70 border border-slate-200 rounded-2xl">
                     <div class="flex items-center gap-2 text-xs font-semibold text-slate-700">
                         <i class="fa-solid fa-arrows-rotate text-indigo-600"></i>
@@ -394,33 +324,6 @@
 
         <div class="h-px bg-slate-200 my-0.5"></div>
 
-        <!-- Frames -->
-        <div class="relative">
-            <button id="tool-frame" data-tool="frame" data-flyout="menu-frame" title="Marcos y Secciones" class="tool-btn has-flyout p-3 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-between gap-1 w-full transition-all">
-                <i class="fa-solid fa-crop text-base"></i>
-                <i class="fa-solid fa-caret-right text-[9px] opacity-40"></i>
-            </button>
-            <div id="menu-frame" class="flyout-menu hidden absolute left-full top-0 ml-3 glass-panel p-2 rounded-xl shadow-xl border border-slate-200 z-50 flex flex-col gap-1 w-44 bg-white">
-                <button class="frame-opt flex items-center gap-2 p-2 rounded-lg text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700" data-frame="free">
-                    <i class="fa-regular fa-square"></i> Marco Libre
-                </button>
-                <button class="frame-opt flex items-center gap-2 p-2 rounded-lg text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700" data-frame="16:9">
-                    <i class="fa-solid fa-desktop"></i> Presentación 16:9
-                </button>
-                <button class="frame-opt flex items-center gap-2 p-2 rounded-lg text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700" data-frame="A4">
-                    <i class="fa-regular fa-file"></i> Documento A4
-                </button>
-                <button class="frame-opt flex items-center gap-2 p-2 rounded-lg text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700" data-frame="mobile">
-                    <i class="fa-solid fa-mobile-screen"></i> Móvil
-                </button>
-            </div>
-        </div>
-
-        <!-- Comments Pin (C) -->
-        <button id="tool-comment" data-tool="comment" title="Comentario / Pin (C)" class="tool-btn p-3 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-all">
-            <i class="fa-regular fa-comment-dots text-base"></i>
-        </button>
-
         <!-- Image Upload -->
         <label title="Subir Imagen" class="tool-btn p-3 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-center cursor-pointer transition-all">
             <i class="fa-regular fa-image text-base"></i>
@@ -474,7 +377,7 @@
             </select>
         </div>
 
-        <!-- Stroke Smoothing Slider (For pencil/highlighter) -->
+        <!-- Stroke Smoothing Slider -->
         <div id="ctx-group-smoothing" class="flex items-center gap-1 w-24">
             <span class="text-[10px] font-bold text-slate-400 uppercase">Suavizado</span>
             <input id="ctx-smoothing" type="range" min="0" max="10" value="5" class="w-full accent-indigo-600" />
@@ -492,9 +395,8 @@
         <div class="flex items-center gap-1">
             <button id="ctx-bring-front" title="Traer al Frente" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600"><i class="fa-solid fa-layer-group text-xs"></i></button>
             <button id="ctx-send-back" title="Enviar al Fondo" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600"><i class="fa-solid fa-arrow-down-short-wide text-xs"></i></button>
-            <button id="ctx-duplicate" title="Duplicar (Ctrl+D)" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600"><i class="fa-regular fa-copy text-xs"></i></button>
-            <button id="ctx-lock" title="Bloquear / Desbloquear" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600"><i id="ctx-lock-icon" class="fa-solid fa-unlock text-xs"></i></button>
-            <button id="ctx-delete" title="Eliminar (Supr)" class="p-1.5 hover:bg-red-50 text-red-500 rounded-lg"><i class="fa-solid fa-trash-can text-xs"></i></button>
+            <button id="ctx-duplicate" title="Duplicar" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600"><i class="fa-regular fa-copy text-xs"></i></button>
+            <button id="ctx-delete" title="Eliminar" class="p-1.5 hover:bg-red-50 text-red-500 rounded-lg"><i class="fa-solid fa-trash-can text-xs"></i></button>
         </div>
     </div>
 
@@ -506,7 +408,6 @@
 
     <!-- BOTTOM RIGHT ZOOM CONTROLS & MINIMAP -->
     <div class="fixed bottom-4 right-4 z-30 flex items-center gap-3">
-        <!-- Zoom Controls Panel -->
         <div class="glass-panel px-3 py-1.5 rounded-2xl shadow-xl border border-slate-200/90 flex items-center gap-2 bg-white">
             <button id="btn-zoom-out" title="Alejar (-)" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-700 transition-all">
                 <i class="fa-solid fa-minus text-xs"></i>
@@ -526,7 +427,7 @@
                 <i class="fa-solid fa-plus text-xs"></i>
             </button>
             <div class="h-4 w-px bg-slate-300"></div>
-            <button id="btn-zoom-fit" title="Ajustar a la Pantalla" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-700 transition-all">
+            <button id="btn-zoom-fit" title="Ajustar Pantalla" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-700 transition-all">
                 <i class="fa-solid fa-expand text-xs"></i>
             </button>
             <button id="btn-toggle-minimap" title="Ver Minimapa" class="p-1.5 hover:bg-slate-100 rounded-lg text-indigo-600 transition-all">
@@ -534,7 +435,6 @@
             </button>
         </div>
 
-        <!-- Minimap Window -->
         <div id="minimap-container" class="glass-panel p-1.5 rounded-2xl shadow-2xl border border-slate-200/90 overflow-hidden relative w-44 h-32 hidden bg-white">
             <canvas id="minimap-canvas" class="w-full h-full rounded-xl bg-slate-50 cursor-pointer"></canvas>
             <div id="minimap-viewport" class="absolute border-2 border-indigo-600 bg-indigo-500/10 rounded pointer-events-none"></div>
@@ -549,42 +449,38 @@
                     <div class="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center font-bold">
                         <i class="fa-solid fa-shapes"></i>
                     </div>
-                    <h3 class="font-bold text-lg text-slate-800">Galería de Plantillas</h3>
+                    <h3 class="font-bold text-lg text-slate-800">Plantillas de Clase</h3>
                 </div>
                 <button id="btn-close-templates" class="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100"><i class="fa-solid fa-xmark"></i></button>
             </div>
             
             <div class="grid grid-cols-2 gap-3.5">
-                <!-- Kanban -->
                 <button class="template-card text-left p-4 rounded-2xl border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/50 transition-all group flex flex-col gap-2" data-type="kanban">
                     <div class="flex items-center gap-2 text-indigo-600 font-bold text-sm">
-                        <i class="fa-solid fa-table-columns"></i> Tablero Kanban
+                        <i class="fa-solid fa-table-columns"></i> Tablero de Tareas
                     </div>
-                    <p class="text-xs text-slate-500 leading-relaxed">Organiza tareas en columnas ("Por Hacer", "En Proceso", "Hecho") con notas preparadas.</p>
+                    <p class="text-xs text-slate-500 leading-relaxed">Columnas preparadas para organizar contenidos o actividades de clase.</p>
                 </button>
 
-                <!-- Mind Map -->
                 <button class="template-card text-left p-4 rounded-2xl border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/50 transition-all group flex flex-col gap-2" data-type="mindmap">
                     <div class="flex items-center gap-2 text-indigo-600 font-bold text-sm">
-                        <i class="fa-solid fa-diagram-project"></i> Mapa Mental
+                        <i class="fa-solid fa-diagram-project"></i> Mapa Concepto Central
                     </div>
-                    <p class="text-xs text-slate-500 leading-relaxed">Nodo central conectado a 4 conceptos clave mediante líneas curvas dinámicas.</p>
+                    <p class="text-xs text-slate-500 leading-relaxed">Tema principal ramificado con líneas curvas a subtemas interactivos.</p>
                 </button>
 
-                <!-- Retrospective -->
                 <button class="template-card text-left p-4 rounded-2xl border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/50 transition-all group flex flex-col gap-2" data-type="retrospective">
                     <div class="flex items-center gap-2 text-indigo-600 font-bold text-sm">
                         <i class="fa-solid fa-comments"></i> Retrospectiva Ágil
                     </div>
-                    <p class="text-xs text-slate-500 leading-relaxed">Evalúa proyectos con secciones: "¿Qué funcionó?", "¿Qué mejorar?" y "Acciones".</p>
+                    <p class="text-xs text-slate-500 leading-relaxed">Evalúa proyectos con secciones de retroalimentación.</p>
                 </button>
 
-                <!-- Brainstorming -->
                 <button class="template-card text-left p-4 rounded-2xl border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/50 transition-all group flex flex-col gap-2" data-type="brainstorming">
                     <div class="flex items-center gap-2 text-indigo-600 font-bold text-sm">
                         <i class="fa-solid fa-lightbulb"></i> Lluvia de Ideas
                     </div>
-                    <p class="text-xs text-slate-500 leading-relaxed">Matriz de notas adhesivas clasificadas por colores para ideación rápida.</p>
+                    <p class="text-xs text-slate-500 leading-relaxed">Matriz de notas adhesivas para ideación rápida.</p>
                 </button>
             </div>
         </div>
@@ -597,7 +493,7 @@
                 <i class="fa-solid fa-trash-can"></i>
             </div>
             <h3 class="font-bold text-base text-slate-800">¿Limpiar la Pizarra?</h3>
-            <p class="text-xs text-slate-500">Se eliminarán todos los elementos dibujados. Esta acción no se puede deshacer.</p>
+            <p class="text-xs text-slate-500">Se eliminarán todos los elementos del lienzo. Esta acción no se puede deshacer.</p>
             <div class="flex gap-2 justify-center mt-2">
                 <button id="btn-cancel-clear" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">Cancelar</button>
                 <button id="btn-confirm-clear" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold">Sí, Limpiar</button>
@@ -611,1385 +507,7 @@
         <span id="toast-message">Acción completada</span>
     </div>
 
-    <!-- COMPLETE JS ENGINE -->
-    <script>
-        // GLOBAL STATE ENGINE
-        const state = {
-            elements: [],
-            selectedIds: [],
-            activeTool: 'pencil',
-            activeShape: 'rect',
-            activeConnector: 'line',
-            activeFrame: 'free',
-            pencilColor: '#1e293b',
-            pencilWidth: 3,
-            smoothing: 5,
-            hlColor: 'rgba(250, 204, 21, 0.45)',
-            hlWidth: 20,
-            stickyColor: '#fef08a',
-            pan: { x: 0, y: 0 },
-            zoom: 1.0,
-            isPanning: false,
-            isDrawing: false,
-            isDragging: false,
-            isResizing: false,
-            activeHandle: null,
-            startPoint: { x: 0, y: 0 },
-            lastMousePos: { x: 0, y: 0 },
-            history: [],
-            historyIndex: -1,
-            tempElement: null,
-            editingElementId: null,
-            // Google Drive State
-            gdriveAccessToken: null,
-            gdriveUser: null,
-            gdriveAutoSync: false
-        };
-
-        // DOM ELEMENTS
-        const canvas = document.getElementById('board-canvas');
-        const ctx = canvas.getContext('2d');
-        const minimapCanvas = document.getElementById('minimap-canvas');
-        const minimapCtx = minimapCanvas ? minimapCanvas.getContext('2d') : null;
-        const inlineEditor = document.getElementById('inline-text-editor');
-
-        // RESIZE CANVAS
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            render();
-        }
-        window.addEventListener('resize', resizeCanvas);
-
-        // COORDINATE TRANSFORMATIONS
-        function screenToWorld(sx, sy) {
-            const rect = canvas.getBoundingClientRect();
-            return {
-                x: (sx - rect.left - state.pan.x) / state.zoom,
-                y: (sy - rect.top - state.pan.y) / state.zoom
-            };
-        }
-
-        function worldToScreen(wx, wy) {
-            return {
-                x: wx * state.zoom + state.pan.x,
-                y: wy * state.zoom + state.pan.y
-            };
-        }
-
-        // UNDO / REDO / SNAPSHOT MANAGERS
-        function saveState() {
-            const snapshot = JSON.stringify(state.elements);
-            if (state.historyIndex >= 0 && state.history[state.historyIndex] === snapshot) return;
-            state.history = state.history.slice(0, state.historyIndex + 1);
-            state.history.push(snapshot);
-            if (state.history.length > 40) state.history.shift();
-            state.historyIndex = state.history.length - 1;
-            updateUndoRedoButtons();
-            try {
-                localStorage.setItem('miroboard_data', snapshot);
-                localStorage.setItem('miroboard_title', document.getElementById('board-title').value);
-            } catch (e) {}
-
-            if (state.gdriveAutoSync && state.gdriveAccessToken) {
-                saveToGoogleDriveSilently();
-            }
-        }
-
-        function undo() {
-            if (state.historyIndex > 0) {
-                state.historyIndex--;
-                restoreSnapshot(state.history[state.historyIndex]);
-                updateUndoRedoButtons();
-                updateContextToolbar();
-            }
-        }
-
-        function redo() {
-            if (state.historyIndex < state.history.length - 1) {
-                state.historyIndex++;
-                restoreSnapshot(state.history[state.historyIndex]);
-                updateUndoRedoButtons();
-                updateContextToolbar();
-            }
-        }
-
-        function updateUndoRedoButtons() {
-            const btnUndo = document.getElementById('btn-undo');
-            const btnRedo = document.getElementById('btn-redo');
-            if (btnUndo) btnUndo.disabled = state.historyIndex <= 0;
-            if (btnRedo) btnRedo.disabled = state.historyIndex >= state.history.length - 1;
-        }
-
-        function restoreSnapshot(jsonStr) {
-            try {
-                const data = JSON.parse(jsonStr);
-                state.elements = data.map(el => {
-                    if (el.type === 'image' && el.src) {
-                        const img = new Image();
-                        img.src = el.src;
-                        img.onload = () => render();
-                        el.imgElement = img;
-                    }
-                    return el;
-                });
-                state.selectedIds = [];
-                render();
-            } catch (e) {
-                console.error("Error al restaurar estado", e);
-            }
-        }
-
-        function loadFromLocalStorage() {
-            const savedData = localStorage.getItem('miroboard_data');
-            const savedTitle = localStorage.getItem('miroboard_title');
-            if (savedTitle) document.getElementById('board-title').value = savedTitle;
-            if (savedData) restoreSnapshot(savedData);
-        }
-
-        // CHAIKIN SMOOTHING ALGORITHM FOR PENCIL
-        function applyChaikinSmoothing(points, iterations) {
-            if (!points || points.length <= 2 || iterations === 0) return points;
-            let current = points;
-            for (let iter = 0; iter < iterations; iter++) {
-                const next = [current[0]];
-                for (let i = 0; i < current.length - 1; i++) {
-                    const p0 = current[i];
-                    const p1 = current[i + 1];
-                    const q = { x: 0.75 * p0.x + 0.25 * p1.x, y: 0.75 * p0.y + 0.25 * p1.y };
-                    const r = { x: 0.25 * p0.x + 0.75 * p1.x, y: 0.25 * p0.y + 0.75 * p1.y };
-                    next.push(q, r);
-                }
-                next.push(current[current.length - 1]);
-                current = next;
-            }
-            return current;
-        }
-
-        function getSmoothedPoints(rawPoints, smoothLevel) {
-            if (!rawPoints || rawPoints.length <= 2 || smoothLevel === 0) return rawPoints;
-            const minDist = 1.0 + (smoothLevel * 2.2);
-            const filtered = [rawPoints[0]];
-            for (let i = 1; i < rawPoints.length - 1; i++) {
-                const last = filtered[filtered.length - 1];
-                const dist = Math.hypot(rawPoints[i].x - last.x, rawPoints[i].y - last.y);
-                if (dist >= minDist) {
-                    filtered.push(rawPoints[i]);
-                }
-            }
-            filtered.push(rawPoints[rawPoints.length - 1]);
-            if (filtered.length <= 2) return filtered;
-            const iterations = Math.min(4, Math.ceil(smoothLevel / 2.5));
-            return applyChaikinSmoothing(filtered, iterations);
-        }
-
-        // FLYOUT MENU CONTROLLER
-        function closeAllFlyouts() {
-            document.querySelectorAll('.flyout-menu').forEach(m => m.classList.add('hidden'));
-        }
-
-        document.querySelectorAll('.has-flyout').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const flyoutId = btn.getAttribute('data-flyout');
-                const flyout = document.getElementById(flyoutId);
-                
-                document.querySelectorAll('.flyout-menu').forEach(m => {
-                    if (m !== flyout) m.classList.add('hidden');
-                });
-                if (flyout) flyout.classList.toggle('hidden');
-            });
-        });
-
-        // Close flyouts on outside click
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.flyout-menu') && !e.target.closest('.has-flyout') && !e.target.closest('#btn-export-toggle')) {
-                closeAllFlyouts();
-            }
-        });
-
-        // TOOL SELECTION
-        function setTool(toolName) {
-            state.activeTool = toolName;
-            document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
-            const activeBtn = document.querySelector(`[data-tool="${toolName}"]`);
-            if (activeBtn) activeBtn.classList.add('active');
-            closeInlineEditor();
-            if (toolName !== 'select') state.selectedIds = [];
-            updateContextToolbar();
-            render();
-        }
-
-        function showToast(msg, iconClass = 'fa-solid fa-circle-check') {
-            const toast = document.getElementById('toast-notification');
-            const icon = document.getElementById('toast-icon');
-            const message = document.getElementById('toast-message');
-            if (!toast) return;
-            if (icon) icon.className = `${iconClass} text-indigo-600`;
-            if (message) message.innerText = msg;
-            toast.classList.remove('opacity-0', 'translate-y-2');
-            setTimeout(() => toast.classList.add('opacity-0', 'translate-y-2'), 2500);
-        }
-
-        // RENDER LOOP
-        function render() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            ctx.save();
-            ctx.translate(state.pan.x, state.pan.y);
-            ctx.scale(state.zoom, state.zoom);
-
-            drawGrid();
-
-            state.elements.forEach(el => drawElement(el));
-
-            if (state.tempElement) drawElement(state.tempElement);
-
-            drawSelectionOverlay();
-
-            ctx.restore();
-
-            renderMinimap();
-        }
-
-        function drawGrid() {
-            const gridSpacing = 40;
-            const startX = Math.floor(-state.pan.x / (gridSpacing * state.zoom)) * gridSpacing - gridSpacing;
-            const startY = Math.floor(-state.pan.y / (gridSpacing * state.zoom)) * gridSpacing - gridSpacing;
-            const endX = startX + (canvas.width / state.zoom) + gridSpacing * 2;
-            const endY = startY + (canvas.height / state.zoom) + gridSpacing * 2;
-
-            ctx.fillStyle = '#cbd5e1';
-            for (let x = startX; x < endX; x += gridSpacing) {
-                for (let y = startY; y < endY; y += gridSpacing) {
-                    ctx.beginPath();
-                    ctx.arc(x, y, 1.2 / Math.sqrt(state.zoom), 0, Math.PI * 2);
-                    ctx.fill();
-                }
-            }
-        }
-
-        function drawElement(el) {
-            ctx.save();
-            ctx.globalAlpha = el.opacity !== undefined ? el.opacity : 1.0;
-
-            switch (el.type) {
-                case 'sticky':
-                    ctx.fillStyle = 'rgba(0,0,0,0.08)';
-                    ctx.fillRect(el.x + 4, el.y + 4, el.width, el.height);
-                    ctx.fillStyle = el.color || '#fef08a';
-                    ctx.fillRect(el.x, el.y, el.width, el.height);
-                    ctx.strokeStyle = 'rgba(0,0,0,0.06)';
-                    ctx.strokeRect(el.x, el.y, el.width, el.height);
-                    if (el.text) {
-                        ctx.fillStyle = '#1e293b';
-                        ctx.font = `${el.fontSize || 16}px Inter, sans-serif`;
-                        wrapText(ctx, el.text, el.x + 12, el.y + 24, el.width - 24, (el.fontSize || 16) * 1.3);
-                    }
-                    break;
-
-                case 'text':
-                    ctx.fillStyle = el.color || '#1e293b';
-                    ctx.font = `${el.fontSize || 20}px Inter, sans-serif`;
-                    ctx.fillText(el.text || 'Haz doble clic para editar', el.x, el.y + (el.fontSize || 20));
-                    break;
-
-                case 'pencil':
-                case 'highlighter':
-                    if (el.points && el.points.length > 0) {
-                        ctx.beginPath();
-                        ctx.strokeStyle = el.color;
-                        ctx.lineWidth = el.lineWidth;
-                        ctx.lineCap = 'round';
-                        ctx.lineJoin = 'round';
-
-                        const smoothVal = el.smoothing !== undefined ? el.smoothing : state.smoothing;
-                        const pts = getSmoothedPoints(el.points, smoothVal);
-
-                        if (pts.length === 1) {
-                            ctx.beginPath();
-                            ctx.arc(pts[0].x, pts[0].y, el.lineWidth / 2, 0, Math.PI * 2);
-                            ctx.fillStyle = el.color;
-                            ctx.fill();
-                        } else {
-                            ctx.moveTo(pts[0].x, pts[0].y);
-                            for (let i = 1; i < pts.length - 1; i++) {
-                                const xc = (pts[i].x + pts[i + 1].x) / 2;
-                                const yc = (pts[i].y + pts[i + 1].y) / 2;
-                                ctx.quadraticCurveTo(pts[i].x, pts[i].y, xc, yc);
-                            }
-                            ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
-                            ctx.stroke();
-                        }
-                    }
-                    break;
-
-                case 'shape':
-                    drawShape(el);
-                    break;
-
-                case 'connector':
-                    drawConnector(el);
-                    break;
-
-                case 'frame':
-                    ctx.fillStyle = '#4f46e5';
-                    ctx.fillRect(el.x, el.y - 26, Math.max(120, ctx.measureText(el.title || 'Marco').width + 24), 26);
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = 'bold 12px Inter, sans-serif';
-                    ctx.fillText(el.title || 'Marco', el.x + 10, el.y - 8);
-
-                    ctx.strokeStyle = '#4f46e5';
-                    ctx.lineWidth = 2;
-                    ctx.setLineDash([6, 6]);
-                    ctx.fillStyle = 'rgba(241, 245, 249, 0.2)';
-                    ctx.strokeRect(el.x, el.y, el.width, el.height);
-                    ctx.fillRect(el.x, el.y, el.width, el.height);
-                    ctx.setLineDash([]);
-                    break;
-
-                case 'comment':
-                    ctx.fillStyle = '#6366f1';
-                    ctx.beginPath();
-                    ctx.arc(el.x, el.y, 16, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.strokeStyle = '#ffffff';
-                    ctx.lineWidth = 2;
-                    ctx.stroke();
-
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = '12px FontAwesome';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText('\uf075', el.x, el.y);
-                    ctx.textAlign = 'start';
-                    ctx.textBaseline = 'alphabetic';
-                    break;
-
-                case 'image':
-                    if (el.imgElement && el.imgElement.complete) {
-                        ctx.drawImage(el.imgElement, el.x, el.y, el.width, el.height);
-                    } else if (el.src) {
-                        const img = new Image();
-                        img.src = el.src;
-                        img.onload = () => render();
-                        el.imgElement = img;
-                    }
-                    break;
-            }
-
-            ctx.restore();
-        }
-
-        function setLineDashStyle(style) {
-            if (style === 'dashed') ctx.setLineDash([8, 8]);
-            else if (style === 'dotted') ctx.setLineDash([3, 3]);
-            else ctx.setLineDash([]);
-        }
-
-        function drawShape(el) {
-            ctx.fillStyle = el.fillColor || '#ffffff';
-            ctx.strokeStyle = el.strokeColor || '#1e293b';
-            ctx.lineWidth = el.strokeWidth || 2;
-            setLineDashStyle(el.strokeStyle);
-
-            const x = el.x, y = el.y, w = el.width, h = el.height;
-
-            switch (el.shapeType) {
-                case 'rect':
-                    ctx.fillRect(x, y, w, h);
-                    ctx.strokeRect(x, y, w, h);
-                    break;
-                case 'rounded-rect':
-                    ctx.beginPath();
-                    ctx.roundRect(x, y, w, h, 12);
-                    ctx.fill();
-                    ctx.stroke();
-                    break;
-                case 'circle':
-                    ctx.beginPath();
-                    ctx.ellipse(x + w / 2, y + h / 2, Math.abs(w / 2), Math.abs(h / 2), 0, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.stroke();
-                    break;
-                case 'triangle':
-                    ctx.beginPath();
-                    ctx.moveTo(x + w / 2, y);
-                    ctx.lineTo(x + w, y + h);
-                    ctx.lineTo(x, y + h);
-                    ctx.closePath();
-                    ctx.fill();
-                    ctx.stroke();
-                    break;
-                case 'diamond':
-                    ctx.beginPath();
-                    ctx.moveTo(x + w / 2, y);
-                    ctx.lineTo(x + w, y + h / 2);
-                    ctx.lineTo(x + w / 2, y + h);
-                    ctx.lineTo(x, y + h / 2);
-                    ctx.closePath();
-                    ctx.fill();
-                    ctx.stroke();
-                    break;
-                case 'star':
-                    drawStar(x + w / 2, y + h / 2, 5, Math.min(w, h) / 2, Math.min(w, h) / 4);
-                    break;
-                case 'hexagon':
-                    drawPolygon(x + w / 2, y + h / 2, 6, Math.min(w, h) / 2);
-                    break;
-                case 'bubble':
-                    ctx.beginPath();
-                    ctx.roundRect(x, y, w, h - 16, 12);
-                    ctx.moveTo(x + 20, y + h - 16);
-                    ctx.lineTo(x + 10, y + h);
-                    ctx.lineTo(x + 35, y + h - 16);
-                    ctx.fill();
-                    ctx.stroke();
-                    break;
-            }
-            ctx.setLineDash([]);
-
-            if (el.text) {
-                ctx.fillStyle = el.textColor || '#1e293b';
-                ctx.font = `${el.fontSize || 16}px Inter, sans-serif`;
-                wrapText(ctx, el.text, x + 10, y + h / 2 - 8, w - 20, (el.fontSize || 16) * 1.3);
-            }
-        }
-
-        function drawStar(cx, cy, spikes, outerRadius, innerRadius) {
-            let rot = Math.PI / 2 * 3;
-            let step = Math.PI / spikes;
-            ctx.beginPath();
-            ctx.moveTo(cx, cy - outerRadius);
-            for (let i = 0; i < spikes; i++) {
-                ctx.lineTo(cx + Math.cos(rot) * outerRadius, cy + Math.sin(rot) * outerRadius);
-                rot += step;
-                ctx.lineTo(cx + Math.cos(rot) * innerRadius, cy + Math.sin(rot) * innerRadius);
-                rot += step;
-            }
-            ctx.lineTo(cx, cy - outerRadius);
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-        }
-
-        function drawPolygon(cx, cy, sides, radius) {
-            ctx.beginPath();
-            for (let i = 0; i < sides; i++) {
-                const angle = (i * 2 * Math.PI) / sides;
-                const px = cx + radius * Math.cos(angle);
-                const py = cy + radius * Math.sin(angle);
-                if (i === 0) ctx.moveTo(px, py);
-                else ctx.lineTo(px, py);
-            }
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-        }
-
-        function drawConnector(el) {
-            ctx.strokeStyle = el.strokeColor || '#1e293b';
-            ctx.lineWidth = el.strokeWidth || 2;
-            setLineDashStyle(el.strokeStyle);
-
-            const startX = el.x, startY = el.y;
-            const endX = el.endX !== undefined ? el.endX : el.x + 100;
-            const endY = el.endY !== undefined ? el.endY : el.y + 100;
-
-            if (el.connType === 'curved') {
-                const cp = el.cp || { x: (startX + endX) / 2, y: (startY + endY) / 2 - 40 };
-                ctx.beginPath();
-                ctx.moveTo(startX, startY);
-                ctx.quadraticCurveTo(cp.x, cp.y, endX, endY);
-                ctx.stroke();
-
-                if (el.connType === 'arrow' || el.connType === 'double-arrow') {
-                    drawArrowHead(cp.x, cp.y, endX, endY, el.strokeColor);
-                }
-                if (el.connType === 'double-arrow') {
-                    drawArrowHead(cp.x, cp.y, startX, startY, el.strokeColor);
-                }
-            } else {
-                ctx.beginPath();
-                ctx.moveTo(startX, startY);
-                ctx.lineTo(endX, endY);
-                ctx.stroke();
-
-                if (el.connType === 'arrow' || el.connType === 'double-arrow') {
-                    drawArrowHead(startX, startY, endX, endY, el.strokeColor);
-                }
-                if (el.connType === 'double-arrow') {
-                    drawArrowHead(endX, endY, startX, startY, el.strokeColor);
-                }
-            }
-            ctx.setLineDash([]);
-        }
-
-        function drawArrowHead(fromX, fromY, toX, toY, color) {
-            const headlen = 10;
-            const angle = Math.atan2(toY - fromY, toX - fromX);
-            ctx.fillStyle = color || '#1e293b';
-            ctx.beginPath();
-            ctx.moveTo(toX, toY);
-            ctx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
-            ctx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
-            ctx.closePath();
-            ctx.fill();
-        }
-
-        function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
-            const words = text.split(' ');
-            let line = '';
-            for (let n = 0; n < words.length; n++) {
-                const testLine = line + words[n] + ' ';
-                const metrics = ctx.measureText(testLine);
-                if (metrics.width > maxWidth && n > 0) {
-                    ctx.fillText(line, x, y);
-                    line = words[n] + ' ';
-                    y += lineHeight;
-                } else {
-                    line = testLine;
-                }
-            }
-            ctx.fillText(line, x, y);
-        }
-
-        // SELECTION OVERLAY & HANDLE CONTROL
-        function drawSelectionOverlay() {
-            if (state.selectedIds.length === 0) return;
-
-            state.selectedIds.forEach(id => {
-                const el = state.elements.find(e => e.id === id);
-                if (!el) return;
-
-                if (el.type === 'connector') {
-                    const startX = el.x, startY = el.y;
-                    const endX = el.endX || el.x + 100, endY = el.endY || el.y + 100;
-                    
-                    drawHandleCircle(startX, startY, '#3b82f6');
-                    drawHandleCircle(endX, endY, '#3b82f6');
-                    
-                    if (el.connType === 'curved') {
-                        const cp = el.cp || { x: (startX + endX) / 2, y: (startY + endY) / 2 - 40 };
-                        ctx.strokeStyle = '#f59e0b';
-                        ctx.setLineDash([3, 3]);
-                        ctx.beginPath();
-                        ctx.moveTo(startX, startY);
-                        ctx.lineTo(cp.x, cp.y);
-                        ctx.lineTo(endX, endY);
-                        ctx.stroke();
-                        ctx.setLineDash([]);
-                        drawHandleCircle(cp.x, cp.y, '#f59e0b');
-                    }
-                } else {
-                    const bounds = getElementBounds(el);
-                    ctx.strokeStyle = '#4f46e5';
-                    ctx.lineWidth = 1.5 / state.zoom;
-                    ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
-
-                    drawHandleRect(bounds.x, bounds.y);
-                    drawHandleRect(bounds.x + bounds.width, bounds.y);
-                    drawHandleRect(bounds.x + bounds.width, bounds.y + bounds.height);
-                    drawHandleRect(bounds.x, bounds.y + bounds.height);
-                }
-            });
-        }
-
-        function drawHandleCircle(x, y, color) {
-            ctx.fillStyle = color;
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 2 / state.zoom;
-            ctx.beginPath();
-            ctx.arc(x, y, 6 / state.zoom, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-        }
-
-        function drawHandleRect(x, y) {
-            const size = 8 / state.zoom;
-            ctx.fillStyle = '#ffffff';
-            ctx.strokeStyle = '#4f46e5';
-            ctx.lineWidth = 1.5 / state.zoom;
-            ctx.fillRect(x - size / 2, y - size / 2, size, size);
-            ctx.strokeRect(x - size / 2, y - size / 2, size, size);
-        }
-
-        function getElementBounds(el) {
-            if (el.width !== undefined && el.height !== undefined) {
-                return { x: el.x, y: el.y, width: el.width, height: el.height };
-            }
-            if (el.points && el.points.length > 0) {
-                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-                el.points.forEach(p => {
-                    minX = Math.min(minX, p.x);
-                    minY = Math.min(minY, p.y);
-                    maxX = Math.max(maxX, p.x);
-                    maxY = Math.max(maxY, p.y);
-                });
-                return { x: minX - 4, y: minY - 4, width: (maxX - minX) + 8, height: (maxY - minY) + 8 };
-            }
-            return { x: el.x - 5, y: el.y - 5, width: 120, height: 40 };
-        }
-
-        function isPointInElement(pt, el) {
-            if (el.type === 'connector') {
-                const endX = el.endX || el.x + 100, endY = el.endY || el.y + 100;
-                return Math.hypot(pt.x - el.x, pt.y - el.y) < 15 || Math.hypot(pt.x - endX, pt.y - endY) < 15;
-            }
-            const b = getElementBounds(el);
-            return pt.x >= b.x && pt.x <= b.x + b.width && pt.y >= b.y && pt.y <= b.y + b.height;
-        }
-
-        // CONTEXT TOOLBAR ADAPTER
-        function updateContextToolbar() {
-            const ctxToolbar = document.getElementById('context-toolbar');
-            if (state.selectedIds.length === 0) {
-                ctxToolbar.classList.add('hidden');
-                return;
-            }
-
-            ctxToolbar.classList.remove('hidden');
-            const selected = state.elements.find(e => e.id === state.selectedIds[0]);
-            if (!selected) return;
-
-            const groupFill = document.getElementById('ctx-group-fill');
-            const groupStroke = document.getElementById('ctx-group-stroke');
-            const groupWidth = document.getElementById('ctx-group-width');
-            const groupStyle = document.getElementById('ctx-stroke-style');
-            const groupFont = document.getElementById('ctx-group-font');
-            const groupSmoothing = document.getElementById('ctx-group-smoothing');
-            const btnEditText = document.getElementById('ctx-edit-text');
-            const sepEdit = document.getElementById('ctx-sep-edit');
-
-            [groupFill, groupStroke, groupWidth, groupStyle, groupFont, groupSmoothing, btnEditText, sepEdit].forEach(g => g && g.classList.remove('hidden'));
-
-            if (selected.type === 'text') {
-                [groupFill, groupStroke, groupWidth, groupStyle, groupSmoothing].forEach(g => g && g.classList.add('hidden'));
-            } else if (selected.type === 'sticky') {
-                [groupStroke, groupWidth, groupStyle, groupSmoothing].forEach(g => g && g.classList.add('hidden'));
-            } else if (selected.type === 'pencil' || selected.type === 'highlighter') {
-                [groupFill, groupStyle, groupFont, btnEditText, sepEdit].forEach(g => g && g.classList.add('hidden'));
-                if (groupSmoothing) {
-                    const smInput = document.getElementById('ctx-smoothing');
-                    if (smInput) smInput.value = selected.smoothing !== undefined ? selected.smoothing : state.smoothing;
-                }
-            } else if (selected.type === 'connector') {
-                [groupFill, groupFont, groupSmoothing, btnEditText, sepEdit].forEach(g => g && g.classList.add('hidden'));
-            }
-        }
-
-        // INLINE TEXT EDITOR
-        function openInlineEditor(el) {
-            if (!el) return;
-            const pos = worldToScreen(el.x, el.y);
-            const bounds = getElementBounds(el);
-
-            inlineEditor.style.left = `${pos.x}px`;
-            inlineEditor.style.top = `${pos.y}px`;
-            inlineEditor.style.width = `${Math.max(140, bounds.width * state.zoom)}px`;
-            inlineEditor.style.height = `${Math.max(60, bounds.height * state.zoom)}px`;
-            inlineEditor.value = el.text || '';
-            inlineEditor.style.display = 'block';
-            inlineEditor.focus();
-            state.editingElementId = el.id;
-        }
-
-        function closeInlineEditor() {
-            if (state.editingElementId) {
-                const el = state.elements.find(e => e.id === state.editingElementId);
-                if (el) {
-                    el.text = inlineEditor.value.trim();
-                    saveState();
-                    render();
-                }
-            }
-            state.editingElementId = null;
-            inlineEditor.style.display = 'none';
-        }
-
-        inlineEditor.addEventListener('blur', closeInlineEditor);
-
-        // POINTER EVENTS ENGINE
-        canvas.addEventListener('pointerdown', (e) => {
-            const worldPos = screenToWorld(e.clientX, e.clientY);
-            state.startPoint = worldPos;
-            state.lastMousePos = { x: e.clientX, y: e.clientY };
-
-            if (state.activeTool === 'hand' || e.button === 1 || e.spaceKey) {
-                state.isPanning = true;
-                canvas.style.cursor = 'grabbing';
-                return;
-            }
-
-            if (state.selectedIds.length === 1) {
-                const selected = state.elements.find(el => el.id === state.selectedIds[0]);
-                if (selected && selected.type === 'connector') {
-                    const startX = selected.x, startY = selected.y;
-                    const endX = selected.endX || selected.x + 100, endY = selected.endY || selected.y + 100;
-                    const cp = selected.cp || { x: (startX + endX) / 2, y: (startY + endY) / 2 - 40 };
-
-                    if (Math.hypot(worldPos.x - cp.x, worldPos.y - cp.y) < 12 / state.zoom) {
-                        state.isResizing = true;
-                        state.activeHandle = 'cp';
-                        return;
-                    }
-                    if (Math.hypot(worldPos.x - startX, worldPos.y - startY) < 12 / state.zoom) {
-                        state.isResizing = true;
-                        state.activeHandle = 'start';
-                        return;
-                    }
-                    if (Math.hypot(worldPos.x - endX, worldPos.y - endY) < 12 / state.zoom) {
-                        state.isResizing = true;
-                        state.activeHandle = 'end';
-                        return;
-                    }
-                }
-            }
-
-            if (state.activeTool === 'select') {
-                const clicked = [...state.elements].reverse().find(el => isPointInElement(worldPos, el));
-                if (clicked) {
-                    state.selectedIds = [clicked.id];
-                    state.isDragging = true;
-                    updateContextToolbar();
-                } else {
-                    state.selectedIds = [];
-                    updateContextToolbar();
-                }
-                render();
-                return;
-            }
-
-            const id = 'el_' + Date.now();
-            if (state.activeTool === 'pencil' || state.activeTool === 'highlighter') {
-                state.isDrawing = true;
-                const isHighlighter = state.activeTool === 'highlighter';
-                state.tempElement = {
-                    id,
-                    type: isHighlighter ? 'highlighter' : 'pencil',
-                    color: isHighlighter ? state.hlColor : state.pencilColor,
-                    lineWidth: isHighlighter ? state.hlWidth : state.pencilWidth,
-                    smoothing: state.smoothing,
-                    points: [{ x: worldPos.x, y: worldPos.y }]
-                };
-            } else if (state.activeTool === 'sticky') {
-                state.elements.push({
-                    id,
-                    type: 'sticky',
-                    x: worldPos.x - 70,
-                    y: worldPos.y - 70,
-                    width: 140,
-                    height: 140,
-                    color: state.stickyColor,
-                    text: 'Nueva Nota'
-                });
-                state.selectedIds = [id];
-                setTool('select');
-                saveState();
-            } else if (state.activeTool === 'text') {
-                state.elements.push({
-                    id,
-                    type: 'text',
-                    x: worldPos.x,
-                    y: worldPos.y,
-                    text: 'Texto Nuevo',
-                    fontSize: 20,
-                    color: '#1e293b'
-                });
-                state.selectedIds = [id];
-                setTool('select');
-                saveState();
-            } else if (state.activeTool === 'shape') {
-                state.isDrawing = true;
-                state.tempElement = {
-                    id,
-                    type: 'shape',
-                    shapeType: state.activeShape,
-                    x: worldPos.x,
-                    y: worldPos.y,
-                    width: 0,
-                    height: 0,
-                    fillColor: '#ffffff',
-                    strokeColor: '#1e293b',
-                    strokeWidth: 2,
-                    strokeStyle: 'solid'
-                };
-            } else if (state.activeTool === 'connector') {
-                state.isDrawing = true;
-                state.tempElement = {
-                    id,
-                    type: 'connector',
-                    connType: state.activeConnector,
-                    x: worldPos.x,
-                    y: worldPos.y,
-                    endX: worldPos.x,
-                    endY: worldPos.y,
-                    cp: { x: worldPos.x, y: worldPos.y - 30 },
-                    strokeColor: '#1e293b',
-                    strokeWidth: 2
-                };
-            } else if (state.activeTool === 'eraser') {
-                const target = [...state.elements].reverse().find(el => isPointInElement(worldPos, el));
-                if (target) {
-                    state.elements = state.elements.filter(e => e.id !== target.id);
-                    saveState();
-                    render();
-                }
-            }
-        });
-
-        canvas.addEventListener('pointermove', (e) => {
-            const worldPos = screenToWorld(e.clientX, e.clientY);
-
-            if (state.isPanning) {
-                state.pan.x += e.clientX - state.lastMousePos.x;
-                state.pan.y += e.clientY - state.lastMousePos.y;
-                state.lastMousePos = { x: e.clientX, y: e.clientY };
-                render();
-                return;
-            }
-
-            if (state.isResizing && state.selectedIds.length === 1) {
-                const el = state.elements.find(e => e.id === state.selectedIds[0]);
-                if (el && el.type === 'connector') {
-                    if (state.activeHandle === 'cp') el.cp = { x: worldPos.x, y: worldPos.y };
-                    else if (state.activeHandle === 'start') { el.x = worldPos.x; el.y = worldPos.y; }
-                    else if (state.activeHandle === 'end') { el.endX = worldPos.x; el.endY = worldPos.y; }
-                    render();
-                }
-                return;
-            }
-
-            if (state.isDragging && state.selectedIds.length > 0) {
-                const dx = worldPos.x - state.startPoint.x;
-                const dy = worldPos.y - state.startPoint.y;
-                state.selectedIds.forEach(id => {
-                    const el = state.elements.find(e => e.id === id);
-                    if (el) {
-                        el.x += dx;
-                        el.y += dy;
-                        if (el.endX !== undefined) el.endX += dx;
-                        if (el.endY !== undefined) el.endY += dy;
-                        if (el.cp) { el.cp.x += dx; el.cp.y += dy; }
-                        if (el.points) el.points.forEach(p => { p.x += dx; p.y += dy; });
-                    }
-                });
-                state.startPoint = worldPos;
-                render();
-                return;
-            }
-
-            if (state.isDrawing && state.tempElement) {
-                if (state.tempElement.type === 'pencil' || state.tempElement.type === 'highlighter') {
-                    state.tempElement.points.push({ x: worldPos.x, y: worldPos.y });
-                } else if (state.tempElement.type === 'shape') {
-                    state.tempElement.width = worldPos.x - state.tempElement.x;
-                    state.tempElement.height = worldPos.y - state.tempElement.y;
-                } else if (state.tempElement.type === 'connector') {
-                    state.tempElement.endX = worldPos.x;
-                    state.tempElement.endY = worldPos.y;
-                    state.tempElement.cp = {
-                        x: (state.tempElement.x + worldPos.x) / 2,
-                        y: (state.tempElement.y + worldPos.y) / 2 - 40
-                    };
-                }
-                render();
-            }
-        });
-
-        canvas.addEventListener('pointerup', () => {
-            if (state.isPanning) {
-                state.isPanning = false;
-                canvas.style.cursor = 'crosshair';
-            }
-            if (state.isDragging || state.isResizing) {
-                state.isDragging = false;
-                state.isResizing = false;
-                saveState();
-            }
-            if (state.isDrawing && state.tempElement) {
-                if (state.tempElement.type === 'shape' || state.tempElement.type === 'connector') {
-                    if (Math.abs(state.tempElement.width || state.tempElement.endX - state.tempElement.x) < 5) {
-                        state.tempElement.width = 120;
-                        state.tempElement.height = 80;
-                    }
-                }
-                state.elements.push(state.tempElement);
-                state.selectedIds = [state.tempElement.id];
-                state.tempElement = null;
-                state.isDrawing = false;
-                saveState();
-                setTool('select');
-            }
-        });
-
-        canvas.addEventListener('dblclick', (e) => {
-            const worldPos = screenToWorld(e.clientX, e.clientY);
-            const clicked = [...state.elements].reverse().find(el => isPointInElement(worldPos, el));
-            if (clicked) {
-                openInlineEditor(clicked);
-            }
-        });
-
-        canvas.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
-            const newZoom = Math.min(Math.max(0.05, state.zoom * zoomFactor), 5.0);
-            
-            const mouseWorldBefore = screenToWorld(e.clientX, e.clientY);
-            state.zoom = newZoom;
-            const mouseWorldAfter = screenToWorld(e.clientX, e.clientY);
-
-            state.pan.x += (mouseWorldAfter.x - mouseWorldBefore.x) * state.zoom;
-            state.pan.y += (mouseWorldAfter.y - mouseWorldBefore.y) * state.zoom;
-
-            document.getElementById('zoom-dropdown').value = state.zoom.toFixed(2);
-            render();
-        }, { passive: false });
-
-        // MINIMAP RENDERER
-        function renderMinimap() {
-            if (!minimapCtx || document.getElementById('minimap-container').classList.contains('hidden')) return;
-            minimapCtx.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
-            minimapCtx.fillStyle = '#f8fafc';
-            minimapCtx.fillRect(0, 0, minimapCanvas.width, minimapCanvas.height);
-
-            state.elements.forEach(el => {
-                minimapCtx.fillStyle = '#94a3b8';
-                const b = getElementBounds(el);
-                const mx = (b.x / 10) + minimapCanvas.width / 2;
-                const my = (b.y / 10) + minimapCanvas.height / 2;
-                minimapCtx.fillRect(mx, my, Math.max(2, b.width / 10), Math.max(2, b.height / 10));
-            });
-        }
-
-        // TOOLBAR & FLYOUT CONTROLS WIRING
-        document.querySelectorAll('[data-tool]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const tool = btn.getAttribute('data-tool');
-                setTool(tool);
-            });
-        });
-
-        document.querySelectorAll('.shape-opt').forEach(opt => {
-            opt.addEventListener('click', (e) => {
-                e.stopPropagation();
-                state.activeShape = opt.getAttribute('data-shape');
-                closeAllFlyouts();
-                setTool('shape');
-            });
-        });
-
-        document.querySelectorAll('.conn-opt').forEach(opt => {
-            opt.addEventListener('click', (e) => {
-                e.stopPropagation();
-                state.activeConnector = opt.getAttribute('data-conn');
-                closeAllFlyouts();
-                setTool('connector');
-            });
-        });
-
-        document.querySelectorAll('.sticky-color-opt').forEach(opt => {
-            opt.addEventListener('click', (e) => {
-                e.stopPropagation();
-                state.stickyColor = opt.getAttribute('data-color');
-                closeAllFlyouts();
-                setTool('sticky');
-            });
-        });
-
-        document.querySelectorAll('.pencil-color-opt').forEach(opt => {
-            opt.addEventListener('click', (e) => {
-                e.stopPropagation();
-                state.pencilColor = opt.getAttribute('data-color');
-                document.querySelectorAll('.pencil-color-opt').forEach(o => o.classList.remove('active'));
-                opt.classList.add('active');
-            });
-        });
-
-        document.getElementById('pencil-width').addEventListener('input', (e) => {
-            state.pencilWidth = parseInt(e.target.value);
-        });
-
-        document.getElementById('pencil-smooth').addEventListener('input', (e) => {
-            state.smoothing = parseInt(e.target.value);
-            document.getElementById('pencil-smooth-label').innerText = e.target.value;
-        });
-
-        // CONTEXT TOOLBAR EVENT LISTENERS
-        document.getElementById('ctx-fill-color').addEventListener('input', (e) => {
-            state.selectedIds.forEach(id => {
-                const el = state.elements.find(m => m.id === id);
-                if (el) el.fillColor = e.target.value;
-            });
-            saveState(); render();
-        });
-
-        document.getElementById('ctx-stroke-color').addEventListener('input', (e) => {
-            state.selectedIds.forEach(id => {
-                const el = state.elements.find(m => m.id === id);
-                if (el) { el.strokeColor = e.target.value; el.color = e.target.value; }
-            });
-            saveState(); render();
-        });
-
-        document.getElementById('ctx-stroke-width').addEventListener('input', (e) => {
-            state.selectedIds.forEach(id => {
-                const el = state.elements.find(m => m.id === id);
-                if (el) { el.strokeWidth = parseInt(e.target.value); el.lineWidth = parseInt(e.target.value); }
-            });
-            saveState(); render();
-        });
-
-        document.getElementById('ctx-stroke-style').addEventListener('change', (e) => {
-            state.selectedIds.forEach(id => {
-                const el = state.elements.find(m => m.id === id);
-                if (el) el.strokeStyle = e.target.value;
-            });
-            saveState(); render();
-        });
-
-        document.getElementById('ctx-font-size').addEventListener('change', (e) => {
-            state.selectedIds.forEach(id => {
-                const el = state.elements.find(m => m.id === id);
-                if (el) el.fontSize = parseInt(e.target.value);
-            });
-            saveState(); render();
-        });
-
-        document.getElementById('ctx-smoothing').addEventListener('input', (e) => {
-            const val = parseInt(e.target.value);
-            state.selectedIds.forEach(id => {
-                const el = state.elements.find(m => m.id === id);
-                if (el && (el.type === 'pencil' || el.type === 'highlighter')) {
-                    el.smoothing = val;
-                }
-            });
-            saveState(); render();
-        });
-
-        document.getElementById('ctx-opacity').addEventListener('input', (e) => {
-            state.selectedIds.forEach(id => {
-                const el = state.elements.find(m => m.id === id);
-                if (el) el.opacity = parseFloat(e.target.value);
-            });
-            saveState(); render();
-        });
-
-        document.getElementById('ctx-delete').addEventListener('click', () => {
-            state.elements = state.elements.filter(e => !state.selectedIds.includes(e.id));
-            state.selectedIds = [];
-            updateContextToolbar();
-            saveState(); render();
-        });
-
-        document.getElementById('ctx-duplicate').addEventListener('click', () => {
-            const newSelected = [];
-            state.selectedIds.forEach(id => {
-                const el = state.elements.find(m => m.id === id);
-                if (el) {
-                    const clone = JSON.parse(JSON.stringify(el));
-                    clone.id = 'el_' + Date.now() + Math.random();
-                    clone.x += 20; clone.y += 20;
-                    if (clone.endX !== undefined) clone.endX += 20;
-                    if (clone.endY !== undefined) clone.endY += 20;
-                    if (clone.cp) { clone.cp.x += 20; clone.cp.y += 20; }
-                    state.elements.push(clone);
-                    newSelected.push(clone.id);
-                }
-            });
-            state.selectedIds = newSelected;
-            saveState(); render();
-        });
-
-        document.getElementById('ctx-edit-text').addEventListener('click', () => {
-            if (state.selectedIds.length > 0) {
-                const el = state.elements.find(m => m.id === state.selectedIds[0]);
-                if (el) openInlineEditor(el);
-            }
-        });
-
-        // ZOOM & CLEAR CONTROLS
-        document.getElementById('btn-undo').addEventListener('click', undo);
-        document.getElementById('btn-redo').addEventListener('click', redo);
-
-        document.getElementById('btn-zoom-in').addEventListener('click', () => {
-            state.zoom = Math.min(5.0, state.zoom + 0.2);
-            document.getElementById('zoom-dropdown').value = state.zoom.toFixed(2);
-            render();
-        });
-
-        document.getElementById('btn-zoom-out').addEventListener('click', () => {
-            state.zoom = Math.max(0.05, state.zoom - 0.2);
-            document.getElementById('zoom-dropdown').value = state.zoom.toFixed(2);
-            render();
-        });
-
-        document.getElementById('zoom-dropdown').addEventListener('change', (e) => {
-            state.zoom = parseFloat(e.target.value);
-            render();
-        });
-
-        document.getElementById('btn-zoom-fit').addEventListener('click', () => {
-            state.pan = { x: window.innerWidth / 4, y: window.innerHeight / 4 };
-            state.zoom = 1.0;
-            document.getElementById('zoom-dropdown').value = "1.0";
-            render();
-        });
-
-        document.getElementById('btn-toggle-minimap').addEventListener('click', () => {
-            document.getElementById('minimap-container').classList.toggle('hidden');
-            renderMinimap();
-        });
-
-        // CLEAR BOARD MODAL
-        document.getElementById('btn-clear-board').addEventListener('click', () => {
-            document.getElementById('modal-confirm-clear').classList.remove('hidden');
-        });
-        document.getElementById('btn-cancel-clear').addEventListener('click', () => {
-            document.getElementById('modal-confirm-clear').classList.add('hidden');
-        });
-        document.getElementById('btn-confirm-clear').addEventListener('click', () => {
-            state.elements = [];
-            state.selectedIds = [];
-            document.getElementById('modal-confirm-clear').classList.add('hidden');
-            saveState(); render();
-            showToast('Pizarra limpiada', 'fa-solid fa-trash-can');
-        });
-
-        // EXPORT EXECUTIONS
-        document.getElementById('btn-export-toggle').addEventListener('click', (e) => {
-            e.stopPropagation();
-            document.getElementById('menu-export').classList.toggle('hidden');
-        });
-
-        document.getElementById('export-png').addEventListener('click', () => {
-            const link = document.createElement('a');
-            link.download = `${document.getElementById('board-title').value}.png`;
-            link.href = canvas.toDataURL('image/png');
-            link.click();
-            showToast('Exportado como PNG', 'fa-regular fa-file-image');
-        });
-
-        document.getElementById('export-json').addEventListener('click', () => {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(state.elements));
-            const dlAnchor = document.createElement('a');
-            dlAnchor.setAttribute("href", dataStr);
-            dlAnchor.setAttribute("download", `${document.getElementById('board-title').value}.json`);
-            dlAnchor.click();
-            showToast('Pizarra descargada como JSON', 'fa-solid fa-file-code');
-        });
-
-        document.getElementById('input-import-json').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (evt) => {
-                    restoreSnapshot(evt.target.result);
-                    saveState();
-                    showToast('Pizarra cargada con éxito', 'fa-solid fa-file-import');
-                };
-                reader.readAsText(file);
-            }
-        });
-
-        // GOOGLE DRIVE ACCOUNT & AUTHENTICATION ENGINE
-        let tokenClient;
-
-        function initGoogleDriveAuth() {
-            const savedClientId = localStorage.getItem('gdrive_client_id');
-            if (savedClientId) {
-                const input = document.getElementById('gdrive-client-id-input');
-                if (input) input.value = savedClientId;
-            }
-        }
-
-        document.getElementById('btn-gdrive-account').addEventListener('click', () => {
-            document.getElementById('modal-gdrive').classList.remove('hidden');
-        });
-        document.getElementById('btn-gdrive-open-modal').addEventListener('click', () => {
-            document.getElementById('menu-export').classList.add('hidden');
-            document.getElementById('modal-gdrive').classList.remove('hidden');
-        });
-        document.getElementById('btn-close-gdrive').addEventListener('click', () => {
-            document.getElementById('modal-gdrive').classList.add('hidden');
-        });
-
-        document.getElementById('btn-gdrive-login').addEventListener('click', () => {
-            const customClientId = document.getElementById('gdrive-client-id-input')?.value.trim();
-            if (customClientId) {
-                localStorage.setItem('gdrive_client_id', customClientId);
-                if (window.google && google.accounts && google.accounts.oauth2) {
-                    try {
-                        tokenClient = google.accounts.oauth2.initTokenClient({
-                            client_id: customClientId,
-                            scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile',
-                            callback: (response) => {
-                                if (response.access_token) {
-                                    state.gdriveAccessToken = response.access_token;
-                                    updateGDriveAccountUI(true, "Google Drive Conectado");
-                                    showToast('Conectado a Google Drive con OAuth', 'fa-brands fa-google-drive');
-                                }
-                            }
-                        });
-                        tokenClient.requestAccessToken();
-                        return;
-                    } catch (err) {
-                        console.warn("OAuth fallback:", err);
-                    }
-                }
-            }
-
-            state.gdriveAccessToken = "active_session_" + Date.now();
-            updateGDriveAccountUI(true, "Google Drive Conectado");
-            showToast('Google Drive activado con éxito', 'fa-brands fa-google-drive');
-        });
-
-        function updateGDriveAccountUI(connected, userLabel) {
-            const label = document.getElementById('gdrive-user-label');
-            const badge = document.getElementById('sync-status-badge');
-            const nameLabel = document.getElementById('gdrive-user-name');
-            const emailLabel = document.getElementById('gdrive-user-email');
-            const btnLoginText = document.getElementById('btn-login-text');
-
-            if (connected) {
-                label.innerText = userLabel || "Google Drive Activo";
-                nameLabel.innerText = "Sincronizado con Drive";
-                emailLabel.innerText = "Archivos guardados en tu cuenta";
-                btnLoginText.innerText = "Reconectar";
-                badge.innerHTML = `<i class="fa-brands fa-google-drive text-emerald-500"></i> Google Drive Sync Activo`;
-            }
-        }
-
-        document.getElementById('btn-gdrive-save-direct').addEventListener('click', () => {
-            saveToGoogleDrive();
-        });
-
-        function saveToGoogleDrive() {
-            const fileName = `${document.getElementById('board-title').value}.json`;
-            const content = JSON.stringify(state.elements);
-
-            if (!state.gdriveAccessToken) {
-                // Prompt Login First
-                showToast('Inicia sesión con Google primero', 'fa-solid fa-lock');
-                return;
-            }
-
-            // Real Google Drive Multipart Upload API
-            const metadata = { name: fileName, mimeType: 'application/json' };
-            const form = new FormData();
-            form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-            form.append('file', new Blob([content], { type: 'application/json' }));
-
-            fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-                method: 'POST',
-                headers: new Headers({ 'Authorization': 'Bearer ' + state.gdriveAccessToken }),
-                body: form
-            }).then(res => res.json()).then(data => {
-                showToast('Guardado en Google Drive (.json)', 'fa-solid fa-cloud-arrow-up');
-            }).catch(err => {
-                // Fallback simulation notice
-                showToast('Pizarra respaldada en Drive', 'fa-solid fa-cloud-arrow-up');
-            });
-        }
-
-        function saveToGoogleDriveSilently() {
-            if (state.gdriveAccessToken) saveToGoogleDrive();
-        }
-
-        document.getElementById('toggle-autosync-gdrive').addEventListener('change', (e) => {
-            state.gdriveAutoSync = e.target.checked;
-            if (e.target.checked) showToast('Sincronización automática de Drive activada', 'fa-solid fa-arrows-rotate');
-        });
-
-        // TEMPLATES GALERY
-        document.getElementById('btn-templates-toggle').addEventListener('click', () => {
-            document.getElementById('templates-modal').classList.remove('hidden');
-        });
-        document.getElementById('btn-close-templates').addEventListener('click', () => {
-            document.getElementById('templates-modal').classList.add('hidden');
-        });
-        document.querySelectorAll('.template-card').forEach(card => {
-            card.addEventListener('click', () => {
-                const type = card.getAttribute('data-type');
-                insertTemplate(type);
-                document.getElementById('templates-modal').classList.add('hidden');
-                showToast('Plantilla insertada con éxito', 'fa-solid fa-shapes');
-            });
-        });
-
-        function insertTemplate(type) {
-            const center = screenToWorld(window.innerWidth / 2, window.innerHeight / 2);
-            const cx = center.x, cy = center.y;
-
-            if (type === 'kanban') {
-                const columns = ['Por Hacer', 'En Proceso', 'Hecho'];
-                columns.forEach((title, idx) => {
-                    const fx = cx - 320 + idx * 220;
-                    state.elements.push({ id: 'f_' + Date.now() + idx, type: 'frame', title, x: fx, y: cy - 200, width: 200, height: 400 });
-                    state.elements.push({ id: 's_' + Date.now() + idx, type: 'sticky', x: fx + 15, y: cy - 150, width: 170, height: 120, color: '#fef08a', text: 'Tarea ' + (idx + 1) });
-                });
-            } else if (type === 'mindmap') {
-                state.elements.push({ id: 'node_c', type: 'shape', shapeType: 'rounded-rect', x: cx - 70, y: cy - 35, width: 140, height: 70, fillColor: '#bfdbfe', strokeColor: '#1d4ed8', text: 'Idea Central' });
-                const subNodes = [
-                    { x: cx - 220, y: cy - 120, text: 'Concepto A', color: '#bbf7d0' },
-                    { x: cx + 120, y: cy - 120, text: 'Concepto B', color: '#fbcfe8' },
-                    { x: cx - 220, y: cy + 80, text: 'Concepto C', color: '#fed7aa' },
-                    { x: cx + 120, y: cy + 80, text: 'Concepto D', color: '#e9d5ff' }
-                ];
-                subNodes.forEach((node, i) => {
-                    const nid = 'node_' + i;
-                    state.elements.push({ id: nid, type: 'shape', shapeType: 'rounded-rect', x: node.x, y: node.y, width: 120, height: 50, fillColor: node.color, strokeColor: '#475569', text: node.text });
-                    state.elements.push({ id: 'conn_' + i, type: 'connector', connType: 'curved', x: cx, y: cy, endX: node.x + 60, endY: node.y + 25, cp: { x: (cx + node.x) / 2, y: (cy + node.y) / 2 - 30 }, strokeColor: '#64748b', strokeWidth: 2 });
-                });
-            }
-            saveState();
-            render();
-        }
-
-        // CLIPBOARD PASTE HANDLER
-        window.addEventListener('paste', (e) => {
-            const items = e.clipboardData || e.clipboardData.items;
-            if (!items) return;
-
-            for (let i = 0; i < items.length; i++) {
-                if (items[i].type.indexOf('image') !== -1) {
-                    const blob = items[i].getAsFile();
-                    const reader = new FileReader();
-                    reader.onload = (evt) => {
-                        const img = new Image();
-                        img.src = evt.target.result;
-                        img.onload = () => {
-                            const center = screenToWorld(window.innerWidth / 2, window.innerHeight / 2);
-                            state.elements.push({
-                                id: 'img_' + Date.now(),
-                                type: 'image',
-                                x: center.x - img.width / 4,
-                                y: center.y - img.height / 4,
-                                width: img.width / 2,
-                                height: img.height / 2,
-                                src: evt.target.result,
-                                imgElement: img
-                            });
-                            saveState();
-                            render();
-                            showToast('Imagen pegada del portapapeles', 'fa-regular fa-image');
-                        };
-                    };
-                    reader.readAsDataURL(blob);
-                }
-            }
-        });
-
-        // INIT APPLICATION
-        window.addEventListener('DOMContentLoaded', () => {
-            resizeCanvas();
-            loadFromLocalStorage();
-            setTool('pencil');
-            saveState();
-            render();
-            setTimeout(initGoogleDriveAuth, 1000);
-        });
-    </script>
+    <!-- MAIN JAVASCRIPT MODULE ENTRYPOINT -->
+    <script type="module" src="js/main.js"></script>
 </body>
 </html>
