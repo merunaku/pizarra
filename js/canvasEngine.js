@@ -401,15 +401,38 @@ function drawConnector(ctx, el) {
     const endY = el.endY !== undefined ? el.endY : el.y + 100;
     const arrowSize = el.arrowSize || Math.max(10, (el.strokeWidth || 2) * 3 + 4);
 
-    const isCurved = el.connType && el.connType.startsWith('curved');
-    const hasEndArrow = el.connType === 'arrow' || el.connType === 'double-arrow' || el.connType === 'curved-arrow' || el.connType === 'curved-double-arrow';
-    const hasStartArrow = el.connType === 'double-arrow' || el.connType === 'curved-double-arrow';
+    const isCurved = el.isCurved !== undefined ? el.isCurved : (el.connType && el.connType.startsWith('curved'));
+    
+    let hasEndArrow = false;
+    let hasStartArrow = false;
+    if (el.arrowMode) {
+        hasEndArrow = el.arrowMode === 'end' || el.arrowMode === 'both';
+        hasStartArrow = el.arrowMode === 'start' || el.arrowMode === 'both';
+    } else {
+        hasEndArrow = el.connType === 'arrow' || el.connType === 'double-arrow' || el.connType === 'curved-arrow' || el.connType === 'curved-double-arrow';
+        hasStartArrow = el.connType === 'double-arrow' || el.connType === 'curved-double-arrow';
+    }
+
+    let lineStartX = startX, lineStartY = startY;
+    let lineEndX = endX, lineEndY = endY;
 
     if (isCurved) {
         const cp = el.cp || { x: (startX + endX) / 2, y: (startY + endY) / 2 - 40 };
+
+        if (hasEndArrow) {
+            const angleEnd = Math.atan2(endY - cp.y, endX - cp.x);
+            lineEndX = endX - (arrowSize * 0.5) * Math.cos(angleEnd);
+            lineEndY = endY - (arrowSize * 0.5) * Math.sin(angleEnd);
+        }
+        if (hasStartArrow) {
+            const angleStart = Math.atan2(startY - cp.y, startX - cp.x);
+            lineStartX = startX - (arrowSize * 0.5) * Math.cos(angleStart);
+            lineStartY = startY - (arrowSize * 0.5) * Math.sin(angleStart);
+        }
+
         ctx.beginPath();
-        ctx.moveTo(startX, startY);
-        ctx.quadraticCurveTo(cp.x, cp.y, endX, endY);
+        ctx.moveTo(lineStartX, lineStartY);
+        ctx.quadraticCurveTo(cp.x, cp.y, lineEndX, lineEndY);
         ctx.stroke();
 
         if (hasEndArrow) {
@@ -419,9 +442,19 @@ function drawConnector(ctx, el) {
             drawArrowHead(ctx, cp.x, cp.y, startX, startY, el.strokeColor, arrowSize);
         }
     } else {
+        const angle = Math.atan2(endY - startY, endX - startX);
+        if (hasEndArrow) {
+            lineEndX = endX - (arrowSize * 0.5) * Math.cos(angle);
+            lineEndY = endY - (arrowSize * 0.5) * Math.sin(angle);
+        }
+        if (hasStartArrow) {
+            lineStartX = startX + (arrowSize * 0.5) * Math.cos(angle);
+            lineStartY = startY + (arrowSize * 0.5) * Math.sin(angle);
+        }
+
         ctx.beginPath();
-        ctx.moveTo(startX, startY);
-        ctx.lineTo(endX, endY);
+        ctx.moveTo(lineStartX, lineStartY);
+        ctx.lineTo(lineEndX, lineEndY);
         ctx.stroke();
 
         if (hasEndArrow) {
@@ -436,13 +469,18 @@ function drawConnector(ctx, el) {
 
 function drawArrowHead(ctx, fromX, fromY, toX, toY, color, headlen = 12) {
     const angle = Math.atan2(toY - fromY, toX - fromX);
+    ctx.save();
     ctx.fillStyle = color || '#1e293b';
+    ctx.strokeStyle = color || '#1e293b';
+    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(toX, toY);
     ctx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
     ctx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
     ctx.closePath();
     ctx.fill();
+    ctx.stroke();
+    ctx.restore();
 }
 
 function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
@@ -475,11 +513,12 @@ function drawSelectionOverlay(ctx) {
         if (el.type === 'connector') {
             const startX = el.x, startY = el.y;
             const endX = el.endX || el.x + 100, endY = el.endY || el.y + 100;
+            const isCurved = el.isCurved !== undefined ? el.isCurved : (el.connType && el.connType.startsWith('curved'));
             
             drawHandleCircle(ctx, startX, startY, '#3b82f6');
             drawHandleCircle(ctx, endX, endY, '#3b82f6');
             
-            if (el.connType === 'curved') {
+            if (isCurved) {
                 const cp = el.cp || { x: (startX + endX) / 2, y: (startY + endY) / 2 - 40 };
                 ctx.strokeStyle = '#f59e0b';
                 ctx.setLineDash([3, 3]);
