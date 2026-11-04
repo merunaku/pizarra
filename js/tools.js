@@ -136,7 +136,10 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                         if (Math.hypot(checkPos.x - c.x, checkPos.y - c.y) <= handleRadius) {
                             state.isResizing = true;
                             state.activeHandle = c.name;
-                            state.resizeInitialBounds = { x: selected.x, y: selected.y, width: selected.width, height: selected.height };
+                            state.resizeInitialBounds = getElementBounds(selected);
+                            if (selected.points) {
+                                state.resizeInitialPoints = selected.points.map(p => ({ ...p }));
+                            }
                             return;
                         }
                     }
@@ -278,24 +281,43 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                 } else if (state.resizeInitialBounds) {
                     const h = state.activeHandle;
                     const init = state.resizeInitialBounds;
-                    const minSize = 20;
+                    const minSize = 10;
+
+                    let newX = init.x;
+                    let newY = init.y;
+                    let newW = init.width;
+                    let newH = init.height;
 
                     if (h === 'se') {
-                        el.width = Math.max(minSize, worldPos.x - init.x);
-                        el.height = Math.max(minSize, worldPos.y - init.y);
+                        newW = Math.max(minSize, worldPos.x - init.x);
+                        newH = Math.max(minSize, worldPos.y - init.y);
                     } else if (h === 'sw') {
-                        const newW = init.x + init.width - worldPos.x;
-                        if (newW >= minSize) { el.x = worldPos.x; el.width = newW; }
-                        el.height = Math.max(minSize, worldPos.y - init.y);
+                        const calculatedW = init.x + init.width - worldPos.x;
+                        if (calculatedW >= minSize) { newX = worldPos.x; newW = calculatedW; }
+                        newH = Math.max(minSize, worldPos.y - init.y);
                     } else if (h === 'ne') {
-                        el.width = Math.max(minSize, worldPos.x - init.x);
-                        const newH = init.y + init.height - worldPos.y;
-                        if (newH >= minSize) { el.y = worldPos.y; el.height = newH; }
+                        newW = Math.max(minSize, worldPos.x - init.x);
+                        const calculatedH = init.y + init.height - worldPos.y;
+                        if (calculatedH >= minSize) { newY = worldPos.y; newH = calculatedH; }
                     } else if (h === 'nw') {
-                        const newW = init.x + init.width - worldPos.x;
-                        if (newW >= minSize) { el.x = worldPos.x; el.width = newW; }
-                        const newH = init.y + init.height - worldPos.y;
-                        if (newH >= minSize) { el.y = worldPos.y; el.height = newH; }
+                        const calculatedW = init.x + init.width - worldPos.x;
+                        if (calculatedW >= minSize) { newX = worldPos.x; newW = calculatedW; }
+                        const calculatedH = init.y + init.height - worldPos.y;
+                        if (calculatedH >= minSize) { newY = worldPos.y; newH = calculatedH; }
+                    }
+
+                    if (el.points && state.resizeInitialPoints) {
+                        const scaleX = init.width > 0 ? newW / init.width : 1;
+                        const scaleY = init.height > 0 ? newH / init.height : 1;
+                        el.points = state.resizeInitialPoints.map(p => ({
+                            x: newX + (p.x - init.x) * scaleX,
+                            y: newY + (p.y - init.y) * scaleY
+                        }));
+                    } else {
+                        el.x = newX;
+                        el.y = newY;
+                        el.width = newW;
+                        el.height = newH;
                     }
                 }
                 if (renderCallback) renderCallback();
@@ -351,6 +373,7 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
             state.isResizing = false;
             state.isRotating = false;
             state.resizeInitialBounds = null;
+            state.resizeInitialPoints = null;
             state.rotationCenter = null;
             saveState();
         }

@@ -190,9 +190,15 @@ export function isPointInElement(pt, el) {
 
     if (el.type === 'pencil' || el.type === 'highlighter') {
         if (el.points && el.points.length > 0) {
-            const threshold = Math.max(12, (el.lineWidth || 3) / 2 + 6) / state.zoom;
+            const threshold = Math.max(14, (el.lineWidth || 3) / 2 + 8) / state.zoom;
             for (let i = 0; i < el.points.length - 1; i++) {
                 if (distToSegment(checkPt, el.points[i], el.points[i + 1]) <= threshold) {
+                    return true;
+                }
+            }
+            if (state.selectedIds.includes(el.id)) {
+                const b = getElementBounds(el);
+                if (checkPt.x >= b.x && checkPt.x <= b.x + b.width && checkPt.y >= b.y && checkPt.y <= b.y + b.height) {
                     return true;
                 }
             }

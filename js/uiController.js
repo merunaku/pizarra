@@ -77,6 +77,12 @@ export function updateContextToolbar() {
     } else if (selected.type === 'pencil' || selected.type === 'highlighter') {
         [groupStroke, groupWidth, groupConnArrows, groupSmoothing].forEach(g => g && g.classList.remove('hidden'));
         
+        const strokeInput = document.getElementById('ctx-stroke-color');
+        if (strokeInput) strokeInput.value = selected.color || '#1e293b';
+
+        const strokeWidthInput = document.getElementById('ctx-stroke-width');
+        if (strokeWidthInput) strokeWidthInput.value = selected.lineWidth || 3;
+
         if (selected.arrowMode && selected.arrowMode !== 'none') {
             if (groupArrowSize) groupArrowSize.classList.remove('hidden');
         }
@@ -91,7 +97,6 @@ export function updateContextToolbar() {
             if (smInput) smInput.value = selected.smoothing !== undefined ? selected.smoothing : state.smoothing;
         }
 
-        // Sincronizar botones de flecha activos
         syncArrowModeButtons(selected.arrowMode || 'none');
     } else if (selected.type === 'connector') {
         [groupStroke, groupWidth, groupConnStyle, groupConnArrows, groupStyle].forEach(g => g && g.classList.remove('hidden'));
