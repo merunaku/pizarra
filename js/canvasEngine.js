@@ -224,12 +224,6 @@ function drawElement(ctx, el) {
         case 'pencil':
         case 'highlighter':
             if (el.points && el.points.length > 0) {
-                ctx.beginPath();
-                ctx.strokeStyle = el.color;
-                ctx.lineWidth = el.lineWidth;
-                ctx.lineCap = 'round';
-                ctx.lineJoin = 'round';
-
                 const smoothVal = el.smoothing !== undefined ? el.smoothing : state.smoothing;
                 const pts = getSmoothedPoints(el.points, smoothVal);
 
@@ -239,26 +233,60 @@ function drawElement(ctx, el) {
                     ctx.fillStyle = el.color;
                     ctx.fill();
                 } else {
-                    ctx.moveTo(pts[0].x, pts[0].y);
-                    for (let i = 1; i < pts.length - 1; i++) {
-                        const xc = (pts[i].x + pts[i + 1].x) / 2;
-                        const yc = (pts[i].y + pts[i + 1].y) / 2;
-                        ctx.quadraticCurveTo(pts[i].x, pts[i].y, xc, yc);
+                    const hasArrows = el.arrowMode && el.arrowMode !== 'none';
+                    const arrowSize = el.arrowSize || Math.max(12, el.lineWidth * 2.5 + 6);
+                    const offset = arrowSize * 0.75;
+
+                    // Clonar la lista de puntos para recortar extremos sin alterar el historial
+                    let strokePts = pts.map(p => ({ ...p }));
+
+                    // Recortar punto final si hay flecha al final
+                    if ((el.arrowMode === 'end' || el.arrowMode === 'both') && strokePts.length >= 2) {
+                        const last = strokePts[strokePts.length - 1];
+                        const prev = strokePts[Math.max(0, strokePts.length - 2)];
+                        const angle = Math.atan2(last.y - prev.y, last.x - prev.x);
+                        strokePts[strokePts.length - 1] = {
+                            x: last.x - offset * Math.cos(angle),
+                            y: last.y - offset * Math.sin(angle)
+                        };
                     }
-                    ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+
+                    // Recortar punto inicial si hay flecha al inicio
+                    if ((el.arrowMode === 'start' || el.arrowMode === 'both') && strokePts.length >= 2) {
+                        const first = strokePts[0];
+                        const next = strokePts[Math.min(strokePts.length - 1, 1)];
+                        const angle = Math.atan2(next.y - first.y, next.x - first.x);
+                        strokePts[0] = {
+                            x: first.x + offset * Math.cos(angle),
+                            y: first.y + offset * Math.sin(angle)
+                        };
+                    }
+
+                    ctx.beginPath();
+                    ctx.strokeStyle = el.color;
+                    ctx.lineWidth = el.lineWidth;
+                    ctx.lineCap = hasArrows ? 'butt' : 'round';
+                    ctx.lineJoin = 'round';
+
+                    ctx.moveTo(strokePts[0].x, strokePts[0].y);
+                    for (let i = 1; i < strokePts.length - 1; i++) {
+                        const xc = (strokePts[i].x + strokePts[i + 1].x) / 2;
+                        const yc = (strokePts[i].y + strokePts[i + 1].y) / 2;
+                        ctx.quadraticCurveTo(strokePts[i].x, strokePts[i].y, xc, yc);
+                    }
+                    ctx.lineTo(strokePts[strokePts.length - 1].x, strokePts[strokePts.length - 1].y);
                     ctx.stroke();
 
-                    // Puntas de flechas en trazos libres de lápiz
-                    if (el.arrowMode && el.arrowMode !== 'none') {
-                        const arrowSize = el.arrowSize || Math.max(10, el.lineWidth * 3 + 4);
+                    // Dibujar puntas de flechas en los puntos finales exactos
+                    if (hasArrows) {
                         if (el.arrowMode === 'end' || el.arrowMode === 'both') {
                             const pEnd = pts[pts.length - 1];
-                            const pPrev = pts[Math.max(0, pts.length - 3)];
+                            const pPrev = pts[Math.max(0, pts.length - 2)];
                             drawArrowHead(ctx, pPrev.x, pPrev.y, pEnd.x, pEnd.y, el.color, arrowSize);
                         }
                         if (el.arrowMode === 'start' || el.arrowMode === 'both') {
                             const pStart = pts[0];
-                            const pNext = pts[Math.min(pts.length - 1, 2)];
+                            const pNext = pts[Math.min(pts.length - 1, 1)];
                             drawArrowHead(ctx, pNext.x, pNext.y, pStart.x, pStart.y, el.color, arrowSize);
                         }
                     }

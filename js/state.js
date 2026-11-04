@@ -9,6 +9,7 @@ export const state = {
     activeFrame: 'free',
     pencilColor: '#1e293b',
     pencilWidth: 3,
+    pencilArrowMode: 'none',
     smoothing: 5,
     hlColor: 'rgba(250, 204, 21, 0.45)',
     hlWidth: 20,
@@ -19,6 +20,7 @@ export const state = {
     isDrawing: false,
     isDragging: false,
     isResizing: false,
+    isRotating: false,
     activeHandle: null,
     startPoint: { x: 0, y: 0 },
     lastMousePos: { x: 0, y: 0 },
@@ -56,7 +58,7 @@ export function worldToScreen(wx, wy) {
 /**
  * Guarda una captura del estado actual en el historial y en localStorage
  */
-export function saveState(renderCallback) {
+export function saveState() {
     const snapshot = JSON.stringify(state.elements);
     if (state.historyIndex >= 0 && state.history[state.historyIndex] === snapshot) return;
     
