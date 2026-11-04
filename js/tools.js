@@ -46,6 +46,62 @@ export function removeConnectorIntermediatePoint(el, index) {
 }
 
 /**
+ * Une múltiples líneas/trazos o conectores seleccionados en un único trazo continuo
+ */
+export function joinSelectedLines() {
+    if (state.selectedIds.length < 2) return;
+
+    const selectedLines = state.elements.filter(el => 
+        state.selectedIds.includes(el.id) && 
+        (el.type === 'pencil' || el.type === 'highlighter' || el.type === 'connector')
+    );
+
+    if (selectedLines.length < 2) return;
+
+    let combinedPoints = [];
+    selectedLines.forEach(el => {
+        const pts = el.points || getConnectorPoints(el);
+        if (combinedPoints.length === 0) {
+            combinedPoints = [...pts];
+        } else {
+            const lastPt = combinedPoints[combinedPoints.length - 1];
+            const startPt = pts[0];
+            const endPt = pts[pts.length - 1];
+
+            // Si el punto final actual está más cerca del final del nuevo elemento, invertir los puntos
+            if (Math.hypot(lastPt.x - endPt.x, lastPt.y - endPt.y) < Math.hypot(lastPt.x - startPt.x, lastPt.y - startPt.y)) {
+                combinedPoints.push(...[...pts].reverse());
+            } else {
+                combinedPoints.push(...pts);
+            }
+        }
+    });
+
+    const first = selectedLines[0];
+    const newId = 'joined_' + Date.now();
+
+    const joinedElement = {
+        id: newId,
+        type: first.type === 'connector' ? 'connector' : 'pencil',
+        color: first.color || first.strokeColor || '#1e293b',
+        lineWidth: first.lineWidth || first.strokeWidth || 3,
+        strokeWidth: first.strokeWidth || first.lineWidth || 3,
+        strokeColor: first.strokeColor || first.color || '#1e293b',
+        points: combinedPoints,
+        x: combinedPoints[0].x,
+        y: combinedPoints[0].y,
+        endX: combinedPoints[combinedPoints.length - 1].x,
+        endY: combinedPoints[combinedPoints.length - 1].y
+    };
+
+    // Eliminar las líneas individuales anteriores
+    state.elements = state.elements.filter(e => !state.selectedIds.includes(e.id));
+    state.elements.push(joinedElement);
+    state.selectedIds = [newId];
+    saveState();
+}
+
+/**
  * Abre el editor de texto flotante e inline sobre el elemento especificado
  */
 export function openInlineEditor(el) {
@@ -465,18 +521,53 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
         if (state.isDragging && state.selectedIds.length > 0) {
             const dx = worldPos.x - state.startPoint.x;
             const dy = worldPos.y - state.startPoint.y;
+
+            state.alignmentGuides = [];
+            let snapDx = dx;
+            let snapDy = dy;
+
+            // Asistente de alineación magnética (Snap Guides)
+            if (state.selectedIds.length === 1) {
+                const dragged = state.elements.find(e => e.id === state.selectedIds[0]);
+                if (dragged && dragged.type !== 'connector' && dragged.type !== 'pencil') {
+                    const b = getElementBounds(dragged);
+                    const targetBox = { x: b.x + dx, y: b.y + dy, width: b.width, height: b.height };
+                    const threshold = 6 / state.zoom;
+
+                    const targetCx = targetBox.x + targetBox.width / 2;
+                    const targetCy = targetBox.y + targetBox.height / 2;
+
+                    state.elements.forEach(other => {
+                        if (state.selectedIds.includes(other.id)) return;
+                        const ob = getElementBounds(other);
+                        const otherCx = ob.x + ob.width / 2;
+                        const otherCy = ob.y + ob.height / 2;
+
+                        // Alineaciones Verticales
+                        if (Math.abs(targetBox.x - ob.x) < threshold) { snapDx = ob.x - b.x; state.alignmentGuides.push({ type: 'v', pos: ob.x }); }
+                        else if (Math.abs(targetBox.x + targetBox.width - (ob.x + ob.width)) < threshold) { snapDx = ob.x + ob.width - (b.x + b.width); state.alignmentGuides.push({ type: 'v', pos: ob.x + ob.width }); }
+                        else if (Math.abs(targetCx - otherCx) < threshold) { snapDx = otherCx - (b.x + b.width / 2); state.alignmentGuides.push({ type: 'v', pos: otherCx }); }
+
+                        // Alineaciones Horizontales
+                        if (Math.abs(targetBox.y - ob.y) < threshold) { snapDy = ob.y - b.y; state.alignmentGuides.push({ type: 'h', pos: ob.y }); }
+                        else if (Math.abs(targetBox.y + targetBox.height - (ob.y + ob.height)) < threshold) { snapDy = ob.y + ob.height - (b.y + b.height); state.alignmentGuides.push({ type: 'h', pos: ob.y + ob.height }); }
+                        else if (Math.abs(targetCy - otherCy) < threshold) { snapDy = otherCy - (b.y + b.height / 2); state.alignmentGuides.push({ type: 'h', pos: otherCy }); }
+                    });
+                }
+            }
+
             state.selectedIds.forEach(id => {
                 const el = state.elements.find(e => e.id === id);
                 if (el) {
-                    if (el.x !== undefined) el.x += dx;
-                    if (el.y !== undefined) el.y += dy;
-                    if (el.endX !== undefined) el.endX += dx;
-                    if (el.endY !== undefined) el.endY += dy;
-                    if (el.cp) { el.cp.x += dx; el.cp.y += dy; }
-                    if (el.points) el.points.forEach(p => { p.x += dx; p.y += dy; });
+                    if (el.x !== undefined) el.x += snapDx;
+                    if (el.y !== undefined) el.y += snapDy;
+                    if (el.endX !== undefined) el.endX += snapDx;
+                    if (el.endY !== undefined) el.endY += snapDy;
+                    if (el.cp) { el.cp.x += snapDx; el.cp.y += snapDy; }
+                    if (el.points) el.points.forEach(p => { p.x += snapDx; p.y += snapDy; });
                 }
             });
-            state.startPoint = worldPos;
+            state.startPoint = { x: worldPos.x, y: worldPos.y };
             if (renderCallback) renderCallback();
             return;
         }
@@ -501,6 +592,7 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
 
     // EVENTO POINTERUP (Finalizar acciones de puntero)
     canvas.addEventListener('pointerup', () => {
+        state.alignmentGuides = [];
         if (state.isPanning) {
             state.isPanning = false;
             canvas.style.cursor = 'crosshair';

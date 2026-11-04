@@ -29,6 +29,7 @@ export const state = {
     historyIndex: -1,
     tempElement: null,
     editingElementId: null,
+    alignmentGuides: [], // Guías visuales de alineación { type: 'v'|'h', pos: number }
     // Google Drive State
     gdriveAccessToken: null,
     gdriveUser: null,

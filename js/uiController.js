@@ -1,6 +1,6 @@
 // UI CONTROLLER & TOOLBAR ACTIONS - PIZARRA PROFEDIEGO
 import { state, saveState, undo, redo, restoreSnapshot } from './state.js';
-import { openInlineEditor, closeInlineEditor, addConnectorIntermediatePoint, removeConnectorIntermediatePoint } from './tools.js';
+import { openInlineEditor, closeInlineEditor, addConnectorIntermediatePoint, removeConnectorIntermediatePoint, joinSelectedLines } from './tools.js';
 import { getConnectorPoints, getLuminance } from './canvasEngine.js';
 
 let renderCallback = null;
@@ -23,7 +23,6 @@ export function updateColorPalettesForMode() {
         }
     });
 
-    // Sincronizar el color activo predeterminado según el modo
     if (isDark && (state.pencilColor === '#1e293b' || getLuminance(state.pencilColor) < 0.35)) {
         state.pencilColor = '#f8fafc';
     } else if (!isDark && (state.pencilColor === '#f8fafc' || getLuminance(state.pencilColor) > 0.75)) {
@@ -67,6 +66,19 @@ export function setTool(toolName) {
 }
 
 /**
+ * Sincroniza el estado de los botones de modo de flecha
+ */
+function syncArrowModeButtons(arrowMode) {
+    document.querySelectorAll('.ctx-arrow-btn').forEach(btn => {
+        if (btn.getAttribute('data-arrow') === arrowMode) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+}
+
+/**
  * Actualiza la visibilidad y campos de la barra flotante según la selección actual
  */
 export function updateContextToolbar() {
@@ -92,13 +104,29 @@ export function updateContextToolbar() {
     const groupFont = document.getElementById('ctx-group-font');
     const groupSmoothing = document.getElementById('ctx-group-smoothing');
     const btnEditText = document.getElementById('ctx-edit-text');
+    const btnJoinLines = document.getElementById('ctx-join-lines');
 
-    [groupFill, groupStroke, groupWidth, groupArrowSize, groupConnStyle, groupConnArrows, groupStyle, groupFont, groupSmoothing, btnEditText].forEach(g => g && g.classList.add('hidden'));
+    [groupFill, groupStroke, groupWidth, groupArrowSize, groupConnStyle, groupConnArrows, groupStyle, groupFont, groupSmoothing, btnEditText, btnJoinLines].forEach(g => g && g.classList.add('hidden'));
+
+    if (state.selectedIds.length >= 2) {
+        const lineCount = state.elements.filter(e => state.selectedIds.includes(e.id) && (e.type === 'pencil' || e.type === 'highlighter' || e.type === 'connector')).length;
+        if (lineCount >= 2 && btnJoinLines) {
+            btnJoinLines.classList.remove('hidden');
+        }
+    }
 
     if (selected.type === 'text') {
         [groupStroke, groupFont, btnEditText].forEach(g => g && g.classList.remove('hidden'));
+        const strokeInput = document.getElementById('ctx-stroke-color');
+        if (strokeInput) strokeInput.value = selected.color || '#1e293b';
+        const fontInput = document.getElementById('ctx-font-size');
+        if (fontInput) fontInput.value = selected.fontSize || 20;
     } else if (selected.type === 'sticky') {
         [groupFill, groupFont, btnEditText].forEach(g => g && g.classList.remove('hidden'));
+        const fillInput = document.getElementById('ctx-fill-color');
+        if (fillInput) fillInput.value = selected.color || '#fef08a';
+        const fontInput = document.getElementById('ctx-font-size');
+        if (fontInput) fontInput.value = selected.fontSize || 16;
     } else if (selected.type === 'pencil' || selected.type === 'highlighter') {
         [groupStroke, groupWidth, groupConnArrows, groupSmoothing].forEach(g => g && g.classList.remove('hidden'));
 
@@ -142,185 +170,129 @@ export function updateContextToolbar() {
             if (arrowInput) arrowInput.value = selected.arrowSize || 14;
         }
 
+        const strokeInput = document.getElementById('ctx-stroke-color');
+        if (strokeInput) strokeInput.value = selected.strokeColor || '#1e293b';
+
+        const strokeWidthInput = document.getElementById('ctx-stroke-width');
+        if (strokeWidthInput) strokeWidthInput.value = selected.strokeWidth || 2;
+
         const connLineSelect = document.getElementById('ctx-conn-line');
         if (connLineSelect) {
-            const isCurved = selected.isCurved !== undefined ? selected.isCurved : (selected.connType && selected.connType.startsWith('curved'));
-            connLineSelect.value = isCurved ? 'curved' : 'line';
+            if (selected.connType === 'orthogonal' || selected.isOrthogonal) {
+                connLineSelect.value = 'orthogonal';
+            } else {
+                const isCurved = selected.isCurved !== undefined ? selected.isCurved : (selected.connType && selected.connType.startsWith('curved'));
+                connLineSelect.value = isCurved ? 'curved' : 'line';
+            }
         }
 
         syncArrowModeButtons(currentArrowMode || 'none');
     } else if (selected.type === 'shape') {
-        [groupFill, groupStroke, groupWidth, groupStyle, btnEditText].forEach(g => g && g.classList.remove('hidden'));
-    } else {
-        [groupStroke, groupStyle].forEach(g => g && g.classList.remove('hidden'));
+        [groupFill, groupStroke, groupWidth, groupStyle, groupFont, btnEditText].forEach(g => g && g.classList.remove('hidden'));
+
+        const fillInput = document.getElementById('ctx-fill-color');
+        if (fillInput) fillInput.value = selected.fillColor || '#ffffff';
+
+        const strokeInput = document.getElementById('ctx-stroke-color');
+        if (strokeInput) strokeInput.value = selected.strokeColor || '#1e293b';
+
+        const strokeWidthInput = document.getElementById('ctx-stroke-width');
+        if (strokeWidthInput) strokeWidthInput.value = selected.strokeWidth || 2;
+
+        const styleSelect = document.getElementById('ctx-stroke-style');
+        if (styleSelect) styleSelect.value = selected.strokeStyle || 'solid';
+
+        const fontInput = document.getElementById('ctx-font-size');
+        if (fontInput) fontInput.value = selected.fontSize || 16;
     }
+
+    const opacityInput = document.getElementById('ctx-opacity');
+    if (opacityInput) opacityInput.value = selected.opacity !== undefined ? selected.opacity : 1.0;
 }
 
-function syncArrowModeButtons(mode) {
-    document.querySelectorAll('.ctx-arrow-btn').forEach(btn => {
-        if (btn.getAttribute('data-arrow') === mode) {
-            btn.classList.add('active');
-        } else {
-            btn.classList.remove('active');
-        }
-    });
-}
-
+/**
+ * Inicializa los controladores de eventos de toda la interfaz
+ */
 export function setupUIListeners(canvas, ctx, renderFn) {
     renderCallback = renderFn;
 
-    // Sincronizar paleta inicial de colores según el tema
-    updateColorPalettesForMode();
-
-    // Botón Toggle Modo Oscuro / Claro
+    // Conmutador de Modo Oscuro / Claro
     const btnDarkMode = document.getElementById('btn-toggle-darkmode');
     if (btnDarkMode) {
         btnDarkMode.addEventListener('click', () => {
             state.darkMode = !state.darkMode;
-            document.documentElement.classList.toggle('dark', state.darkMode);
+            const html = document.documentElement;
             const icon = document.getElementById('darkmode-icon');
-            if (icon) {
-                icon.className = state.darkMode 
-                    ? 'fa-solid fa-sun text-amber-400 text-sm' 
-                    : 'fa-solid fa-moon text-sm';
+
+            if (state.darkMode) {
+                html.classList.add('dark');
+                if (icon) icon.className = 'fa-solid fa-sun text-amber-400 text-sm';
+            } else {
+                html.classList.remove('dark');
+                if (icon) icon.className = 'fa-solid fa-moon text-sm';
             }
+
             updateColorPalettesForMode();
             saveState();
-            updateContextToolbar();
             if (renderCallback) renderCallback();
-            showToast(state.darkMode ? 'Modo Oscuro activado' : 'Modo Claro activado', state.darkMode ? 'fa-solid fa-moon' : 'fa-solid fa-sun');
+            showToast(state.darkMode ? 'Modo Oscuro Activado' : 'Modo Claro Activado', state.darkMode ? 'fa-solid fa-moon' : 'fa-solid fa-sun');
         });
     }
 
-    // Botón para añadir puntos intermedios a un conector desde la barra flotante
-    const btnAddPoint = document.getElementById('ctx-add-point');
-    if (btnAddPoint) {
-        btnAddPoint.addEventListener('click', () => {
-            state.selectedIds.forEach(id => {
-                const el = state.elements.find(m => m.id === id);
-                if (el && el.type === 'connector') {
-                    const pts = getConnectorPoints(el);
-                    const midX = (pts[0].x + pts[pts.length - 1].x) / 2 + (Math.random() * 20 - 10);
-                    const midY = (pts[0].y + pts[pts.length - 1].y) / 2 + (Math.random() * 20 - 10);
-                    addConnectorIntermediatePoint(el, { x: midX, y: midY });
-                }
-            });
-            saveState();
-            if (renderCallback) renderCallback();
-        });
-    }
-
-    // Botón para eliminar el último punto intermedio
-    const btnRemovePoint = document.getElementById('ctx-remove-point');
-    if (btnRemovePoint) {
-        btnRemovePoint.addEventListener('click', () => {
-            state.selectedIds.forEach(id => {
-                const el = state.elements.find(m => m.id === id);
-                if (el && el.type === 'connector' && el.points && el.points.length > 2) {
-                    removeConnectorIntermediatePoint(el, el.points.length - 2);
-                }
-            });
-            saveState();
-            if (renderCallback) renderCallback();
-        });
-    }
-
-    // Listener para cambiar herramienta desde los botones de la barra lateral
-    document.querySelectorAll('[data-tool]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const toolName = btn.getAttribute('data-tool');
-            if (toolName) {
-                setTool(toolName);
-            }
-        });
-    });
-
-    // Listeners para botones visuales de flechas en la barra contextual
-    document.querySelectorAll('.ctx-arrow-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const arrowMode = btn.getAttribute('data-arrow');
-            state.selectedIds.forEach(id => {
-                const el = state.elements.find(m => m.id === id);
-                if (el && (el.type === 'connector' || el.type === 'pencil' || el.type === 'highlighter')) {
-                    el.arrowMode = arrowMode;
-                }
-            });
-            updateContextToolbar();
-            saveState();
-            if (renderCallback) renderCallback();
-        });
-    });
-
-    // Listeners para botones de flecha en el menú del lápiz
-    document.querySelectorAll('.pencil-arrow-opt').forEach(btn => {
+    // Botones de Selección de Herramientas
+    document.querySelectorAll('.tool-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            state.pencilArrowMode = btn.getAttribute('data-arrow');
-            document.querySelectorAll('.pencil-arrow-opt').forEach(o => o.classList.remove('active'));
-            btn.classList.add('active');
-        });
-    });
-
-    // Menús flyouts
-    document.querySelectorAll('.has-flyout').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
+            const tool = btn.getAttribute('data-tool');
             const flyoutId = btn.getAttribute('data-flyout');
-            const flyout = document.getElementById(flyoutId);
 
-            document.querySelectorAll('.flyout-menu').forEach(m => {
-                if (m !== flyout) m.classList.add('hidden');
-            });
-            if (flyout) flyout.classList.toggle('hidden');
+            if (flyoutId) {
+                const flyout = document.getElementById(flyoutId);
+                const wasHidden = flyout ? flyout.classList.contains('hidden') : true;
+                closeAllFlyouts();
+                if (flyout && wasHidden) {
+                    flyout.classList.remove('hidden');
+                }
+            } else {
+                closeAllFlyouts();
+            }
+
+            if (tool) setTool(tool);
         });
     });
 
-    // Clics fuera para cerrar flyouts
+    // Cierre de Flyouts al hacer clic fuera
     document.addEventListener('click', (e) => {
-        if (!e.target.closest('.flyout-menu') && !e.target.closest('.has-flyout') && !e.target.closest('#btn-export-toggle')) {
+        if (!e.target.closest('.has-flyout') && !e.target.closest('.flyout-menu')) {
             closeAllFlyouts();
+        }
+        const menuExport = document.getElementById('menu-export');
+        if (menuExport && !e.target.closest('#btn-export-toggle') && !e.target.closest('#menu-export')) {
+            menuExport.classList.add('hidden');
         }
     });
 
-    // Opciones de submenús
-    document.querySelectorAll('.shape-opt').forEach(opt => {
-        opt.addEventListener('click', (e) => {
-            e.stopPropagation();
-            state.activeShape = opt.getAttribute('data-shape');
-            closeAllFlyouts();
-            setTool('shape');
-        });
-    });
-
-    document.querySelectorAll('.conn-opt').forEach(opt => {
-        opt.addEventListener('click', (e) => {
-            e.stopPropagation();
-            state.activeConnector = opt.getAttribute('data-conn');
-            closeAllFlyouts();
-            setTool('connector');
-        });
-    });
-
+    // Opciones de Notas Adhesivas
     document.querySelectorAll('.sticky-color-opt').forEach(opt => {
         opt.addEventListener('click', (e) => {
             e.stopPropagation();
             state.stickyColor = opt.getAttribute('data-color');
-            closeAllFlyouts();
             setTool('sticky');
+            closeAllFlyouts();
         });
     });
 
-    document.querySelectorAll('.pencil-color-opt').forEach(opt => {
-        opt.addEventListener('click', (e) => {
+    // Opciones del Lápiz
+    document.querySelectorAll('.pencil-color-opt').forEach(dot => {
+        dot.addEventListener('click', (e) => {
             e.stopPropagation();
-            state.pencilColor = opt.getAttribute('data-color');
-            document.querySelectorAll('.pencil-color-opt').forEach(o => o.classList.remove('active'));
-            opt.classList.add('active');
+            document.querySelectorAll('.pencil-color-opt').forEach(d => d.classList.remove('active'));
+            dot.classList.add('active');
+            state.pencilColor = dot.getAttribute('data-color');
             setTool('pencil');
         });
     });
 
-    // Control de grosor del lápiz
     const pencilWidthSlider = document.getElementById('pencil-width-slider');
     const pencilWidthVal = document.getElementById('pencil-width-val');
     if (pencilWidthSlider) {
@@ -330,19 +302,26 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         });
     }
 
-    // Opciones de color del destacador
-    document.querySelectorAll('.hl-color-opt').forEach(opt => {
-        opt.addEventListener('click', (e) => {
+    document.querySelectorAll('.pencil-arrow-opt').forEach(btn => {
+        btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            state.hlColor = opt.getAttribute('data-color');
-            document.querySelectorAll('.hl-color-opt').forEach(o => o.classList.remove('active'));
-            opt.classList.add('active');
-            closeAllFlyouts();
+            document.querySelectorAll('.pencil-arrow-opt').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            state.pencilArrowMode = btn.getAttribute('data-arrow');
+        });
+    });
+
+    // Opciones del Destacador
+    document.querySelectorAll('.hl-color-opt').forEach(dot => {
+        dot.addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.querySelectorAll('.hl-color-opt').forEach(d => d.classList.remove('active'));
+            dot.classList.add('active');
+            state.hlColor = dot.getAttribute('data-color');
             setTool('highlighter');
         });
     });
 
-    // Control de grosor del destacador
     const hlWidthSlider = document.getElementById('hl-width-slider');
     const hlWidthVal = document.getElementById('hl-width-val');
     if (hlWidthSlider) {
@@ -352,19 +331,122 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         });
     }
 
-    // Listeners de tipo de línea y flechas en la barra contextual
-    const ctxConnLine = document.getElementById('ctx-conn-line');
-    if (ctxConnLine) {
-        ctxConnLine.addEventListener('change', (e) => {
-            const isCurved = e.target.value === 'curved';
+    // Selector de Formas
+    document.querySelectorAll('.shape-opt').forEach(opt => {
+        opt.addEventListener('click', (e) => {
+            e.stopPropagation();
+            state.activeShape = opt.getAttribute('data-shape');
+            setTool('shape');
+            closeAllFlyouts();
+        });
+    });
+
+    // Selector de Conectores
+    document.querySelectorAll('.conn-opt').forEach(opt => {
+        opt.addEventListener('click', (e) => {
+            e.stopPropagation();
+            state.activeConnector = opt.getAttribute('data-conn');
+            setTool('connector');
+            closeAllFlyouts();
+        });
+    });
+
+    // Acciones de la Barra Flotante (Contextual)
+    document.querySelectorAll('.ctx-arrow-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const mode = btn.getAttribute('data-arrow');
+            state.selectedIds.forEach(id => {
+                const el = state.elements.find(m => m.id === id);
+                if (el) el.arrowMode = mode;
+            });
+            syncArrowModeButtons(mode);
+            saveState();
+            if (renderCallback) renderCallback();
+        });
+    });
+
+    const btnAddPoint = document.getElementById('ctx-add-point');
+    if (btnAddPoint) {
+        btnAddPoint.addEventListener('click', () => {
+            if (state.selectedIds.length > 0) {
+                const el = state.elements.find(m => m.id === state.selectedIds[0]);
+                if (el && el.type === 'connector') {
+                    const pts = getConnectorPoints(el);
+                    const midX = (pts[0].x + pts[pts.length - 1].x) / 2;
+                    const midY = (pts[0].y + pts[pts.length - 1].y) / 2;
+                    addConnectorIntermediatePoint(el, { x: midX, y: midY });
+                    saveState();
+                    if (renderCallback) renderCallback();
+                    showToast('Punto intermedio añadido', 'fa-solid fa-circle-plus');
+                }
+            }
+        });
+    }
+
+    const btnRemovePoint = document.getElementById('ctx-remove-point');
+    if (btnRemovePoint) {
+        btnRemovePoint.addEventListener('click', () => {
+            if (state.selectedIds.length > 0) {
+                const el = state.elements.find(m => m.id === state.selectedIds[0]);
+                if (el && el.type === 'connector' && el.points && el.points.length > 2) {
+                    removeConnectorIntermediatePoint(el, el.points.length - 2);
+                    saveState();
+                    if (renderCallback) renderCallback();
+                    showToast('Punto intermedio eliminado', 'fa-solid fa-circle-minus');
+                }
+            }
+        });
+    }
+
+    const btnJoinLines = document.getElementById('ctx-join-lines');
+    if (btnJoinLines) {
+        btnJoinLines.addEventListener('click', () => {
+            joinSelectedLines();
+            updateContextToolbar();
+            if (renderCallback) renderCallback();
+            showToast('Líneas unidas con éxito', 'fa-solid fa-link');
+        });
+    }
+
+    const btnToggleJumps = document.getElementById('ctx-toggle-jumps');
+    if (btnToggleJumps) {
+        btnToggleJumps.addEventListener('click', () => {
             state.selectedIds.forEach(id => {
                 const el = state.elements.find(m => m.id === id);
                 if (el && el.type === 'connector') {
-                    el.isCurved = isCurved;
-                    if (isCurved && !el.cp) {
-                        const endX = el.endX !== undefined ? el.endX : el.x + 100;
-                        const endY = el.endY !== undefined ? el.endY : el.y + 100;
-                        el.cp = { x: (el.x + endX) / 2, y: (el.y + endY) / 2 - 40 };
+                    el.lineJumps = !el.lineJumps;
+                }
+            });
+            saveState();
+            if (renderCallback) renderCallback();
+            showToast('Arcos de cruce actualizados', 'fa-solid fa-bridge');
+        });
+    }
+
+    const ctxConnLine = document.getElementById('ctx-conn-line');
+    if (ctxConnLine) {
+        ctxConnLine.addEventListener('change', (e) => {
+            const val = e.target.value;
+            state.selectedIds.forEach(id => {
+                const el = state.elements.find(m => m.id === id);
+                if (el && el.type === 'connector') {
+                    if (val === 'orthogonal') {
+                        el.connType = 'orthogonal';
+                        el.isOrthogonal = true;
+                        el.isCurved = false;
+                    } else if (val === 'curved') {
+                        el.connType = 'curved';
+                        el.isCurved = true;
+                        el.isOrthogonal = false;
+                        if (!el.cp) {
+                            const endX = el.endX !== undefined ? el.endX : el.x + 100;
+                            const endY = el.endY !== undefined ? el.endY : el.y + 100;
+                            el.cp = { x: (el.x + endX) / 2, y: (el.y + endY) / 2 - 40 };
+                        }
+                    } else {
+                        el.connType = 'line';
+                        el.isCurved = false;
+                        el.isOrthogonal = false;
                     }
                 }
             });

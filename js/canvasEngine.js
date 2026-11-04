@@ -49,7 +49,6 @@ export function getWrappedLines(ctx, text, maxWidth) {
                     lines.push(currentLine);
                     currentLine = '';
                 }
-                // Si la palabra individual supera el ancho máximo, forzar ajuste por caracteres
                 if (ctx.measureText(word).width > maxWidth) {
                     let subWord = '';
                     for (let c = 0; c < word.length; c++) {
@@ -74,6 +73,30 @@ export function getWrappedLines(ctx, text, maxWidth) {
         }
     }
     return lines;
+}
+
+/**
+ * Algoritmo de suavizado para trazos libres (Chaikin's Corner Cutting)
+ */
+export function getSmoothedPoints(points, iterations = 3) {
+    if (!points || points.length <= 2) return points || [];
+    let current = points.map(p => ({ x: p.x, y: p.y }));
+
+    for (let i = 0; i < iterations; i++) {
+        const next = [];
+        next.push(current[0]);
+        for (let j = 0; j < current.length - 1; j++) {
+            const p0 = current[j];
+            const p1 = current[j + 1];
+            const q = { x: 0.75 * p0.x + 0.25 * p1.x, y: 0.75 * p0.y + 0.25 * p1.y };
+            const r = { x: 0.25 * p0.x + 0.75 * p1.x, y: 0.25 * p0.y + 0.75 * p1.y };
+            next.push(q);
+            next.push(r);
+        }
+        next.push(current[current.length - 1]);
+        current = next;
+    }
+    return current;
 }
 
 /**
@@ -105,11 +128,7 @@ export function getLuminance(colorStr) {
 }
 
 /**
- * Retorna el color adaptado visualmente para el lienzo.
- * En Modo Oscuro (state.darkMode = true), los colores oscuros (luminancia < 0.35)
- * se transforman temporalmente a #f8fafc para garantizar máximo contraste.
- * En Modo Claro (state.darkMode = false), los colores muy claros (luminancia > 0.75)
- * se transforman temporalmente a #1e293b para mantener legibilidad sobre fondo blanco.
+ * Retorna el color adaptado visualmente para el lienzo según Modo Oscuro / Claro
  */
 export function getEffectiveColor(colorStr, role = 'stroke') {
     if (!colorStr) {
@@ -144,7 +163,6 @@ export function getEffectiveColor(colorStr, role = 'stroke') {
                 return '#f8fafc';
             }
         } else if (role === 'fill') {
-            // FONDOS BLANCOS O MUY CLAROS SE ADAPTAN A MODO OSCURO (#1e293b)
             if (lum > 0.85) {
                 return '#1e293b';
             }
@@ -263,6 +281,17 @@ export function getConnectorPoints(el) {
     const start = { x: el.x || 0, y: el.y || 0 };
     const end = { x: el.endX !== undefined ? el.endX : start.x + 100, y: el.endY !== undefined ? el.endY : start.y + 100 };
     const isCurved = el.isCurved !== undefined ? el.isCurved : (el.connType && el.connType.startsWith('curved'));
+    const isOrthogonal = el.isOrthogonal !== undefined ? el.isOrthogonal : (el.connType === 'orthogonal');
+
+    if (isOrthogonal) {
+        const midX = (start.x + end.x) / 2;
+        return [
+            start,
+            { x: midX, y: start.y },
+            { x: midX, y: end.y },
+            end
+        ];
+    }
 
     if (isCurved) {
         const cp = el.cp || { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 - 40 };
@@ -272,555 +301,210 @@ export function getConnectorPoints(el) {
 }
 
 /**
- * Distancia de un punto a un segmento de línea recta
+ * Calcula la distancia de un punto a un segmento rectilíneo
  */
-export function distToSegment(p, v, w) {
-    const l2 = (w.x - v.x) ** 2 + (w.y - v.y) ** 2;
-    if (l2 === 0) return Math.hypot(p.x - v.x, p.y - v.y);
-    let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+export function distToSegment(p, p1, p2) {
+    const l2 = (p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2;
+    if (l2 === 0) return Math.hypot(p.x - p1.x, p.y - p1.y);
+    let t = ((p.x - p1.x) * (p2.x - p1.x) + (p.y - p1.y) * (p2.y - p1.y)) / l2;
     t = Math.max(0, Math.min(1, t));
-    return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
+    return Math.hypot(p.x - (p1.x + t * (p2.x - p1.x)), p.y - (p1.y + t * (p2.y - p1.y)));
 }
 
 /**
- * Distancia de un punto a una curva cuadrática Bézier
+ * Calcula la distancia mínima de un punto a una secuencia de puntos (polilínea)
  */
-function distToQuadraticCurve(p, p0, p1, p2) {
+export function distToPath(pt, points) {
+    if (!points || points.length === 0) return Infinity;
+    if (points.length === 1) return Math.hypot(pt.x - points[0].x, pt.y - points[0].y);
     let minD = Infinity;
-    const steps = 30;
-    for (let i = 0; i <= steps; i++) {
-        const t = i / steps;
-        const invT = 1 - t;
-        const qx = invT * invT * p0.x + 2 * invT * t * p1.x + t * t * p2.x;
-        const qy = invT * invT * p0.y + 2 * invT * t * p1.y + t * t * p2.y;
-        const d = Math.hypot(p.x - qx, p.y - qy);
+    for (let i = 0; i < points.length - 1; i++) {
+        const d = distToSegment(pt, points[i], points[i + 1]);
         if (d < minD) minD = d;
     }
     return minD;
 }
 
 /**
- * Comprueba si un punto (coordenadas del mundo) está dentro o sobre un elemento
+ * Evalúa si un punto está contenido o muy cercano a un elemento
  */
 export function isPointInElement(pt, el) {
-    if (!el) return false;
-
     if (el.type === 'pencil' || el.type === 'highlighter') {
-        if (!el.points || el.points.length === 0) return false;
-        const smoothVal = el.smoothing !== undefined ? el.smoothing : state.smoothing;
-        const pts = getSmoothedPoints(el.points, smoothVal);
-        const threshold = Math.max(12, (el.lineWidth || 3) / 2 + 6) / state.zoom;
-
-        for (let i = 0; i < pts.length - 1; i++) {
-            if (distToSegment(pt, pts[i], pts[i + 1]) <= threshold) {
-                return true;
-            }
-        }
-        return false;
+        const pts = el.points || [];
+        const threshold = Math.max(10, (el.lineWidth || 3) / 2 + 5);
+        return distToPath(pt, pts) <= threshold;
     }
 
     if (el.type === 'connector') {
         const pts = getConnectorPoints(el);
-        const threshold = Math.max(14, ((el.strokeWidth || 2) + 8)) / state.zoom;
-        const isCurved = el.isCurved !== undefined ? el.isCurved : (el.connType && el.connType.startsWith('curved'));
-
-        if (isCurved && pts.length === 3) {
-            return distToQuadraticCurve(pt, pts[0], pts[1], pts[2]) <= threshold;
-        }
-
-        for (let i = 0; i < pts.length - 1; i++) {
-            if (distToSegment(pt, pts[i], pts[i + 1]) <= threshold) {
-                return true;
-            }
-        }
-        return false;
+        const threshold = Math.max(10, (el.strokeWidth || 2) + 6);
+        return distToPath(pt, pts) <= threshold;
     }
 
     const bounds = getElementBounds(el);
     let checkPt = pt;
+
     if (el.rotation) {
         const cx = bounds.x + bounds.width / 2;
         const cy = bounds.y + bounds.height / 2;
         checkPt = rotatePoint(pt, -el.rotation, { x: cx, y: cy });
     }
 
-    return checkPt.x >= bounds.x &&
-           checkPt.x <= bounds.x + bounds.width &&
-           checkPt.y >= bounds.y &&
-           checkPt.y <= bounds.y + bounds.height;
+    return (
+        checkPt.x >= bounds.x &&
+        checkPt.x <= bounds.x + bounds.width &&
+        checkPt.y >= bounds.y &&
+        checkPt.y <= bounds.y + bounds.height
+    );
 }
 
-/**
- * Suavizado de curva Chaikin
- */
-function getSmoothedPoints(points, smoothLevel = 5) {
-    if (!points || points.length <= 2 || smoothLevel === 0) return points || [];
-    
-    let current = points;
-    const iterations = Math.min(3, Math.ceil(smoothLevel / 3));
-
-    for (let it = 0; it < iterations; it++) {
-        const smoothed = [];
-        smoothed.push(current[0]);
-        for (let i = 0; i < current.length - 1; i++) {
-            const p0 = current[i];
-            const p1 = current[i + 1];
-            const q = { x: 0.75 * p0.x + 0.25 * p1.x, y: 0.75 * p0.y + 0.25 * p1.y };
-            const r = { x: 0.25 * p0.x + 0.75 * p1.x, y: 0.25 * p0.y + 0.75 * p1.y };
-            smoothed.push(q);
-            smoothed.push(r);
-        }
-        smoothed.push(current[current.length - 1]);
-        current = smoothed;
-    }
-    return current;
-}
-
-/**
- * Truncamiento de puntos desde el final para dejar espacio exacto a la cabeza de la flecha
- */
-function trimPointsFromEnd(pts, trimDistance) {
-    if (pts.length < 2 || trimDistance <= 0) return pts;
-    const result = [...pts];
-    let remaining = trimDistance;
-
-    while (result.length >= 2 && remaining > 0) {
-        const pLast = result[result.length - 1];
-        const pPrev = result[result.length - 2];
-        const segLen = Math.hypot(pLast.x - pPrev.x, pLast.y - pPrev.y);
-
-        if (segLen <= remaining) {
-            remaining -= segLen;
-            result.pop();
-        } else {
-            const ratio = (segLen - remaining) / segLen;
-            result[result.length - 1] = {
-                x: pPrev.x + (pLast.x - pPrev.x) * ratio,
-                y: pPrev.y + (pLast.y - pPrev.y) * ratio
-            };
-            remaining = 0;
-        }
-    }
-    return result;
-}
-
-/**
- * Truncamiento de puntos desde el inicio para dejar espacio exacto a la cabeza de la flecha
- */
-function trimPointsFromStart(pts, trimDistance) {
-    if (pts.length < 2 || trimDistance <= 0) return pts;
-    const result = [...pts];
-    let remaining = trimDistance;
-
-    while (result.length >= 2 && remaining > 0) {
-        const pFirst = result[0];
-        const pNext = result[1];
-        const segLen = Math.hypot(pNext.x - pFirst.x, pNext.y - pFirst.y);
-
-        if (segLen <= remaining) {
-            remaining -= segLen;
-            result.shift();
-        } else {
-            const ratio = remaining / segLen;
-            result[0] = {
-                x: pFirst.x + (pNext.x - pFirst.x) * ratio,
-                y: pFirst.y + (pNext.y - pFirst.y) * ratio
-            };
-            remaining = 0;
-        }
-    }
-    return result;
-}
-
-/**
- * Obtiene el punto a una distancia hacia atrás sobre la curva para calcular la dirección de la flecha
- */
-function getPointAtDistanceBack(pts, fromEnd = true, targetDistance = 15) {
-    if (pts.length < 2) return pts[0] || { x: 0, y: 0 };
-    let remaining = targetDistance;
-
-    if (fromEnd) {
-        for (let i = pts.length - 1; i > 0; i--) {
-            const pCurrent = pts[i];
-            const pPrev = pts[i - 1];
-            const segLen = Math.hypot(pCurrent.x - pPrev.x, pCurrent.y - pPrev.y);
-            if (segLen >= remaining) {
-                const ratio = remaining / segLen;
-                return {
-                    x: pCurrent.x - (pCurrent.x - pPrev.x) * ratio,
-                    y: pCurrent.y - (pCurrent.y - pPrev.y) * ratio
-                };
-            }
-            remaining -= segLen;
-        }
-        return pts[0];
-    } else {
-        for (let i = 0; i < pts.length - 1; i++) {
-            const pCurrent = pts[i];
-            const pNext = pts[i + 1];
-            const segLen = Math.hypot(pNext.x - pCurrent.x, pNext.y - pCurrent.y);
-            if (segLen >= remaining) {
-                const ratio = remaining / segLen;
-                return {
-                    x: pCurrent.x + (pNext.x - pCurrent.x) * ratio,
-                    y: pCurrent.y + (pNext.y - pCurrent.y) * ratio
-                };
-            }
-            remaining -= segLen;
-        }
-        return pts[pts.length - 1];
-    }
-}
-
-/**
- * Renderiza el cuadro completo del lienzo
- */
-export function render(canvas, ctx, minimapCanvas, minimapCtx) {
-    if (!ctx || !canvas) return;
-
-    if (state.darkMode) {
-        ctx.fillStyle = '#0f172a';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-    } else {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }
-
-    ctx.save();
-    ctx.translate(state.pan.x, state.pan.y);
-    ctx.scale(state.zoom, state.zoom);
-
-    drawGrid(ctx, canvas);
-
-    state.elements.forEach(el => drawElement(ctx, el));
-
-    if (state.tempElement) drawElement(ctx, state.tempElement);
-
-    drawSelectionOverlay(ctx);
-
-    ctx.restore();
-
-    renderMinimap(minimapCanvas, minimapCtx);
-}
-
-/**
- * Dibuja la cuadrícula infinita en el fondo
- */
-function drawGrid(ctx, canvas) {
-    const gridSpacing = 40;
-    const startX = Math.floor(-state.pan.x / (gridSpacing * state.zoom)) * gridSpacing - gridSpacing;
-    const startY = Math.floor(-state.pan.y / (gridSpacing * state.zoom)) * gridSpacing - gridSpacing;
-    const endX = startX + (canvas.width / state.zoom) + gridSpacing * 2;
-    const endY = startY + (canvas.height / state.zoom) + gridSpacing * 2;
-
-    ctx.fillStyle = state.darkMode ? '#334155' : '#cbd5e1';
-    for (let x = startX; x < endX; x += gridSpacing) {
-        for (let y = startY; y < endY; y += gridSpacing) {
-            ctx.beginPath();
-            ctx.arc(x, y, 1.2 / Math.sqrt(state.zoom), 0, Math.PI * 2);
-            ctx.fill();
-        }
-    }
-}
-
-/**
- * Renderiza un elemento individual en el lienzo
- */
-function drawElement(ctx, el) {
-    ctx.save();
-    ctx.globalAlpha = el.opacity !== undefined ? el.opacity : 1.0;
-
-    // Aplicar Transformación de Rotación
-    if (el.rotation && el.type !== 'connector') {
-        const bounds = getElementBounds(el);
-        const cx = bounds.x + bounds.width / 2;
-        const cy = bounds.y + bounds.height / 2;
-        ctx.translate(cx, cy);
-        ctx.rotate(el.rotation);
-        ctx.translate(-cx, -cy);
-    }
-
-    switch (el.type) {
-        case 'sticky':
-            ctx.fillStyle = 'rgba(0,0,0,0.08)';
-            ctx.fillRect(el.x + 4, el.y + 4, el.width, el.height);
-            ctx.fillStyle = el.color || '#fef08a';
-            ctx.fillRect(el.x, el.y, el.width, el.height);
-            ctx.strokeStyle = 'rgba(0,0,0,0.06)';
-            ctx.strokeRect(el.x, el.y, el.width, el.height);
-            if (el.text && el.id !== state.editingElementId) {
-                const bgLum = getLuminance(el.color || '#fef08a');
-                ctx.fillStyle = bgLum < 0.4 ? '#f8fafc' : '#1e293b';
-                const fontSize = el.fontSize || 16;
-                ctx.font = `${fontSize}px Inter, sans-serif`;
-
-                const maxWidth = Math.max(20, el.width - 24);
-                const lines = getWrappedLines(ctx, el.text, maxWidth);
-                const lineHeight = fontSize * 1.35;
-
-                let startY = el.y + 24;
-                lines.forEach((line) => {
-                    ctx.fillText(line, el.x + 12, startY);
-                    startY += lineHeight;
-                });
-            }
-            break;
-
-        case 'text':
-            if (el.id !== state.editingElementId) {
-                ctx.fillStyle = getEffectiveColor(el.color || '#1e293b', 'text');
-                const fontSize = el.fontSize || 20;
-                ctx.font = `${fontSize}px Inter, sans-serif`;
-
-                const maxWidth = el.width ? Math.max(40, el.width - 8) : 350;
-                const lines = getWrappedLines(ctx, el.text || 'Haz doble clic para editar', maxWidth);
-                const lineHeight = fontSize * 1.35;
-
-                let startY = el.y + fontSize;
-                lines.forEach((line) => {
-                    ctx.fillText(line, el.x + 4, startY);
-                    startY += lineHeight;
-                });
-            }
-            break;
-
-        case 'pencil':
-        case 'highlighter':
-            if (el.points && el.points.length > 0) {
-                const smoothVal = el.smoothing !== undefined ? el.smoothing : state.smoothing;
-                const pts = getSmoothedPoints(el.points, smoothVal);
-                const effectiveColor = getEffectiveColor(el.color, 'stroke');
-
-                if (pts.length === 1) {
-                    ctx.beginPath();
-                    ctx.arc(pts[0].x, pts[0].y, el.lineWidth / 2, 0, Math.PI * 2);
-                    ctx.fillStyle = effectiveColor;
-                    ctx.fill();
-                } else {
-                    const hasArrows = el.arrowMode && el.arrowMode !== 'none';
-                    const arrowSize = el.arrowSize !== undefined ? el.arrowSize : Math.max(14, (el.lineWidth || 2) * 2.5);
-                    const offset = arrowSize * 0.85;
-
-                    let strokePts = pts.map(p => ({ ...p }));
-
-                    if (el.arrowMode === 'end' || el.arrowMode === 'both') {
-                        strokePts = trimPointsFromEnd(strokePts, offset);
-                    }
-                    if (el.arrowMode === 'start' || el.arrowMode === 'both') {
-                        strokePts = trimPointsFromStart(strokePts, offset);
-                    }
-
-                    if (strokePts.length >= 2) {
-                        ctx.beginPath();
-                        ctx.strokeStyle = effectiveColor;
-                        ctx.lineWidth = el.lineWidth;
-                        ctx.lineCap = hasArrows ? 'butt' : 'round';
-                        ctx.lineJoin = 'round';
-
-                        ctx.moveTo(strokePts[0].x, strokePts[0].y);
-                        for (let i = 1; i < strokePts.length - 1; i++) {
-                            const xc = (strokePts[i].x + strokePts[i + 1].x) / 2;
-                            const yc = (strokePts[i].y + strokePts[i + 1].y) / 2;
-                            ctx.quadraticCurveTo(strokePts[i].x, strokePts[i].y, xc, yc);
-                        }
-                        ctx.lineTo(strokePts[strokePts.length - 1].x, strokePts[strokePts.length - 1].y);
-                        ctx.stroke();
-                    }
-
-                    if (hasArrows) {
-                        const refDist = Math.max(15, arrowSize);
-                        if (el.arrowMode === 'end' || el.arrowMode === 'both') {
-                            const pEnd = pts[pts.length - 1];
-                            const pRef = getPointAtDistanceBack(pts, true, refDist);
-                            drawArrowHead(ctx, pRef.x, pRef.y, pEnd.x, pEnd.y, effectiveColor, arrowSize);
-                        }
-                        if (el.arrowMode === 'start' || el.arrowMode === 'both') {
-                            const pStart = pts[0];
-                            const pRef = getPointAtDistanceBack(pts, false, refDist);
-                            drawArrowHead(ctx, pRef.x, pRef.y, pStart.x, pStart.y, effectiveColor, arrowSize);
-                        }
-                    }
-                }
-            }
-            break;
-
-        case 'shape':
-            drawShape(ctx, el);
-            break;
-
-        case 'connector':
-            drawConnector(ctx, el);
-            break;
-
-        case 'frame':
-            ctx.fillStyle = '#4f46e5';
-            ctx.fillRect(el.x, el.y - 26, Math.max(120, ctx.measureText(el.title || 'Marco').width + 24), 26);
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 12px Inter, sans-serif';
-            ctx.fillText(el.title || 'Marco', el.x + 10, el.y - 8);
-
-            ctx.strokeStyle = '#4f46e5';
-            ctx.lineWidth = 2;
-            ctx.setLineDash([6, 6]);
-            ctx.fillStyle = state.darkMode ? 'rgba(30, 41, 59, 0.3)' : 'rgba(241, 245, 249, 0.2)';
-            ctx.strokeRect(el.x, el.y, el.width, el.height);
-            ctx.fillRect(el.x, el.y, el.width, el.height);
-            ctx.setLineDash([]);
-            break;
-
-        case 'image':
-            if (el.imgElement && el.imgElement.complete) {
-                ctx.drawImage(el.imgElement, el.x, el.y, el.width, el.height);
-            } else if (el.src) {
-                const img = new Image();
-                img.src = el.src;
-                img.onload = () => { render(ctx.canvas, ctx); };
-                el.imgElement = img;
-            }
-            break;
-    }
-
-    ctx.restore();
-}
-
-/**
- * Ajusta el estilo de punteado de líneas
- */
 function setLineDashStyle(ctx, style) {
-    if (style === 'dashed') ctx.setLineDash([8, 8]);
-    else if (style === 'dotted') ctx.setLineDash([3, 3]);
+    if (style === 'dashed') ctx.setLineDash([8, 6]);
+    else if (style === 'dotted') ctx.setLineDash([3, 4]);
     else ctx.setLineDash([]);
 }
 
-/**
- * Dibuja figuras geométricas (Rectángulo, Círculo, Rombo, Estrella, etc.)
- */
-function drawShape(ctx, el) {
-    const fillColor = getEffectiveColor(el.fillColor || (state.darkMode ? '#1e293b' : '#ffffff'), 'fill');
-    const strokeColor = getEffectiveColor(el.strokeColor || '#1e293b', 'stroke');
+function trimPointsFromEnd(pts, dist) {
+    if (!pts || pts.length < 2) return pts;
+    const result = pts.map(p => ({ ...p }));
+    let remaining = dist;
 
-    ctx.fillStyle = fillColor;
-    ctx.strokeStyle = strokeColor;
-    ctx.lineWidth = el.strokeWidth || 2;
-    setLineDashStyle(ctx, el.strokeStyle);
+    for (let i = result.length - 1; i > 0; i--) {
+        const pEnd = result[i];
+        const pPrev = result[i - 1];
+        const segLen = Math.hypot(pEnd.x - pPrev.x, pEnd.y - pPrev.y);
 
-    const x = el.x, y = el.y, w = el.width, h = el.height;
-
-    switch (el.shapeType) {
-        case 'rect':
-            ctx.fillRect(x, y, w, h);
-            ctx.strokeRect(x, y, w, h);
-            break;
-        case 'rounded-rect':
-            ctx.beginPath();
-            if (ctx.roundRect) ctx.roundRect(x, y, w, h, 12);
-            else ctx.rect(x, y, w, h);
-            ctx.fill();
-            ctx.stroke();
-            break;
-        case 'circle':
-            ctx.beginPath();
-            ctx.ellipse(x + w / 2, y + h / 2, Math.abs(w / 2), Math.abs(h / 2), 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-            break;
-        case 'triangle':
-            ctx.beginPath();
-            ctx.moveTo(x + w / 2, y);
-            ctx.lineTo(x + w, y + h);
-            ctx.lineTo(x, y + h);
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-            break;
-        case 'diamond':
-            ctx.beginPath();
-            ctx.moveTo(x + w / 2, y);
-            ctx.lineTo(x + w, y + h / 2);
-            ctx.lineTo(x + w / 2, y + h);
-            ctx.lineTo(x, y + h / 2);
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
-            break;
-        case 'star':
-            drawStar(ctx, x + w / 2, y + h / 2, 5, Math.min(Math.abs(w), Math.abs(h)) / 2, Math.min(Math.abs(w), Math.abs(h)) / 4);
-            break;
-        case 'hexagon':
-            drawPolygon(ctx, x + w / 2, y + h / 2, 6, Math.min(Math.abs(w), Math.abs(h)) / 2);
-            break;
-        case 'bubble':
-            ctx.beginPath();
-            if (ctx.roundRect) ctx.roundRect(x, y, w, h - 16, 12);
-            else ctx.rect(x, y, w, h - 16);
-            ctx.moveTo(x + 20, y + h - 16);
-            ctx.lineTo(x + 10, y + h);
-            ctx.lineTo(x + 35, y + h - 16);
-            ctx.fill();
-            ctx.stroke();
-            break;
+        if (segLen >= remaining) {
+            const ratio = (segLen - remaining) / segLen;
+            result[i] = {
+                x: pPrev.x + (pEnd.x - pPrev.x) * ratio,
+                y: pPrev.y + (pEnd.y - pPrev.y) * ratio
+            };
+            return result.slice(0, i + 1);
+        } else {
+            remaining -= segLen;
+        }
     }
-    ctx.setLineDash([]);
-
-    if (el.text && el.id !== state.editingElementId) {
-        const fillLum = getLuminance(fillColor);
-        const textColor = fillLum < 0.45 ? '#f8fafc' : '#0f172a';
-        ctx.fillStyle = textColor;
-        const fontSize = el.fontSize || 16;
-        ctx.font = `${fontSize}px Inter, sans-serif`;
-
-        const paddingX = Math.max(12, w * 0.1);
-        const maxWidth = Math.max(20, w - paddingX * 2);
-        const lines = getWrappedLines(ctx, el.text, maxWidth);
-
-        const lineHeight = fontSize * 1.3;
-        const totalTextHeight = lines.length * lineHeight;
-
-        let startY = y + (h - totalTextHeight) / 2 + fontSize * 0.85;
-
-        ctx.textAlign = 'center';
-        const centerX = x + w / 2;
-        lines.forEach((line) => {
-            ctx.fillText(line, centerX, startY);
-            startY += lineHeight;
-        });
-        ctx.textAlign = 'left';
-    }
+    return [result[0]];
 }
 
-function drawStar(ctx, cx, cy, spikes, outerRadius, innerRadius) {
-    let rot = Math.PI / 2 * 3;
-    let step = Math.PI / spikes;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy - outerRadius);
-    for (let i = 0; i < spikes; i++) {
-        ctx.lineTo(cx + Math.cos(rot) * outerRadius, cy + Math.sin(rot) * outerRadius);
-        rot += step;
-        ctx.lineTo(cx + Math.cos(rot) * innerRadius, cy + Math.sin(rot) * innerRadius);
-        rot += step;
+function trimPointsFromStart(pts, dist) {
+    if (!pts || pts.length < 2) return pts;
+    const result = pts.map(p => ({ ...p }));
+    let remaining = dist;
+
+    for (let i = 0; i < result.length - 1; i++) {
+        const pStart = result[i];
+        const pNext = result[i + 1];
+        const segLen = Math.hypot(pNext.x - pStart.x, pNext.y - pStart.y);
+
+        if (segLen >= remaining) {
+            const ratio = remaining / segLen;
+            result[i] = {
+                x: pStart.x + (pNext.x - pStart.x) * ratio,
+                y: pStart.y + (pNext.y - pStart.y) * ratio
+            };
+            return result.slice(i);
+        } else {
+            remaining -= segLen;
+        }
     }
-    ctx.lineTo(cx, cy - outerRadius);
+    return [result[result.length - 1]];
+}
+
+function getPointAtDistanceBack(pts, fromEnd, dist) {
+    if (!pts || pts.length === 0) return { x: 0, y: 0 };
+    if (pts.length === 1) return { ...pts[0] };
+
+    const list = fromEnd ? [...pts].reverse() : [...pts];
+    let remaining = dist;
+
+    for (let i = 0; i < list.length - 1; i++) {
+        const pA = list[i];
+        const pB = list[i + 1];
+        const segLen = Math.hypot(pB.x - pA.x, pB.y - pA.y);
+
+        if (segLen >= remaining && segLen > 0) {
+            const ratio = remaining / segLen;
+            return {
+                x: pA.x + (pB.x - pA.x) * ratio,
+                y: pA.y + (pB.y - pA.y) * ratio
+            };
+        } else {
+            remaining -= segLen;
+        }
+    }
+    return { ...list[list.length - 1] };
+}
+
+function findLineIntersection(p1, p2, p3, p4) {
+    const d = (p1.x - p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x - p4.x);
+    if (Math.abs(d) < 1e-5) return null;
+
+    const t = ((p1.x - p3.x) * (p3.y - p4.y) - (p1.y - p3.y) * (p3.x - p4.x)) / d;
+    const u = -((p1.x - p2.x) * (p1.y - p3.y) - (p1.y - p2.y) * (p1.x - p3.x)) / d;
+
+    if (t > 0.05 && t < 0.95 && u > 0.05 && u < 0.95) {
+        return {
+            x: p1.x + t * (p2.x - p1.x),
+            y: p1.y + t * (p2.y - p1.y)
+        };
+    }
+    return null;
+}
+
+function drawSegmentWithJumps(ctx, pA, pB, currentElId) {
+    const intersections = [];
+
+    state.elements.forEach(other => {
+        if (other.id === currentElId || other.type !== 'connector') return;
+        const otherPts = getConnectorPoints(other);
+        for (let j = 0; j < otherPts.length - 1; j++) {
+            const hit = findLineIntersection(pA, pB, otherPts[j], otherPts[j + 1]);
+            if (hit) {
+                const dist = Math.hypot(hit.x - pA.x, hit.y - pA.y);
+                intersections.push({ pt: hit, dist });
+            }
+        }
+    });
+
+    if (intersections.length === 0) {
+        ctx.lineTo(pB.x, pB.y);
+        return;
+    }
+
+    intersections.sort((a, b) => a.dist - b.dist);
+    const r = 8;
+    const angle = Math.atan2(pB.y - pA.y, pB.x - pA.x);
+
+    intersections.forEach(item => {
+        const ix = item.pt.x;
+        const iy = item.pt.y;
+        const beforeX = ix - r * Math.cos(angle);
+        const beforeY = iy - r * Math.sin(angle);
+        const afterX = ix + r * Math.cos(angle);
+        const afterY = iy + r * Math.sin(angle);
+
+        ctx.lineTo(beforeX, beforeY);
+        const cpX = ix - r * Math.sin(angle);
+        const cpY = iy + r * Math.cos(angle);
+        ctx.quadraticCurveTo(cpX, cpY, afterX, afterY);
+    });
+
+    ctx.lineTo(pB.x, pB.y);
+}
+
+function drawArrowHead(ctx, fromX, fromY, toX, toY, color, size = 14) {
+    const angle = Math.atan2(toY - fromY, toX - fromX);
+    ctx.fillStyle = color || '#1e293b';
+    ctx.beginPath();
+    ctx.moveTo(toX, toY);
+    ctx.lineTo(toX - size * Math.cos(angle - Math.PI / 5.5), toY - size * Math.sin(angle - Math.PI / 5.5));
+    ctx.lineTo(toX - size * Math.cos(angle + Math.PI / 5.5), toY - size * Math.sin(angle + Math.PI / 5.5));
     ctx.closePath();
     ctx.fill();
-    ctx.stroke();
 }
 
-function drawPolygon(ctx, cx, cy, sides, radius) {
-    ctx.beginPath();
-    for (let i = 0; i < sides; i++) {
-        const angle = (i * 2 * Math.PI) / sides;
-        const px = cx + radius * Math.cos(angle);
-        const py = cy + radius * Math.sin(angle);
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-}
-
-/**
- * Renderiza conectores rectos o curvos con soporte para múltiples puntos intermedios
- */
 function drawConnector(ctx, el) {
     const strokeColor = getEffectiveColor(el.strokeColor || '#1e293b', 'stroke');
     ctx.strokeStyle = strokeColor;
@@ -869,8 +553,15 @@ function drawConnector(ctx, el) {
                 ctx.lineTo(strokePts[strokePts.length - 1].x, strokePts[strokePts.length - 1].y);
             }
         } else {
-            for (let i = 1; i < strokePts.length; i++) {
-                ctx.lineTo(strokePts[i].x, strokePts[i].y);
+            for (let i = 0; i < strokePts.length - 1; i++) {
+                const pA = strokePts[i];
+                const pB = strokePts[i + 1];
+
+                if (el.lineJumps) {
+                    drawSegmentWithJumps(ctx, pA, pB, el.id);
+                } else {
+                    ctx.lineTo(pB.x, pB.y);
+                }
             }
         }
         ctx.stroke();
@@ -892,23 +583,228 @@ function drawConnector(ctx, el) {
     ctx.setLineDash([]);
 }
 
-/**
- * Renderiza la cabeza de una flecha orientada según el ángulo del vector
- */
-function drawArrowHead(ctx, fromX, fromY, toX, toY, color, size = 14) {
-    const angle = Math.atan2(toY - fromY, toX - fromX);
-    ctx.fillStyle = color || '#1e293b';
-    ctx.beginPath();
-    ctx.moveTo(toX, toY);
-    ctx.lineTo(toX - size * Math.cos(angle - Math.PI / 5.5), toY - size * Math.sin(angle - Math.PI / 5.5));
-    ctx.lineTo(toX - size * Math.cos(angle + Math.PI / 5.5), toY - size * Math.sin(angle + Math.PI / 5.5));
-    ctx.closePath();
-    ctx.fill();
+function drawPencil(ctx, el) {
+    if (!el.points || el.points.length === 0) return;
+    const strokeColor = getEffectiveColor(el.color || '#1e293b', 'stroke');
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = el.lineWidth || 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    if (el.type === 'highlighter') {
+        ctx.globalCompositeOperation = state.darkMode ? 'screen' : 'multiply';
+    }
+
+    const pts = el.smoothing ? getSmoothedPoints(el.points, Math.min(5, el.smoothing)) : el.points;
+
+    if (pts.length === 1) {
+        ctx.beginPath();
+        ctx.arc(pts[0].x, pts[0].y, (el.lineWidth || 3) / 2, 0, Math.PI * 2);
+        ctx.fillStyle = strokeColor;
+        ctx.fill();
+    } else {
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) {
+            ctx.lineTo(pts[i].x, pts[i].y);
+        }
+        ctx.stroke();
+    }
+
+    if (el.type === 'highlighter') {
+        ctx.globalCompositeOperation = 'source-over';
+    }
+
+    if (el.arrowMode && el.arrowMode !== 'none' && pts.length >= 2) {
+        const arrowSize = el.arrowSize || 14;
+        if (el.arrowMode === 'end' || el.arrowMode === 'both') {
+            const pEnd = pts[pts.length - 1];
+            const pRef = pts[Math.max(0, pts.length - 4)];
+            drawArrowHead(ctx, pRef.x, pRef.y, pEnd.x, pEnd.y, strokeColor, arrowSize);
+        }
+        if (el.arrowMode === 'start' || el.arrowMode === 'both') {
+            const pStart = pts[0];
+            const pRef = pts[Math.min(pts.length - 1, 3)];
+            drawArrowHead(ctx, pRef.x, pRef.y, pStart.x, pStart.y, strokeColor, arrowSize);
+        }
+    }
 }
 
-/**
- * Ajusta y renderiza párrafos con salto de línea dentro de formas o notas
- */
+function drawShape(ctx, el) {
+    const strokeColor = getEffectiveColor(el.strokeColor || '#1e293b', 'stroke');
+    const fillColor = getEffectiveColor(el.fillColor || '#ffffff', 'fill');
+
+    ctx.fillStyle = fillColor;
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = el.strokeWidth || 2;
+    setLineDashStyle(ctx, el.strokeStyle);
+
+    const x = el.x;
+    const y = el.y;
+    const w = el.width || 100;
+    const h = el.height || 100;
+    const shapeType = el.shapeType || 'rect';
+
+    ctx.beginPath();
+    if (shapeType === 'rect') {
+        ctx.rect(x, y, w, h);
+    } else if (shapeType === 'rounded-rect') {
+        const r = Math.min(20, Math.abs(w) / 4, Math.abs(h) / 4);
+        ctx.roundRect(x, y, w, h, r);
+    } else if (shapeType === 'circle') {
+        ctx.ellipse(x + w / 2, y + h / 2, Math.abs(w / 2), Math.abs(h / 2), 0, 0, Math.PI * 2);
+    } else if (shapeType === 'diamond') {
+        ctx.moveTo(x + w / 2, y);
+        ctx.lineTo(x + w, y + h / 2);
+        ctx.lineTo(x + w / 2, y + h);
+        ctx.lineTo(x, y + h / 2);
+        ctx.closePath();
+    } else if (shapeType === 'triangle') {
+        ctx.moveTo(x + w / 2, y);
+        ctx.lineTo(x + w, y + h);
+        ctx.lineTo(x, y + h);
+        ctx.closePath();
+    } else if (shapeType === 'hexagon') {
+        ctx.moveTo(x + w * 0.25, y);
+        ctx.lineTo(x + w * 0.75, y);
+        ctx.lineTo(x + w, y + h * 0.5);
+        ctx.lineTo(x + w * 0.75, y + h);
+        ctx.lineTo(x + w * 0.25, y + h);
+        ctx.lineTo(x, y + h * 0.5);
+        ctx.closePath();
+    } else if (shapeType === 'star') {
+        const cx = x + w / 2;
+        const cy = y + h / 2;
+        const outerR = Math.min(Math.abs(w), Math.abs(h)) / 2;
+        const innerR = outerR * 0.4;
+        for (let i = 0; i < 10; i++) {
+            const r = i % 2 === 0 ? outerR : innerR;
+            const angle = (i * Math.PI) / 5 - Math.PI / 2;
+            const px = cx + r * Math.cos(angle);
+            const py = cy + r * Math.sin(angle);
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+    } else if (shapeType === 'bubble') {
+        const r = 16;
+        const tailW = 20;
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h - r - 15);
+        ctx.quadraticCurveTo(x + w, y + h - 15, x + w - r, y + h - 15);
+        ctx.lineTo(x + w * 0.4 + tailW, y + h - 15);
+        ctx.lineTo(x + w * 0.2, y + h);
+        ctx.lineTo(x + w * 0.4, y + h - 15);
+        ctx.lineTo(x + r, y + h - 15);
+        ctx.quadraticCurveTo(x, y + h - 15, x, y + h - r - 15);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+    }
+
+    ctx.fill();
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    if (el.text) {
+        const fSize = el.fontSize || 16;
+        ctx.font = `${fSize}px Inter, system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        const fillLum = getLuminance(fillColor);
+        ctx.fillStyle = fillLum < 0.45 ? '#f8fafc' : '#0f172a';
+
+        const margin = 16;
+        const maxTextW = Math.max(20, Math.abs(w) - margin * 2);
+        const lines = getWrappedLines(ctx, el.text, maxTextW);
+
+        const lineHeight = fSize * 1.3;
+        const totalTextHeight = lines.length * lineHeight;
+        let startY = y + h / 2 - totalTextHeight / 2 + lineHeight / 2;
+
+        lines.forEach(line => {
+            ctx.fillText(line, x + w / 2, startY);
+            startY += lineHeight;
+        });
+    }
+}
+
+function drawSticky(ctx, el) {
+    const bgColor = el.color || '#fef08a';
+    ctx.fillStyle = bgColor;
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.15)';
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetX = 3;
+    ctx.shadowOffsetY = 5;
+
+    ctx.fillRect(el.x, el.y, el.width || 160, el.height || 160);
+    ctx.shadowColor = 'transparent';
+
+    if (el.text) {
+        const fSize = el.fontSize || 16;
+        ctx.font = `${fSize}px Inter, system-ui, sans-serif`;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+
+        const bgLum = getLuminance(bgColor);
+        ctx.fillStyle = bgLum < 0.4 ? '#f8fafc' : '#1e293b';
+
+        const margin = 14;
+        const maxW = (el.width || 160) - margin * 2;
+        wrapText(ctx, el.text, el.x + margin, el.y + margin, maxW, fSize * 1.3);
+    }
+}
+
+function drawText(ctx, el) {
+    const fSize = el.fontSize || 20;
+    ctx.font = `${fSize}px Inter, system-ui, sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = getEffectiveColor(el.color || '#1e293b', 'text');
+
+    const rawText = el.text || 'Haz doble clic para editar';
+    const maxWidth = el.width ? Math.max(40, el.width - 8) : 350;
+    const lines = getWrappedLines(ctx, rawText, maxWidth);
+
+    const lineHeight = fSize * 1.35;
+    let curY = el.y;
+
+    lines.forEach(line => {
+        ctx.fillText(line, el.x, curY);
+        curY += lineHeight;
+    });
+}
+
+function drawFrame(ctx, el) {
+    ctx.strokeStyle = state.darkMode ? '#475569' : '#cbd5e1';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 6]);
+    ctx.strokeRect(el.x, el.y, el.width || 300, el.height || 200);
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = state.darkMode ? '#94a3b8' : '#64748b';
+    ctx.font = 'bold 14px Inter, system-ui, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(el.title || 'Marco', el.x + 4, el.y - 6);
+}
+
+function drawImage(ctx, el) {
+    if (el.imgElement && el.imgElement.complete) {
+        ctx.drawImage(el.imgElement, el.x, el.y, el.width || 200, el.height || 200);
+    } else if (el.src) {
+        if (!el.imgElement) {
+            el.imgElement = new Image();
+            el.imgElement.src = el.src;
+        }
+        ctx.strokeStyle = '#94a3b8';
+        ctx.strokeRect(el.x, el.y, el.width || 100, el.height || 100);
+    }
+}
+
 function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
     if (!text) return;
     const paragraphs = text.split('\n');
@@ -931,10 +827,102 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
     }
 }
 
-/**
- * Renderiza la superposición visual de selección con puntos de control de rotación y tamaño
- */
+export function drawGrid(ctx, canvas) {
+    ctx.save();
+    ctx.strokeStyle = state.darkMode ? 'rgba(255, 255, 255, 0.07)' : 'rgba(0, 0, 0, 0.06)';
+    ctx.lineWidth = 1;
+
+    const gridSize = 40 * state.zoom;
+    const startX = state.pan.x % gridSize;
+    const startY = state.pan.y % gridSize;
+
+    ctx.beginPath();
+    for (let x = startX; x < canvas.width; x += gridSize) {
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+    }
+    for (let y = startY; y < canvas.height; y += gridSize) {
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+    }
+    ctx.stroke();
+    ctx.restore();
+}
+
+export function drawElement(ctx, el) {
+    if (el.id === state.editingElementId && el.type === 'text') {
+        return;
+    }
+
+    ctx.save();
+    if (el.opacity !== undefined) {
+        ctx.globalAlpha = el.opacity;
+    }
+
+    if (el.rotation && el.type !== 'pencil' && el.type !== 'highlighter' && el.type !== 'connector') {
+        const bounds = getElementBounds(el);
+        const cx = bounds.x + bounds.width / 2;
+        const cy = bounds.y + bounds.height / 2;
+        ctx.translate(cx, cy);
+        ctx.rotate(el.rotation);
+        ctx.translate(-cx, -cy);
+    }
+
+    switch (el.type) {
+        case 'pencil':
+        case 'highlighter':
+            drawPencil(ctx, el);
+            break;
+        case 'shape':
+            drawShape(ctx, el);
+            break;
+        case 'sticky':
+            drawSticky(ctx, el);
+            break;
+        case 'text':
+            drawText(ctx, el);
+            break;
+        case 'connector':
+            drawConnector(ctx, el);
+            break;
+        case 'frame':
+            drawFrame(ctx, el);
+            break;
+        case 'image':
+            drawImage(ctx, el);
+            break;
+    }
+
+    ctx.restore();
+}
+
 function drawSelectionOverlay(ctx) {
+    if (state.alignmentGuides && state.alignmentGuides.length > 0) {
+        ctx.save();
+        ctx.strokeStyle = '#ec4899';
+        ctx.lineWidth = 1 / state.zoom;
+        ctx.setLineDash([4, 4]);
+
+        const canvas = ctx.canvas;
+        const viewLeft = -state.pan.x / state.zoom;
+        const viewRight = (canvas.width - state.pan.x) / state.zoom;
+        const viewTop = -state.pan.y / state.zoom;
+        const viewBottom = (canvas.height - state.pan.y) / state.zoom;
+
+        state.alignmentGuides.forEach(g => {
+            ctx.beginPath();
+            if (g.type === 'v') {
+                ctx.moveTo(g.pos, viewTop);
+                ctx.lineTo(g.pos, viewBottom);
+            } else if (g.type === 'h') {
+                ctx.moveTo(viewLeft, g.pos);
+                ctx.lineTo(viewRight, g.pos);
+            }
+            ctx.stroke();
+        });
+        ctx.restore();
+    }
+
     if (state.selectedIds.length === 0) return;
 
     state.selectedIds.forEach(id => {
@@ -977,13 +965,11 @@ function drawSelectionOverlay(ctx) {
             ctx.lineWidth = 1.5 / state.zoom;
             ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
 
-            // Nodos de esquina
             drawHandleRect(ctx, bounds.x, bounds.y);
             drawHandleRect(ctx, bounds.x + bounds.width, bounds.y);
             drawHandleRect(ctx, bounds.x + bounds.width, bounds.y + bounds.height);
             drawHandleRect(ctx, bounds.x, bounds.y + bounds.height);
 
-            // Manipulador de Rotación arriba del centro
             const rotY = bounds.y - 24 / state.zoom;
             ctx.strokeStyle = '#4f46e5';
             ctx.beginPath();
@@ -1016,9 +1002,33 @@ function drawHandleRect(ctx, x, y) {
     ctx.strokeRect(x - size / 2, y - size / 2, size, size);
 }
 
-/**
- * Renderiza el cuadro de vista previa del minimapa
- */
+export function render(canvas, ctx, minimapCanvas, minimapCtx) {
+    if (!ctx || !canvas) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = state.darkMode ? '#0f172a' : '#f8fafc';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    drawGrid(ctx, canvas);
+
+    ctx.save();
+    ctx.translate(state.pan.x, state.pan.y);
+    ctx.scale(state.zoom, state.zoom);
+
+    state.elements.forEach(el => drawElement(ctx, el));
+
+    if (state.tempElement) {
+        drawElement(ctx, state.tempElement);
+    }
+
+    drawSelectionOverlay(ctx);
+
+    ctx.restore();
+
+    renderMinimap(minimapCanvas, minimapCtx);
+}
+
 export function renderMinimap(minimapCanvas, minimapCtx) {
     const minimapContainer = document.getElementById('minimap-container');
     if (!minimapCtx || !minimapCanvas || !minimapContainer || minimapContainer.classList.contains('hidden')) return;
