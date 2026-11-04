@@ -59,32 +59,54 @@ export function updateContextToolbar() {
     const groupStroke = document.getElementById('ctx-group-stroke');
     const groupWidth = document.getElementById('ctx-group-width');
     const groupArrowSize = document.getElementById('ctx-group-arrow-size');
+    const groupConnStyle = document.getElementById('ctx-group-conn-style');
     const groupStyle = document.getElementById('ctx-stroke-style');
     const groupFont = document.getElementById('ctx-group-font');
     const groupSmoothing = document.getElementById('ctx-group-smoothing');
     const btnEditText = document.getElementById('ctx-edit-text');
     const sepEdit = document.getElementById('ctx-sep-edit');
 
-    [groupFill, groupStroke, groupWidth, groupArrowSize, groupStyle, groupFont, groupSmoothing, btnEditText, sepEdit].forEach(g => g && g.classList.remove('hidden'));
+    [groupFill, groupStroke, groupWidth, groupArrowSize, groupConnStyle, groupStyle, groupFont, groupSmoothing, btnEditText, sepEdit].forEach(g => g && g.classList.remove('hidden'));
 
     if (selected.type === 'text') {
-        [groupFill, groupStroke, groupWidth, groupArrowSize, groupStyle, groupSmoothing].forEach(g => g && g.classList.add('hidden'));
+        [groupFill, groupStroke, groupWidth, groupArrowSize, groupConnStyle, groupStyle, groupSmoothing].forEach(g => g && g.classList.add('hidden'));
     } else if (selected.type === 'sticky') {
-        [groupStroke, groupWidth, groupArrowSize, groupStyle, groupSmoothing].forEach(g => g && g.classList.add('hidden'));
+        [groupStroke, groupWidth, groupArrowSize, groupConnStyle, groupStyle, groupSmoothing].forEach(g => g && g.classList.add('hidden'));
     } else if (selected.type === 'pencil' || selected.type === 'highlighter') {
-        [groupFill, groupArrowSize, groupStyle, groupFont, btnEditText, sepEdit].forEach(g => g && g.classList.add('hidden'));
+        [groupFill, groupArrowSize, groupConnStyle, groupStyle, groupFont, btnEditText, sepEdit].forEach(g => g && g.classList.add('hidden'));
         if (groupSmoothing) {
             const smInput = document.getElementById('ctx-smoothing');
             if (smInput) smInput.value = selected.smoothing !== undefined ? selected.smoothing : state.smoothing;
         }
     } else if (selected.type === 'connector') {
         [groupFill, groupFont, groupSmoothing, btnEditText, sepEdit].forEach(g => g && g.classList.add('hidden'));
+        
         if (groupArrowSize) {
             const arrowInput = document.getElementById('ctx-arrow-size');
             if (arrowInput) arrowInput.value = selected.arrowSize || 14;
         }
+
+        // Sincronizar selectores de Tipo de Línea y Puntas de Flecha
+        const connLineSelect = document.getElementById('ctx-conn-line');
+        if (connLineSelect) {
+            const isCurved = selected.isCurved !== undefined ? selected.isCurved : (selected.connType && selected.connType.startsWith('curved'));
+            connLineSelect.value = isCurved ? 'curved' : 'line';
+        }
+
+        const connArrowSelect = document.getElementById('ctx-conn-arrow');
+        if (connArrowSelect) {
+            let mode = 'none';
+            if (selected.arrowMode) {
+                mode = selected.arrowMode;
+            } else if (selected.connType) {
+                if (selected.connType.includes('double')) mode = 'both';
+                else if (selected.connType.includes('arrow')) mode = 'end';
+            }
+            connArrowSelect.value = mode;
+        }
     } else {
         if (groupArrowSize) groupArrowSize.classList.add('hidden');
+        if (groupConnStyle) groupConnStyle.classList.add('hidden');
     }
 }
 
@@ -160,39 +182,40 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         });
     });
 
-    document.querySelectorAll('.hl-color-opt').forEach(opt => {
-        opt.addEventListener('click', (e) => {
-            e.stopPropagation();
-            state.hlColor = opt.getAttribute('data-color');
-            document.querySelectorAll('.hl-color-opt').forEach(o => o.classList.remove('active'));
-            opt.classList.add('active');
-        });
-    });
-
-    const pencilWidthEl = document.getElementById('pencil-width');
-    if (pencilWidthEl) {
-        pencilWidthEl.addEventListener('input', (e) => {
-            state.pencilWidth = parseInt(e.target.value);
-        });
-    }
-
-    const pencilSmoothEl = document.getElementById('pencil-smooth');
-    if (pencilSmoothEl) {
-        pencilSmoothEl.addEventListener('input', (e) => {
-            state.smoothing = parseInt(e.target.value);
-            const label = document.getElementById('pencil-smooth-label');
-            if (label) label.innerText = e.target.value;
+    // Listeners de tipo de línea y flechas en la barra contextual
+    const ctxConnLine = document.getElementById('ctx-conn-line');
+    if (ctxConnLine) {
+        ctxConnLine.addEventListener('change', (e) => {
+            const isCurved = e.target.value === 'curved';
+            state.selectedIds.forEach(id => {
+                const el = state.elements.find(m => m.id === id);
+                if (el && el.type === 'connector') {
+                    el.isCurved = isCurved;
+                    if (isCurved && !el.cp) {
+                        const endX = el.endX !== undefined ? el.endX : el.x + 100;
+                        const endY = el.endY !== undefined ? el.endY : el.y + 100;
+                        el.cp = { x: (el.x + endX) / 2, y: (el.y + endY) / 2 - 40 };
+                    }
+                }
+            });
+            saveState(); if (renderCallback) renderCallback();
         });
     }
 
-    const hlWidthEl = document.getElementById('hl-width');
-    if (hlWidthEl) {
-        hlWidthEl.addEventListener('input', (e) => {
-            state.hlWidth = parseInt(e.target.value);
+    const ctxConnArrow = document.getElementById('ctx-conn-arrow');
+    if (ctxConnArrow) {
+        ctxConnArrow.addEventListener('change', (e) => {
+            const arrowMode = e.target.value;
+            state.selectedIds.forEach(id => {
+                const el = state.elements.find(m => m.id === id);
+                if (el && el.type === 'connector') {
+                    el.arrowMode = arrowMode;
+                }
+            });
+            saveState(); if (renderCallback) renderCallback();
         });
     }
 
-    // Eventos de la Barra Contextual Flotante
     const ctxFill = document.getElementById('ctx-fill-color');
     if (ctxFill) {
         ctxFill.addEventListener('input', (e) => {
