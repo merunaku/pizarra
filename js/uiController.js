@@ -1,9 +1,35 @@
 // UI CONTROLLER & TOOLBAR ACTIONS - PIZARRA PROFEDIEGO
 import { state, saveState, undo, redo, restoreSnapshot } from './state.js';
 import { openInlineEditor, closeInlineEditor, addConnectorIntermediatePoint, removeConnectorIntermediatePoint } from './tools.js';
-import { getConnectorPoints } from './canvasEngine.js';
+import { getConnectorPoints, getLuminance } from './canvasEngine.js';
 
 let renderCallback = null;
+
+/**
+ * Actualiza la paleta de opciones del menú del lápiz según el tema activo
+ */
+export function updateColorPalettesForMode() {
+    const isDark = state.darkMode;
+
+    const pencilColors = isDark 
+        ? ['#f8fafc', '#f87171', '#60a5fa', '#4ade80']
+        : ['#1e293b', '#ef4444', '#3b82f6', '#10b981'];
+
+    const pencilDots = document.querySelectorAll('.pencil-color-opt');
+    pencilDots.forEach((dot, idx) => {
+        if (pencilColors[idx]) {
+            dot.style.background = pencilColors[idx];
+            dot.setAttribute('data-color', pencilColors[idx]);
+        }
+    });
+
+    // Sincronizar el color activo predeterminado según el modo
+    if (isDark && (state.pencilColor === '#1e293b' || getLuminance(state.pencilColor) < 0.35)) {
+        state.pencilColor = '#f8fafc';
+    } else if (!isDark && (state.pencilColor === '#f8fafc' || getLuminance(state.pencilColor) > 0.75)) {
+        state.pencilColor = '#1e293b';
+    }
+}
 
 /**
  * Muestra una notificación emergente estilo Toast
@@ -143,6 +169,9 @@ function syncArrowModeButtons(mode) {
 export function setupUIListeners(canvas, ctx, renderFn) {
     renderCallback = renderFn;
 
+    // Sincronizar paleta inicial de colores según el tema
+    updateColorPalettesForMode();
+
     // Botón Toggle Modo Oscuro / Claro
     const btnDarkMode = document.getElementById('btn-toggle-darkmode');
     if (btnDarkMode) {
@@ -155,6 +184,7 @@ export function setupUIListeners(canvas, ctx, renderFn) {
                     ? 'fa-solid fa-sun text-amber-400 text-sm' 
                     : 'fa-solid fa-moon text-sm';
             }
+            updateColorPalettesForMode();
             saveState();
             updateContextToolbar();
             if (renderCallback) renderCallback();

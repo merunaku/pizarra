@@ -58,21 +58,16 @@ export function getLuminance(colorStr) {
  * Retorna el color adaptado visualmente para el lienzo.
  * En Modo Oscuro (state.darkMode = true), los colores oscuros (luminancia < 0.35)
  * se transforman temporalmente a #f8fafc para garantizar máximo contraste.
- * En Modo Claro (state.darkMode = false), retorna el color original guardado.
+ * En Modo Claro (state.darkMode = false), los colores muy claros (luminancia > 0.75)
+ * se transforman temporalmente a #1e293b para mantener legibilidad sobre fondo blanco.
  */
 export function getEffectiveColor(colorStr, role = 'stroke') {
-    if (!state.darkMode) {
-        if (!colorStr) {
-            if (role === 'fill') return '#ffffff';
-            return '#1e293b';
-        }
-        return colorStr;
-    }
-
-    // Modo Oscuro activo:
     if (!colorStr) {
-        if (role === 'fill') return '#1e293b';
-        return '#f8fafc';
+        if (state.darkMode) {
+            return role === 'fill' ? '#1e293b' : '#f8fafc';
+        } else {
+            return role === 'fill' ? '#ffffff' : '#1e293b';
+        }
     }
 
     if (colorStr.startsWith('rgba')) {
@@ -81,8 +76,11 @@ export function getEffectiveColor(colorStr, role = 'stroke') {
             const parts = match[1].split(',').map(s => s.trim());
             const r = parseInt(parts[0]), g = parseInt(parts[1]), b = parseInt(parts[2]), a = parts[3] || '1';
             const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-            if (lum < 0.35) {
+            if (state.darkMode && lum < 0.35) {
                 return `rgba(248, 250, 252, ${a})`;
+            }
+            if (!state.darkMode && lum > 0.75) {
+                return `rgba(30, 41, 59, ${a})`;
             }
         }
         return colorStr;
@@ -90,17 +88,25 @@ export function getEffectiveColor(colorStr, role = 'stroke') {
 
     const lum = getLuminance(colorStr);
 
-    if (role === 'stroke' || role === 'text') {
-        if (lum < 0.35) {
-            return '#f8fafc';
+    if (state.darkMode) {
+        if (role === 'stroke' || role === 'text') {
+            if (lum < 0.35) {
+                return '#f8fafc';
+            }
+        } else if (role === 'fill') {
+            if (lum < 0.2) {
+                return '#1e293b';
+            }
         }
-    } else if (role === 'fill') {
-        if (lum < 0.2) {
-            return '#1e293b';
+        return colorStr;
+    } else {
+        if (role === 'stroke' || role === 'text') {
+            if (lum > 0.75) {
+                return '#1e293b';
+            }
         }
+        return colorStr;
     }
-
-    return colorStr;
 }
 
 /**
