@@ -67,9 +67,48 @@ export function getElementBounds(el) {
             maxX = Math.max(maxX, p.x);
             maxY = Math.max(maxY, p.y);
         });
-        return { x: minX - 4, y: minY - 4, width: (maxX - minX) + 8, height: (maxY - minY) + 8 };
+        const w = Math.max(10, maxX - minX);
+        const h = Math.max(10, maxY - minY);
+        return { x: minX, y: minY, width: w, height: h };
     }
     return { x: el.x - 5, y: el.y - 5, width: 120, height: 40 };
+}
+
+/**
+ * Obtiene un punto de referencia a lo largo de la curva a una distancia fija desde el extremo
+ */
+function getPointAtDistanceBack(pts, fromEnd, dist) {
+    if (!pts || pts.length === 0) return { x: 0, y: 0 };
+    if (pts.length === 1) return pts[0];
+    
+    let acc = 0;
+    if (fromEnd) {
+        for (let i = pts.length - 1; i > 0; i--) {
+            const seg = Math.hypot(pts[i].x - pts[i-1].x, pts[i].y - pts[i-1].y);
+            acc += seg;
+            if (acc >= dist) {
+                const ratio = (acc - dist) / seg;
+                return {
+                    x: pts[i-1].x + (pts[i].x - pts[i-1].x) * ratio,
+                    y: pts[i-1].y + (pts[i].y - pts[i-1].y) * ratio
+                };
+            }
+        }
+        return pts[0];
+    } else {
+        for (let i = 0; i < pts.length - 1; i++) {
+            const seg = Math.hypot(pts[i+1].x - pts[i].x, pts[i+1].y - pts[i].y);
+            acc += seg;
+            if (acc >= dist) {
+                const ratio = (dist - (acc - seg)) / seg;
+                return {
+                    x: pts[i].x + (pts[i+1].x - pts[i].x) * ratio,
+                    y: pts[i].y + (pts[i+1].y - pts[i].y) * ratio
+                };
+            }
+        }
+        return pts[pts.length - 1];
+    }
 }
 
 /**
@@ -190,18 +229,13 @@ export function isPointInElement(pt, el) {
 
     if (el.type === 'pencil' || el.type === 'highlighter') {
         if (el.points && el.points.length > 0) {
-            const threshold = Math.max(14, (el.lineWidth || 3) / 2 + 8) / state.zoom;
+            const threshold = Math.max(16, (el.lineWidth || 3) / 2 + 10) / state.zoom;
             for (let i = 0; i < el.points.length - 1; i++) {
                 if (distToSegment(checkPt, el.points[i], el.points[i + 1]) <= threshold) {
                     return true;
                 }
             }
-            if (state.selectedIds.includes(el.id)) {
-                const b = getElementBounds(el);
-                if (checkPt.x >= b.x && checkPt.x <= b.x + b.width && checkPt.y >= b.y && checkPt.y <= b.y + b.height) {
-                    return true;
-                }
-            }
+            return false;
         }
     }
 
@@ -317,13 +351,11 @@ function drawElement(ctx, el) {
                     ctx.fill();
                 } else {
                     const hasArrows = el.arrowMode && el.arrowMode !== 'none';
-                    // Usar tamaño de flecha configurado manualmente o cálculo automático proporcional
                     const arrowSize = el.arrowSize !== undefined ? el.arrowSize : Math.max(14, (el.lineWidth || 2) * 2.5);
-                    const offset = arrowSize * 0.8;
+                    const offset = arrowSize * 0.85;
 
                     let strokePts = pts.map(p => ({ ...p }));
 
-                    // Truncar puntos del trazo recorriendo la distancia exacta acumulada
                     if (el.arrowMode === 'end' || el.arrowMode === 'both') {
                         strokePts = trimPointsFromEnd(strokePts, offset);
                     }
@@ -348,17 +380,17 @@ function drawElement(ctx, el) {
                         ctx.stroke();
                     }
 
-                    // Dibujar puntas de flechas en los extremos exactos del trazo original
                     if (hasArrows) {
+                        const refDist = Math.max(15, arrowSize);
                         if (el.arrowMode === 'end' || el.arrowMode === 'both') {
                             const pEnd = pts[pts.length - 1];
-                            const pPrev = pts[Math.max(0, pts.length - 2)];
-                            drawArrowHead(ctx, pPrev.x, pPrev.y, pEnd.x, pEnd.y, el.color, arrowSize);
+                            const pRef = getPointAtDistanceBack(pts, true, refDist);
+                            drawArrowHead(ctx, pRef.x, pRef.y, pEnd.x, pEnd.y, el.color, arrowSize);
                         }
                         if (el.arrowMode === 'start' || el.arrowMode === 'both') {
                             const pStart = pts[0];
-                            const pNext = pts[Math.min(pts.length - 1, 1)];
-                            drawArrowHead(ctx, pNext.x, pNext.y, pStart.x, pStart.y, el.color, arrowSize);
+                            const pRef = getPointAtDistanceBack(pts, false, refDist);
+                            drawArrowHead(ctx, pRef.x, pRef.y, pStart.x, pStart.y, el.color, arrowSize);
                         }
                     }
                 }
