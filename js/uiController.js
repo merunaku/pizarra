@@ -2,6 +2,7 @@
 import { state, saveState, undo, redo, restoreSnapshot } from './state.js';
 import { openInlineEditor, closeInlineEditor, addConnectorIntermediatePoint, removeConnectorIntermediatePoint, joinSelectedLines } from './tools.js';
 import { getConnectorPoints, getLuminance } from './canvasEngine.js';
+import { saveWhiteboardTest } from './gdrive.js';
 
 let renderCallback = null;
 

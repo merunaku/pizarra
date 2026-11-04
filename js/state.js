@@ -30,8 +30,17 @@ export const state = {
     tempElement: null,
     editingElementId: null,
     alignmentGuides: [], // Guías visuales de alineación { type: 'v'|'h', pos: number }
-    // Google Drive State
+    
+    // Configuración y estado de Google Drive & Explorador
+    gdriveClientId: '105539045721-rqso8ee1qvak0f35lm72dl0iqgaisqqe.apps.googleusercontent.com',
+    gdriveTeacherEmail: 'ingeniero.diego.bustamante@gmail.com',
+    gdriveRootFolderId: '1F9G2av-nBxT4lnOI9TeG4Do0cadbbESQ',
+    gdriveScopes: 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
     gdriveAccessToken: null,
+    gdriveCurrentUserEmail: null,
+    gdriveIsTeacher: false,
+    gdriveFolderHistory: [{ id: '1F9G2av-nBxT4lnOI9TeG4Do0cadbbESQ', name: 'Raíz' }],
+    gdriveClipboardFile: null,
     gdriveUser: null,
     gdriveAutoSync: false
 };
@@ -122,8 +131,10 @@ export function updateUndoRedoButtons() {
  */
 export function restoreSnapshot(jsonStr, renderCallback) {
     try {
-        const data = JSON.parse(jsonStr);
-        state.elements = data.map(el => {
+        const data = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
+        const elementsList = Array.isArray(data) ? data : (data.elements || []);
+        
+        state.elements = elementsList.map(el => {
             // Rehidratar y sanitizar trazos libres de lápiz/destacador guardados
             if (el.type === 'pencil' || el.type === 'highlighter') {
                 if (el.arrowMode === undefined) el.arrowMode = 'none';

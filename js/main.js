@@ -3,7 +3,7 @@ import { loadFromLocalStorage } from './state.js';
 import { resizeCanvas, render } from './canvasEngine.js';
 import { setupCanvasListeners } from './tools.js';
 import { setupUIListeners, setTool, updateContextToolbar } from './uiController.js';
-import { setupGoogleDriveListeners } from './gdrive.js';
+import { setupGoogleDriveListeners, initGIS } from './gdrive.js';
 import { setupTemplatesListeners } from './templates.js';
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -28,6 +28,9 @@ window.addEventListener('DOMContentLoaded', () => {
     setupUIListeners(canvas, ctx, renderFn);
     setupGoogleDriveListeners(renderFn);
     setupTemplatesListeners(canvas, renderFn);
+
+    // Inicializar Google Identity Services Client
+    initGIS(renderFn);
 
     // Herramienta inicial por defecto y primer renderizado
     setTool('pencil');

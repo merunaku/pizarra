@@ -1,281 +1,290 @@
-/* ==========================================================================
+/* ESTILOS BASE Y PANELES GLASSMORPHIC */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-RESET Y VARIABLES GLOBALES
-========================================================================== */
-
-{
+*{
 box-sizing: border-box;
 margin: 0;
 padding: 0;
-user-select: none;
--webkit-user-select: none;
--moz-user-select: none;
--ms-user-select: none;
 }
 
-:root {
---bg-light: #f8fafc;
---text-light: #0f172a;
---bg-dark: #0b0f19;
---text-dark: #f8fafc;
---accent-primary: #6366f1;
---accent-hover: #4f46e5;
---glass-bg-light: rgba(255, 255, 255, 0.85);
---glass-border-light: rgba(226, 232, 240, 0.8);
---glass-bg-dark: rgba(15, 23, 42, 0.85);
---glass-border-dark: rgba(51, 65, 85, 0.8);
---radius-lg: 0.75rem;
---radius-md: 0.5rem;
---radius-sm: 0.375rem;
-}
-
-body, html {
+html, body {
 width: 100%;
 height: 100%;
+font-family: 'Inter', system-ui, -apple-system, sans-serif;
 overflow: hidden;
-font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-background-color: var(--bg-light);
-color: var(--text-light);
--webkit-font-smoothing: antialiased;
--moz-osx-font-smoothing: grayscale;
+user-select: none;
+-webkit-user-select: none;
 }
 
-body.dark {
-background-color: var(--bg-dark);
-color: var(--text-dark);
-}
-
-/* ==========================================================================
-2. PANELES Y COMPONENTES GLASSMORPHISM
-========================================================================== */
-
+/* Efecto Panel Traslúcido Glassmorphic */
 .glass-panel {
-background: var(--glass-bg-light);
-backdrop-filter: blur(12px);
--webkit-backdrop-filter: blur(12px);
-border: 1px solid var(--glass-border-light);
-box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
-transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+background: rgba(255, 255, 255, 0.88);
+backdrop-filter: blur(14px);
+-webkit-backdrop-filter: blur(14px);
+border: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+/* Botones Activos y Herramientas */
+.tool-btn.active {
+background-color: #e0e7ff !important;
+color: #4f46e5 !important;
+box-shadow: inset 0 0 0 1px #818cf8;
+}
+
+.color-dot {
+width: 22px;
+height: 22px;
+border-radius: 9999px;
+cursor: pointer;
+border: 2px solid transparent;
+transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.color-dot:hover {
+transform: scale(1.15);
+}
+
+.color-dot.active {
+border-color: #4f46e5;
+transform: scale(1.1);
+}
+
+.arrow-btn-opt {
+padding: 3px 7px;
+font-size: 11px;
+font-weight: 700;
+border-radius: 6px;
+border: 1px solid #cbd5e1;
+background: #ffffff;
+color: #334155;
+cursor: pointer;
+transition: all 0.15s ease;
+}
+
+.arrow-btn-opt:hover {
+background: #f1f5f9;
+}
+
+.arrow-btn-opt.active {
+background: #4f46e5;
+color: #ffffff;
+border-color: #4f46e5;
+}
+
+/* Editor Flotante Inline sobre Canvas */
+#inline-text-editor {
+position: absolute;
+display: none;
+z-index: 35;
+background: transparent;
+border: 2px dashed #6366f1;
+border-radius: 6px;
+outline: none;
+resize: none;
+font-family: 'Inter', system-ui, sans-serif;
+line-height: 1.35;
+padding: 4px;
+overflow: hidden;
+box-shadow: 0 4px 14px rgba(79, 70, 229, 0.2);
+}
+
+/* Navegación y Explorador de Drive */
+.breadcrumbs {
+background: #e8f0fe;
+padding: 8px 12px;
+border-radius: 10px;
+margin-bottom: 12px;
+font-weight: 700;
+color: #1967d2;
+font-size: 12px;
+}
+
+.breadcrumbs span {
+cursor: pointer;
+transition: color 0.15s ease;
+}
+
+.breadcrumbs span:hover {
+text-decoration: underline;
+color: #1557b0;
+}
+
+.badge {
+display: inline-flex;
+align-items: center;
+gap: 4px;
+padding: 4px 8px;
+border-radius: 6px;
+font-weight: 700;
+color: #ffffff;
+font-size: 11px;
+}
+
+.teacher {
+background-color: #059669;
+}
+
+.student {
+background-color: #2563eb;
+}
+
+.clipboard-bar {
+font-size: 12px;
+background: #fff3e0;
+border: 1px solid #ffe0b2;
+color: #d97706;
+padding: 8px 12px;
+border-radius: 10px;
+margin-bottom: 10px;
+display: none;
+}
+
+/* Estilos de Barras de Desplazamiento */
+::-webkit-scrollbar {
+width: 6px;
+height: 6px;
+}
+
+::-webkit-scrollbar-track {
+background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+background: #cbd5e1;
+border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+background: #94a3b8;
+}
+
+/* MODO OSCURO (REGLAS Y ADAPTACIONES) */
+.dark body {
+background-color: #0f172a;
+color: #f8fafc;
 }
 
 .dark .glass-panel {
-background: var(--glass-bg-dark);
-border-color: var(--glass-border-dark);
-box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+background: rgba(15, 23, 42, 0.90);
+border-color: rgba(51, 65, 85, 0.85);
+color: #f8fafc;
 }
 
-/* ==========================================================================
-3. ÁREA DE DIBUJO Y LIENZO (CANVAS)
-========================================================================== */
-
-#canvas-container {
-width: 100vw;
-height: 100vh;
-position: absolute;
-top: 0;
-left: 0;
-z-index: 1;
-overflow: hidden;
-cursor: crosshair;
+.dark input[type="text"] {
+color: #f8fafc;
+background-color: #1e293b;
+border-color: #334155;
 }
 
-#canvas-container.panning {
-cursor: grab;
+.dark input[type="text"]::placeholder {
+color: #64748b;
 }
 
-#canvas-container.panning:active {
-cursor: grabbing;
+.dark .tool-btn {
+color: #94a3b8;
 }
 
-canvas {
-display: block;
-width: 100%;
-height: 100%;
-background-color: transparent;
-touch-action: none;
+.dark .tool-btn:hover {
+background-color: #1e293b;
+color: #f8fafc;
 }
 
-/* ==========================================================================
-4. MENÚS DESPLEGABLES (FLYOUTS) Y HERRAMIENTAS
-========================================================================== */
-
-.flyout-menu {
-background: rgba(255, 255, 255, 0.95);
-backdrop-filter: blur(10px);
--webkit-backdrop-filter: blur(10px);
-border: 1px solid #e2e8f0;
-color: #1e293b;
-border-radius: var(--radius-lg);
-box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
-z-index: 40;
-padding: 0.5rem;
-animation: fadeInFlyout 0.15s cubic-bezier(0, 0, 0.2, 1);
+.dark .tool-btn.active {
+background-color: #312e81 !important;
+color: #a5b4fc !important;
+box-shadow: inset 0 0 0 1px #6366f1;
 }
 
 .dark .flyout-menu {
-background: rgba(15, 23, 42, 0.95);
+background: rgba(15, 23, 42, 0.96);
 border-color: #334155;
 color: #f8fafc;
-box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
-}
-
-@keyframes fadeInFlyout {
-from {
-opacity: 0;
-transform: translateY(4px) scale(0.98);
-}
-to {
-opacity: 1;
-transform: translateY(0) scale(1);
-}
+box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
 }
 
 .dark .flyout-menu span,
 .dark .flyout-menu label,
-.dark .flyout-menu div {
-color: #f8fafc !important;
-}
-
-.shape-opt, .conn-opt {
-display: flex;
-align-items: center;
-gap: 0.625rem;
-width: 100%;
-padding: 0.5rem 0.75rem;
-border-radius: var(--radius-md);
-cursor: pointer;
-transition: background-color 0.15s ease, color 0.15s ease;
-color: #334155;
-font-size: 0.875rem;
-font-weight: 500;
-}
-
-.shape-opt:hover, .conn-opt:hover {
-background-color: #f1f5f9;
-color: var(--accent-hover);
-}
-
+.dark .flyout-menu div,
 .dark .shape-opt,
-.dark .conn-opt {
-color: #cbd5e1 !important;
-}
-
-.dark .shape-opt:hover,
-.dark .conn-opt:hover {
-background-color: #1e293b !important;
-color: #818cf8 !important;
-}
-
-/* ==========================================================================
-5. BARRA DE HERRAMIENTAS CONTEXTUAL
-========================================================================== */
-
-#context-toolbar {
-background: rgba(255, 255, 255, 0.92);
-backdrop-filter: blur(12px);
--webkit-backdrop-filter: blur(12px);
-border: 1px solid #e2e8f0;
-color: #0f172a;
-border-radius: var(--radius-lg);
-box-shadow: 0 10px 20px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
-z-index: 30;
-padding: 0.375rem 0.75rem;
-display: flex;
-align-items: center;
-gap: 0.5rem;
-transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.dark #context-toolbar {
-background: rgba(15, 23, 42, 0.92);
-border-color: #334155;
-color: #f8fafc;
-}
-
+.dark .conn-opt,
 .dark #context-toolbar span,
-.dark #context-toolbar label,
 .dark #context-toolbar select,
 .dark #context-toolbar button {
 color: #f8fafc !important;
 }
 
-#context-toolbar select,
-#context-toolbar input[type="number"] {
-background: #ffffff;
-border: 1px solid #cbd5e1;
-border-radius: var(--radius-sm);
-padding: 0.25rem 0.5rem;
-font-size: 0.875rem;
-color: #0f172a;
-outline: none;
+.dark .shape-opt:hover,
+.dark .conn-opt:hover,
+.dark #context-toolbar button:hover {
+background-color: #1e293b !important;
+color: #818cf8 !important;
 }
 
-.dark #context-toolbar select,
-.dark #context-toolbar input[type="number"] {
-background: #1e293b;
-border-color: #475569;
+.dark #context-toolbar select option {
+background-color: #0f172a;
 color: #f8fafc;
 }
 
-/* ==========================================================================
-6. CONTROLES DE COLOR, MODALES Y BOTONES DE ACCIÓN
-========================================================================== */
-
-input[type="color"] {
--webkit-appearance: none;
-border: none;
-width: 24px;
-height: 24px;
-border-radius: 50%;
-cursor: pointer;
+.dark #context-toolbar {
+background: rgba(15, 23, 42, 0.94);
+border-color: #334155;
+color: #f8fafc;
 }
 
-input[type="color"]::-webkit-color-swatch-wrapper {
-padding: 0;
+.dark .breadcrumbs {
+background: #1e293b;
+color: #818cf8;
 }
 
-input[type="color"]::-webkit-color-swatch {
-border: 1px solid rgba(0, 0, 0, 0.2);
-border-radius: 50%;
+.dark .clipboard-bar {
+background: #292524;
+border-color: #44403c;
+color: #fbbf24;
 }
 
-.modal-backdrop {
-position: fixed;
-inset: 0;
-background-color: rgba(15, 23, 42, 0.6);
-backdrop-filter: blur(4px);
--webkit-backdrop-filter: blur(4px);
-z-index: 50;
-display: flex;
-align-items: center;
-justify-content: center;
-}
-
-.modal-content {
-background: #ffffff;
-border-radius: var(--radius-lg);
-padding: 1.5rem;
-max-width: 28rem;
-width: 100%;
-box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-border: 1px solid #e2e8f0;
-}
-
-.dark .modal-content {
+.dark #modal-gdrive .glass-panel,
+.dark #modal-confirm-clear .glass-panel,
+.dark #templates-modal .glass-panel {
 background: #0f172a;
 border-color: #334155;
 color: #f8fafc;
 }
 
-/* ==========================================================================
-7. DISEÑO ADAPTATIVO (MEDIA QUERIES)
-========================================================================== */
-
-@media (max-width: 640px) {
-.flyout-menu {
-position: fixed !important;
-left: 50% !important;
-transform: translateX(-50%) !important;
-width: 90vw;
+.dark #modal-gdrive h3,
+.dark #modal-gdrive p,
+.dark #modal-confirm-clear h3,
+.dark #modal-confirm-clear p,
+.dark #templates-modal h3,
+.dark #templates-modal p {
+color: #f8fafc;
 }
+
+.dark .template-card {
+background: #1e293b;
+border-color: #334155;
+}
+
+.dark .template-card:hover {
+border-color: #6366f1;
+}
+
+.dark #minimap-container {
+background: #0f172a;
+border-color: #334155;
+}
+
+.dark .arrow-btn-opt {
+background: #1e293b;
+color: #f8fafc;
+border-color: #475569;
+}
+
+.dark .arrow-btn-opt:hover {
+background: #334155;
+}
+
+.dark .arrow-btn-opt.active {
+background: #6366f1;
+color: #ffffff;
+border-color: #6366f1;
 }

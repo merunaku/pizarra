@@ -82,7 +82,7 @@
                     </button>
                     <div class="h-px bg-slate-200 my-0.5"></div>
                     <button id="btn-gdrive-open-modal" class="text-left px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-50 rounded-lg flex items-center gap-2">
-                        <i class="fa-brands fa-google-drive text-emerald-600 w-4"></i> Guardar/Abrir en Drive
+                        <i class="fa-brands fa-google-drive text-emerald-600 w-4"></i> Explorador Google Drive
                     </button>
                     <button id="export-json" class="text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg flex items-center gap-2">
                         <i class="fa-solid fa-file-code text-slate-400 w-4"></i> Respaldar Local (JSON)
@@ -111,7 +111,6 @@
             <input id="ctx-stroke-width" type="range" min="1" max="24" value="2" class="w-16 accent-indigo-600" />
         </div>
 
-        <!-- Opción para transformar líneas en Recta / Curva -->
         <div id="ctx-group-conn-style" class="hidden flex items-center gap-1">
             <select id="ctx-conn-line" class="bg-slate-100 border border-slate-200 rounded px-1.5 py-1 text-slate-700 focus:outline-none">
                 <option value="line">Recta</option>
@@ -129,7 +128,6 @@
             </button>
         </div>
 
-        <!-- Botones Visuales de Flechas (Íconos) -->
         <div id="ctx-group-conn-arrows" class="hidden flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
             <button class="arrow-btn-opt ctx-arrow-btn" data-arrow="none" title="Sin Flecha">—</button>
             <button class="arrow-btn-opt ctx-arrow-btn" data-arrow="end" title="Flecha Final">→</button>
@@ -137,13 +135,11 @@
             <button class="arrow-btn-opt ctx-arrow-btn" data-arrow="both" title="Doble Flecha">↔</button>
         </div>
 
-        <!-- Control Deslizable de Tamaño de Flecha -->
         <div id="ctx-group-arrow-size" class="hidden flex items-center gap-1">
             <span class="text-slate-400 text-[10px]">Flecha</span>
             <input id="ctx-arrow-size" type="range" min="8" max="40" value="14" class="w-14 accent-indigo-600" title="Tamaño de la Punta" />
         </div>
 
-        <!-- Estilo de Borde -->
         <select id="ctx-stroke-style" class="bg-slate-100 border border-slate-200 rounded px-1.5 py-1 text-slate-700 focus:outline-none">
             <option value="solid">Sólido</option>
             <option value="dashed">Guiones</option>
@@ -353,7 +349,7 @@
         <textarea id="inline-text-editor" placeholder="Escribe aquí..."></textarea>
     </main>
 
-    <!-- CONTROLES DE ZOOM Y MINIMAPA (Abajo a la derecha) -->
+    <!-- CONTROLES DE ZOOM Y MINIMAPA -->
     <div class="fixed bottom-4 right-4 z-30 flex items-center gap-2">
         <div class="glass-panel px-2 py-1 rounded-2xl shadow-lg border border-slate-200 flex items-center gap-1 text-xs">
             <button id="btn-zoom-out" title="Alejar (-)" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600"><i class="fa-solid fa-minus"></i></button>
@@ -375,67 +371,89 @@
         </div>
     </div>
 
-    <!-- MODAL GOOGLE DRIVE CLOUD SYNC -->
+    <!-- MODAL GESTOR DE PIZARRAS Y GOOGLE DRIVE EXPLORER -->
     <div id="modal-gdrive" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
-        <div class="glass-panel w-full max-w-lg rounded-3xl shadow-2xl p-6 flex flex-col gap-5 border border-slate-200 bg-white">
+        <div class="glass-panel w-full max-w-2xl rounded-3xl shadow-2xl p-6 flex flex-col gap-4 border border-slate-200 bg-white max-h-[90vh] overflow-y-auto">
             <div class="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div class="flex items-center gap-2.5 font-bold text-slate-800 text-base">
                     <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-lg">
                         <i class="fa-brands fa-google-drive"></i>
                     </div>
                     <div>
-                        <h3 class="leading-tight">Google Drive Cloud Sync</h3>
-                        <p class="text-[11px] font-normal text-slate-500">Guarda y abre pizarras en tus carpetas de Google Drive</p>
+                        <h3 class="leading-tight">Gestor de Pizarras y Google Drive</h3>
+                        <p class="text-[11px] font-normal text-slate-500">Explora clases, organiza carpetas y respalda pizarras en la nube</p>
                     </div>
                 </div>
                 <button id="btn-close-gdrive" class="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100"><i class="fa-solid fa-xmark text-base"></i></button>
             </div>
 
-            <!-- Estado de Cuenta -->
-            <div id="gdrive-login-box" class="p-4 bg-emerald-50/70 border border-emerald-200 rounded-2xl flex flex-col gap-3">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                        <img id="gdrive-user-avatar" src="https://placehold.co/40x40/10b981/ffffff?text=P" class="w-10 h-10 rounded-full border border-emerald-300 shadow-sm" />
-                        <div class="flex flex-col">
-                            <span id="gdrive-user-name" class="font-bold text-xs text-slate-800">Cuenta de Google</span>
-                            <span id="gdrive-user-email" class="text-[11px] text-slate-500">Sin conectar</span>
-                        </div>
+            <!-- 1. Autenticación y Rol -->
+            <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <img id="gdrive-user-avatar" src="https://placehold.co/40x40/10b981/ffffff?text=U" class="w-10 h-10 rounded-full border border-emerald-400 shadow-sm object-cover" />
+                    <div class="flex flex-col">
+                        <span id="userInfo" class="font-bold text-xs text-slate-800">Estado: No conectado</span>
+                        <span id="gdrive-user-email" class="text-[11px] text-slate-500">Haz clic en Iniciar Sesión para autenticar</span>
                     </div>
-                    <button id="btn-gdrive-login" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-3.5 py-2 rounded-xl shadow-md transition-all flex items-center gap-1.5">
+                </div>
+                <div class="flex items-center gap-2">
+                    <div id="roleBadge"></div>
+                    <button id="authBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-3.5 py-2 rounded-xl shadow-md transition-all flex items-center gap-1.5">
                         <i class="fa-solid fa-plug"></i>
-                        <span id="btn-login-text">Conectar Google Drive</span>
+                        <span>Iniciar sesión con Google</span>
                     </button>
                 </div>
-                <!-- Input Opcional de Client ID -->
-                <div class="flex items-center gap-2 pt-2 border-t border-emerald-200/60">
-                    <span class="text-[10px] font-semibold text-emerald-800 whitespace-nowrap">Client ID (Opcional):</span>
-                    <input id="gdrive-client-id-input" type="text" placeholder="OAuth Client ID de Google Cloud Console" class="w-full text-[10px] px-2 py-1 rounded border border-emerald-200 bg-white focus:outline-none" />
+            </div>
+
+            <!-- 2. Crear / Guardar Pizarra -->
+            <div class="p-3.5 bg-indigo-50/60 border border-indigo-100 rounded-2xl flex flex-col gap-2">
+                <span class="text-xs font-bold text-indigo-900">Crear / Guardar Pizarra Activa</span>
+                <div class="flex items-center gap-2">
+                    <input type="text" id="boardTitle" placeholder="Nombre de la clase o pizarra" disabled class="flex-1 text-xs px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white" />
+                    <button id="saveBtn" disabled class="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold text-xs px-4 py-2 rounded-xl shadow-sm transition-all whitespace-nowrap">
+                        Guardar en carpeta actual
+                    </button>
                 </div>
             </div>
 
-            <!-- Acciones de Drive -->
-            <div class="grid grid-cols-2 gap-3">
-                <button id="btn-gdrive-save-direct" class="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white p-3 rounded-2xl font-semibold text-xs shadow-md transition-all">
-                    <i class="fa-solid fa-cloud-arrow-up text-sm"></i>
-                    <span>Guardar Pizarra (.json)</span>
-                </button>
-                <button id="btn-gdrive-list-files" class="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 p-3 rounded-2xl font-semibold text-xs transition-all">
-                    <i class="fa-solid fa-folder-open text-slate-500 text-sm"></i>
-                    <span>Abrir desde Drive</span>
-                </button>
+            <!-- 3. Explorador de Clases -->
+            <div class="flex flex-col gap-2.5">
+                <div class="flex items-center justify-between">
+                    <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Explorador de Clases</h4>
+                    <!-- Indicador de Sincronización Automática -->
+                    <label class="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
+                        <input id="toggle-autosync-gdrive" type="checkbox" class="w-3.5 h-3.5 text-emerald-600 rounded accent-emerald-600" />
+                        <span class="text-[11px]">Auto-Sync</span>
+                    </label>
+                </div>
+
+                <!-- Ruta actual / Breadcrumb -->
+                <div class="breadcrumbs" id="breadcrumbsView">Ruta: Raíz</div>
+
+                <!-- Barra de acciones del explorador -->
+                <div class="toolbar flex items-center gap-2">
+                    <button id="newFolderBtn" disabled class="bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1">
+                        <i class="fa-solid fa-folder-plus"></i> + Nueva Carpeta
+                    </button>
+                    <button id="pasteBtn" disabled class="bg-slate-600 hover:bg-slate-700 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1">
+                        📋 Pegar aquí
+                    </button>
+                    <button id="refreshBtn" disabled class="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1">
+                        🔄 Actualizar
+                    </button>
+                </div>
+
+                <!-- Indicador de archivo copiado -->
+                <div id="clipboardBar" class="clipboard-bar"></div>
+
+                <!-- Lista de Archivos y Carpetas -->
+                <ul id="boardsList" class="max-h-56 overflow-y-auto pr-1"></ul>
             </div>
 
-            <div class="flex items-center justify-between px-1">
-                <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-600 font-medium">
-                    <input id="toggle-autosync-gdrive" type="checkbox" class="w-4 h-4 rounded text-emerald-600 accent-emerald-600" />
-                    <span>Sincronización Automática en segundo plano</span>
-                </label>
-            </div>
-
-            <!-- Lista de Archivos -->
-            <div id="gdrive-file-list-container" class="hidden flex flex-col gap-2 bg-slate-50 p-3 rounded-2xl border border-slate-200 max-h-48 overflow-y-auto">
-                <span class="text-[11px] font-bold text-slate-500 uppercase">Pizarras encontradas en Drive</span>
-                <div id="gdrive-file-items" class="flex flex-col gap-1.5"></div>
+            <!-- 4. Contenido / Vista previa del archivo -->
+            <div class="flex flex-col gap-1 border-t border-slate-100 pt-3">
+                <span class="text-[11px] font-bold text-slate-500">Vista Previa / Contenido JSON</span>
+                <pre id="fileContent" class="text-[10px] bg-slate-900 text-slate-300 p-3 rounded-xl max-h-24 overflow-x-auto">Selecciona una pizarra para cargar su contenido.</pre>
             </div>
         </div>
     </div>
