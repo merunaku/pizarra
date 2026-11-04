@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -87,7 +86,7 @@
   <!-- 2. Panel de Profesor -->
   <div class="box">
     <h3>2. Panel de Profesor (Edición/Guardado)</h3>
-    <p>Guarda la pizarra en la carpeta específica compartida.</p>
+    <p>Guarda la pizarra en la carpeta compartida.</p>
     <input type="text" id="boardTitle" placeholder="Nombre de la clase o pizarra" disabled>
     <button id="saveBtn" onclick="saveWhiteboardTest()" disabled>Guardar Pizarra en Drive</button>
   </div>
@@ -106,14 +105,13 @@
   </div>
 
   <script>
-    // CONFIGURACIÓN DE CREDENCIALES Y CARPETA
+    // CREDENCIALES Y UBICACIÓN
     const CLIENT_ID = '105539045721-rqso8ee1qvak0f35lm72dl0iqgaisqqe.apps.googleusercontent.com';
     const TEACHER_EMAIL = 'ingeniero.diego.bustamante@gmail.com';
-    
-    // ⚠️ PEGA AQUÍ EL ID DE TU CARPETA OBTENIDO DE LA URL DE DRIVE:
     const TARGET_FOLDER_ID = '1F9G2av-nBxT4lnOI9TeG4Do0cadbbESQ'; 
 
-    const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email';
+    // Permisos completos de Drive para poder escribir dentro de carpetas preexistentes
+    const SCOPES = 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/userinfo.email';
 
     let tokenClient;
     let accessToken = null;
@@ -137,10 +135,10 @@
       });
     }
 
-     function handleAuthClick() {
-      // 'select_account consent' fuerza el menú de selección de correo y confirmación de permisos
-    tokenClient.requestAccessToken({ prompt: 'select_account consent' });
-     }
+    function handleAuthClick() {
+      // Obliga a mostrar selector de cuenta para renovar el alcance (Scope)
+      tokenClient.requestAccessToken({ prompt: 'select_account consent' });
+    }
 
     async function fetchUserProfile() {
       try {
@@ -173,14 +171,14 @@
       listWhiteboards();
     }
 
-    // GUARDAR: Guarda directamente dentro del ID de carpeta especificado
+    // GUARDAR: Método de 2 pasos (Crea metadato en la carpeta y luego inyecta contenido)
     async function saveWhiteboardTest() {
-      const title = document.getElementById('boardTitle').value.trim() || 'Clase sin título';
+      const titleInput = document.getElementById('boardTitle');
+      const title = titleInput.value.trim() || 'Clase sin título';
+      const saveBtn = document.getElementById('saveBtn');
 
-      if (TARGET_FOLDER_ID === 'TU_FOLDER_ID_AQUI') {
-        alert('Por favor reemplaza TU_FOLDER_ID_AQUI en el código por el ID real de tu carpeta.');
-        return;
-      }
+      saveBtn.disabled = true;
+      saveBtn.innerText = 'Guardando...';
 
       const whiteboardData = {
         title: title,
@@ -189,63 +187,86 @@
         strokes: [{ tool: 'pen', color: '#ff0000', points: [[10, 10], [50, 50]] }]
       };
 
-      const metadata = {
-        name: `PIZARRA_${title}.json`,
-        mimeType: 'application/json',
-        parents: [TARGET_FOLDER_ID] // 👈 Asigna la carpeta destino
-      };
-
-      const formData = new FormData();
-      formData.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-      formData.append('file', new Blob([JSON.stringify(whiteboardData, null, 2)], { type: 'application/json' }));
-
       try {
-        const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+        // Paso 1: Crear archivo con ubicación específica asignada
+        const metadataResponse = await fetch('https://www.googleapis.com/drive/v3/files', {
           method: 'POST',
-          headers: { Authorization: `Bearer ${accessToken}` },
-          body: formData
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: `PIZARRA_${title}.json`,
+            mimeType: 'application/json',
+            parents: [TARGET_FOLDER_ID]
+          })
         });
-        const file = await response.json();
 
-        if (response.ok) {
+        const file = await metadataResponse.json();
+
+        if (!metadataResponse.ok) {
+          alert('Error al asignar la carpeta destino: ' + (file.error ? file.error.message : 'Error desconocido'));
+          return;
+        }
+
+        // Paso 2: Escribir los datos JSON en el ID creado
+        const contentResponse = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${file.id}?uploadType=media`, {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(whiteboardData, null, 2)
+        });
+
+        if (contentResponse.ok) {
           await setPublicReadPermission(file.id);
-          alert('Pizarra guardada con éxito en la carpeta seleccionada.');
-          document.getElementById('boardTitle').value = '';
+          alert('¡Guardado exitoso! El archivo está dentro de tu carpeta seleccionada.');
+          titleInput.value = '';
           listWhiteboards();
         } else {
-          alert('Error al guardar: ' + file.error.message);
+          const errData = await contentResponse.json();
+          alert('Error subiendo contenido: ' + errData.error.message);
         }
       } catch (err) {
         console.error('Error en subida:', err);
+        alert('Ocurrió un error al intentar guardar.');
+      } finally {
+        saveBtn.disabled = !isTeacher;
+        saveBtn.innerText = 'Guardar Pizarra en Drive';
       }
     }
 
     async function setPublicReadPermission(fileId) {
-      await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          role: 'reader',
-          type: 'anyone'
-        })
-      });
+      try {
+        await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            role: 'reader',
+            type: 'anyone'
+          })
+        });
+      } catch (err) {
+        console.error('Error asignando permiso de lectura:', err);
+      }
     }
 
-    // LISTAR: Busca archivos únicamente contenidos en la carpeta especificada
+    // LISTAR: Filtra únicamente los archivos guardados en el ID de la carpeta
     async function listWhiteboards() {
-      if (TARGET_FOLDER_ID === 'TU_FOLDER_ID_AQUI') return;
+      const list = document.getElementById('boardsList');
+      list.innerHTML = '<li>Buscando pizarras...</li>';
 
       try {
         const query = encodeURIComponent(`'${TARGET_FOLDER_ID}' in parents and name contains 'PIZARRA_' and trashed = false`);
-        const response = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name,createdTime)`, {
+        const response = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name,createdTime)&orderBy=createdTime desc`, {
           headers: { Authorization: `Bearer ${accessToken}` }
         });
         
         const data = await response.json();
-        const list = document.getElementById('boardsList');
         list.innerHTML = '';
 
         if (data.files && data.files.length > 0) {
@@ -262,10 +283,12 @@
         }
       } catch (err) {
         console.error('Error listando pizarras:', err);
+        list.innerHTML = '<li>Error al buscar pizarras.</li>';
       }
     }
 
     async function readWhiteboard(fileId) {
+      document.getElementById('fileContent').innerText = 'Cargando contenido...';
       try {
         const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
           headers: { Authorization: `Bearer ${accessToken}` }
@@ -274,6 +297,7 @@
         document.getElementById('fileContent').innerText = content;
       } catch (err) {
         console.error('Error leyendo archivo:', err);
+        document.getElementById('fileContent').innerText = 'Error al leer la pizarra.';
       }
     }
   </script>
