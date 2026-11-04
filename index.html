@@ -366,6 +366,20 @@
             <input id="ctx-arrow-size" type="range" min="6" max="32" value="14" class="w-full accent-indigo-600" title="Tamaño de punta de flecha" />
         </div>
 
+        <!-- Connector Type Controls (Line curve & Arrow placement) -->
+        <div id="ctx-group-conn-style" class="hidden flex items-center gap-1.5">
+            <select id="ctx-conn-line" class="text-xs bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 font-medium text-slate-700 focus:outline-none" title="Tipo de Línea">
+                <option value="line">Recta</option>
+                <option value="curved">Curva</option>
+            </select>
+            <select id="ctx-conn-arrow" class="text-xs bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 font-medium text-slate-700 focus:outline-none" title="Puntas de Flecha">
+                <option value="none">Sin Flechas</option>
+                <option value="end">Flecha Final</option>
+                <option value="start">Flecha Inicial</option>
+                <option value="both">Doble Flecha</option>
+            </select>
+        </div>
+
         <!-- Stroke Style -->
         <select id="ctx-stroke-style" class="text-xs bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 font-medium text-slate-700 focus:outline-none">
             <option value="solid">Línea Sólida</option>
