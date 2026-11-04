@@ -60,67 +60,103 @@ export function updateContextToolbar() {
     const groupWidth = document.getElementById('ctx-group-width');
     const groupArrowSize = document.getElementById('ctx-group-arrow-size');
     const groupConnStyle = document.getElementById('ctx-group-conn-style');
+    const groupConnArrows = document.getElementById('ctx-group-conn-arrows');
     const groupStyle = document.getElementById('ctx-stroke-style');
     const groupFont = document.getElementById('ctx-group-font');
     const groupSmoothing = document.getElementById('ctx-group-smoothing');
     const btnEditText = document.getElementById('ctx-edit-text');
     const sepEdit = document.getElementById('ctx-sep-edit');
 
-    [groupFill, groupStroke, groupWidth, groupArrowSize, groupConnStyle, groupStyle, groupFont, groupSmoothing, btnEditText, sepEdit].forEach(g => g && g.classList.remove('hidden'));
+    // Ocultar todos por defecto para hacer un filtrado estricto
+    [groupFill, groupStroke, groupWidth, groupArrowSize, groupConnStyle, groupConnArrows, groupStyle, groupFont, groupSmoothing, btnEditText, sepEdit].forEach(g => g && g.classList.add('hidden'));
 
     if (selected.type === 'text') {
-        [groupFill, groupStroke, groupWidth, groupArrowSize, groupConnStyle, groupStyle, groupSmoothing].forEach(g => g && g.classList.add('hidden'));
+        [groupStroke, groupFont, btnEditText, sepEdit].forEach(g => g && g.classList.remove('hidden'));
     } else if (selected.type === 'sticky') {
-        [groupStroke, groupWidth, groupArrowSize, groupConnStyle, groupStyle, groupSmoothing].forEach(g => g && g.classList.add('hidden'));
+        [groupFill, groupFont, btnEditText, sepEdit].forEach(g => g && g.classList.remove('hidden'));
     } else if (selected.type === 'pencil' || selected.type === 'highlighter') {
-        [groupFill, groupArrowSize, groupConnStyle, groupStyle, groupFont, btnEditText, sepEdit].forEach(g => g && g.classList.add('hidden'));
+        [groupStroke, groupWidth, groupConnArrows, groupSmoothing].forEach(g => g && g.classList.remove('hidden'));
+        
+        if (selected.arrowMode && selected.arrowMode !== 'none') {
+            if (groupArrowSize) groupArrowSize.classList.remove('hidden');
+        }
+
         if (groupSmoothing) {
             const smInput = document.getElementById('ctx-smoothing');
             if (smInput) smInput.value = selected.smoothing !== undefined ? selected.smoothing : state.smoothing;
         }
+
+        // Sincronizar botones de flecha activos
+        syncArrowModeButtons(selected.arrowMode || 'none');
     } else if (selected.type === 'connector') {
-        [groupFill, groupFont, groupSmoothing, btnEditText, sepEdit].forEach(g => g && g.classList.add('hidden'));
+        [groupStroke, groupWidth, groupConnStyle, groupConnArrows, groupStyle].forEach(g => g && g.classList.remove('hidden'));
         
+        let currentArrowMode = selected.arrowMode;
+        if (!currentArrowMode && selected.connType) {
+            if (selected.connType.includes('double')) currentArrowMode = 'both';
+            else if (selected.connType.includes('arrow')) currentArrowMode = 'end';
+            else currentArrowMode = 'none';
+        }
+
+        if (currentArrowMode && currentArrowMode !== 'none') {
+            if (groupArrowSize) groupArrowSize.classList.remove('hidden');
+        }
+
         if (groupArrowSize) {
             const arrowInput = document.getElementById('ctx-arrow-size');
             if (arrowInput) arrowInput.value = selected.arrowSize || 14;
         }
 
-        // Sincronizar selectores de Tipo de Línea y Puntas de Flecha
         const connLineSelect = document.getElementById('ctx-conn-line');
         if (connLineSelect) {
             const isCurved = selected.isCurved !== undefined ? selected.isCurved : (selected.connType && selected.connType.startsWith('curved'));
             connLineSelect.value = isCurved ? 'curved' : 'line';
         }
 
-        const connArrowSelect = document.getElementById('ctx-conn-arrow');
-        if (connArrowSelect) {
-            let mode = 'none';
-            if (selected.arrowMode) {
-                mode = selected.arrowMode;
-            } else if (selected.connType) {
-                if (selected.connType.includes('double')) mode = 'both';
-                else if (selected.connType.includes('arrow')) mode = 'end';
-            }
-            connArrowSelect.value = mode;
-        }
+        syncArrowModeButtons(currentArrowMode || 'none');
+    } else if (selected.type === 'shape') {
+        [groupFill, groupStroke, groupWidth, groupStyle, btnEditText, sepEdit].forEach(g => g && g.classList.remove('hidden'));
     } else {
-        if (groupArrowSize) groupArrowSize.classList.add('hidden');
-        if (groupConnStyle) groupConnStyle.classList.add('hidden');
+        // Imágenes o Marcos
+        [groupStroke, groupStyle].forEach(g => g && g.classList.remove('hidden'));
     }
 }
 
-/**
- * Conecta los eventos de la interfaz de usuario
- */
+function syncArrowModeButtons(mode) {
+    document.querySelectorAll('.ctx-arrow-btn').forEach(btn => {
+        if (btn.getAttribute('data-arrow') === mode) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+}
+
 export function setupUIListeners(canvas, ctx, renderFn) {
     renderCallback = renderFn;
 
-    // Listeners de la barra lateral de herramientas
-    document.querySelectorAll('[data-tool]').forEach(btn => {
+    // Listeners para botones visuales de flechas en la barra contextual
+    document.querySelectorAll('.ctx-arrow-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            const tool = btn.getAttribute('data-tool');
-            setTool(tool);
+            const arrowMode = btn.getAttribute('data-arrow');
+            state.selectedIds.forEach(id => {
+                const el = state.elements.find(m => m.id === id);
+                if (el && (el.type === 'connector' || el.type === 'pencil' || el.type === 'highlighter')) {
+                    el.arrowMode = arrowMode;
+                }
+            });
+            updateContextToolbar();
+            saveState(); if (renderCallback) renderCallback();
+        });
+    });
+
+    // Listeners para botones de flecha en el menú del lápiz
+    document.querySelectorAll('.pencil-arrow-opt').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            state.pencilArrowMode = btn.getAttribute('data-arrow');
+            document.querySelectorAll('.pencil-arrow-opt').forEach(o => o.classList.remove('active'));
+            btn.classList.add('active');
         });
     });
 
