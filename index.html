@@ -216,6 +216,14 @@
                     <div class="pencil-color-opt color-dot" style="background:#10b981" data-color="#10b981"></div>
                 </div>
                 <div class="h-px bg-slate-200 my-0.5"></div>
+                <div class="flex flex-col gap-1">
+                    <div class="flex items-center justify-between text-[10px] font-bold text-slate-400">
+                        <span>Grosor de Trazo</span>
+                        <span id="pencil-width-val" class="text-slate-600 font-semibold">3px</span>
+                    </div>
+                    <input id="pencil-width-slider" type="range" min="1" max="24" value="3" class="w-full accent-indigo-600" />
+                </div>
+                <div class="h-px bg-slate-200 my-0.5"></div>
                 <span class="text-[10px] font-bold text-slate-400">Flecha al dibujar</span>
                 <div class="flex items-center gap-1">
                     <button class="arrow-btn-opt pencil-arrow-opt active" data-arrow="none" title="Sin Flecha">—</button>
@@ -227,9 +235,28 @@
         </div>
 
         <!-- Destacador Neón -->
-        <button data-tool="highlighter" title="Resaltador Neón" class="tool-btn w-9 h-9 rounded-xl flex items-center justify-center text-amber-500 hover:bg-amber-50 transition-all">
-            <i class="fa-solid fa-highlighter text-sm"></i>
-        </button>
+        <div class="relative">
+            <button data-tool="highlighter" data-flyout="flyout-highlighter" title="Resaltador Neón" class="tool-btn has-flyout w-9 h-9 rounded-xl flex items-center justify-center text-amber-500 hover:bg-amber-50 transition-all">
+                <i class="fa-solid fa-highlighter text-sm"></i>
+            </button>
+            <div id="flyout-highlighter" class="flyout-menu hidden absolute left-full top-0 ml-2 glass-panel p-2.5 rounded-xl shadow-xl border border-slate-200 flex flex-col gap-2 w-48 z-40">
+                <span class="text-[10px] font-bold text-slate-400">Color de Destacador</span>
+                <div class="grid grid-cols-4 gap-1.5">
+                    <div class="hl-color-opt color-dot active" style="background:#facc15" data-color="rgba(250, 204, 21, 0.45)"></div>
+                    <div class="hl-color-opt color-dot" style="background:#4ade80" data-color="rgba(74, 222, 128, 0.45)"></div>
+                    <div class="hl-color-opt color-dot" style="background:#60a5fa" data-color="rgba(96, 165, 250, 0.45)"></div>
+                    <div class="hl-color-opt color-dot" style="background:#f472b6" data-color="rgba(244, 114, 182, 0.45)"></div>
+                </div>
+                <div class="h-px bg-slate-200 my-0.5"></div>
+                <div class="flex flex-col gap-1">
+                    <div class="flex items-center justify-between text-[10px] font-bold text-slate-400">
+                        <span>Grosor de Trazo</span>
+                        <span id="hl-width-val" class="text-slate-600 font-semibold">20px</span>
+                    </div>
+                    <input id="hl-width-slider" type="range" min="8" max="50" value="20" class="w-full accent-amber-500" />
+                </div>
+            </div>
+        </div>
 
         <!-- Formas Geométricas -->
         <div class="relative">

@@ -454,16 +454,17 @@ function drawPolygon(ctx, cx, cy, sides, radius) {
  */
 function drawConnector(ctx, el) {
     ctx.strokeStyle = el.strokeColor || '#1e293b';
-    ctx.lineWidth = el.strokeWidth || 2;
+    const strokeWidth = el.strokeWidth || 2;
+    ctx.lineWidth = strokeWidth;
     setLineDashStyle(ctx, el.strokeStyle);
 
     const startX = el.x, startY = el.y;
     const endX = el.endX !== undefined ? el.endX : el.x + 100;
     const endY = el.endY !== undefined ? el.endY : el.y + 100;
     const baseArrowSize = el.arrowSize || 14;
-    const arrowSize = Math.max(baseArrowSize, (el.strokeWidth || 2) * 2.8);
+    const arrowSize = Math.max(baseArrowSize, strokeWidth * 2.8);
 
-    // Determinar modo de flecha (compatibilidad con connType previo o arrowMode directo)
+    // Determinar modo de flecha
     let mode = el.arrowMode;
     if (!mode) {
         if (el.connType && el.connType.includes('double')) mode = 'both';
@@ -471,13 +472,35 @@ function drawConnector(ctx, el) {
         else mode = 'none';
     }
 
+    const hasArrows = mode && mode !== 'none';
+    ctx.lineCap = hasArrows ? 'butt' : 'round';
+
     const isCurved = el.isCurved !== undefined ? el.isCurved : (el.connType && el.connType.startsWith('curved'));
+    const offset = arrowSize * 0.75;
 
     if (isCurved) {
         const cp = el.cp || { x: (startX + endX) / 2, y: (startY + endY) / 2 - 40 };
+        
+        const angleEnd = Math.atan2(endY - cp.y, endX - cp.x);
+        const angleStart = Math.atan2(startY - cp.y, startX - cp.x);
+
+        let lineStartX = startX;
+        let lineStartY = startY;
+        let lineEndX = endX;
+        let lineEndY = endY;
+
+        if (mode === 'end' || mode === 'both') {
+            lineEndX = endX - offset * Math.cos(angleEnd);
+            lineEndY = endY - offset * Math.sin(angleEnd);
+        }
+        if (mode === 'start' || mode === 'both') {
+            lineStartX = startX + offset * Math.cos(angleStart);
+            lineStartY = startY + offset * Math.sin(angleStart);
+        }
+
         ctx.beginPath();
-        ctx.moveTo(startX, startY);
-        ctx.quadraticCurveTo(cp.x, cp.y, endX, endY);
+        ctx.moveTo(lineStartX, lineStartY);
+        ctx.quadraticCurveTo(cp.x, cp.y, lineEndX, lineEndY);
         ctx.stroke();
 
         if (mode === 'end' || mode === 'both') {
@@ -493,7 +516,6 @@ function drawConnector(ctx, el) {
         let lineEndX = endX;
         let lineEndY = endY;
 
-        const offset = arrowSize * 0.75;
         if (mode === 'end' || mode === 'both') {
             lineEndX = endX - offset * Math.cos(angle);
             lineEndY = endY - offset * Math.sin(angle);

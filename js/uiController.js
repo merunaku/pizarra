@@ -225,8 +225,41 @@ export function setupUIListeners(canvas, ctx, renderFn) {
             state.pencilColor = opt.getAttribute('data-color');
             document.querySelectorAll('.pencil-color-opt').forEach(o => o.classList.remove('active'));
             opt.classList.add('active');
+            setTool('pencil');
         });
     });
+
+    // Control de grosor del lápiz
+    const pencilWidthSlider = document.getElementById('pencil-width-slider');
+    const pencilWidthVal = document.getElementById('pencil-width-val');
+    if (pencilWidthSlider) {
+        pencilWidthSlider.addEventListener('input', (e) => {
+            state.pencilWidth = parseInt(e.target.value);
+            if (pencilWidthVal) pencilWidthVal.innerText = `${state.pencilWidth}px`;
+        });
+    }
+
+    // Opciones de color del destacador
+    document.querySelectorAll('.hl-color-opt').forEach(opt => {
+        opt.addEventListener('click', (e) => {
+            e.stopPropagation();
+            state.hlColor = opt.getAttribute('data-color');
+            document.querySelectorAll('.hl-color-opt').forEach(o => o.classList.remove('active'));
+            opt.classList.add('active');
+            closeAllFlyouts();
+            setTool('highlighter');
+        });
+    });
+
+    // Control de grosor del destacador
+    const hlWidthSlider = document.getElementById('hl-width-slider');
+    const hlWidthVal = document.getElementById('hl-width-val');
+    if (hlWidthSlider) {
+        hlWidthSlider.addEventListener('input', (e) => {
+            state.hlWidth = parseInt(e.target.value);
+            if (hlWidthVal) hlWidthVal.innerText = `${state.hlWidth}px`;
+        });
+    }
 
     // Listeners de tipo de línea y flechas en la barra contextual
     const ctxConnLine = document.getElementById('ctx-conn-line');
