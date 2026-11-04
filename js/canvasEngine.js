@@ -48,6 +48,23 @@ export function getElementBounds(el) {
         };
     }
 
+    if (el.type === 'text') {
+        const lines = (el.text || 'Haz doble clic para editar').split('\n');
+        const fSize = el.fontSize || 20;
+        let maxW = 120;
+        lines.forEach(line => {
+            const w = line.length * (fSize * 0.58);
+            if (w > maxW) maxW = w;
+        });
+        const h = Math.max(fSize * 1.3, lines.length * (fSize * 1.35));
+        return {
+            x: el.x,
+            y: el.y,
+            width: maxW + 16,
+            height: h + 8
+        };
+    }
+
     if (el.type === 'connector') {
         const pts = getConnectorPoints(el);
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -61,222 +78,83 @@ export function getElementBounds(el) {
         return {
             x: minX - pad,
             y: minY - pad,
-            width: Math.max(10, maxX - minX + pad * 2),
-            height: Math.max(10, maxY - minY + pad * 2)
+            width: Math.max(20, maxX - minX + pad * 2),
+            height: Math.max(20, maxY - minY + pad * 2)
         };
     }
 
-    const w = el.width !== undefined ? el.width : 100;
-    const h = el.height !== undefined ? el.height : 100;
     return {
-        x: el.x,
-        y: el.y,
-        width: w,
-        height: h
+        x: el.x || 0,
+        y: el.y || 0,
+        width: el.width || 100,
+        height: el.height || 100
     };
 }
 
 /**
- * Obtiene o construye la lista de puntos de control de un conector
+ * Retorna los puntos de control de un conector
  */
 export function getConnectorPoints(el) {
-    if (el.points && el.points.length >= 2) return el.points;
-    const startX = el.x;
-    const startY = el.y;
-    const endX = el.endX !== undefined ? el.endX : el.x + 100;
-    const endY = el.endY !== undefined ? el.endY : el.y + 100;
+    if (el.points && el.points.length >= 2) {
+        return el.points;
+    }
+    const start = { x: el.x || 0, y: el.y || 0 };
+    const end = { x: el.endX !== undefined ? el.endX : start.x + 100, y: el.endY !== undefined ? el.endY : start.y + 100 };
     const isCurved = el.isCurved !== undefined ? el.isCurved : (el.connType && el.connType.startsWith('curved'));
 
     if (isCurved) {
-        const cp = el.cp || { x: (startX + endX) / 2, y: (startY + endY) / 2 - 40 };
-        return [{ x: startX, y: startY }, { x: cp.x, y: cp.y }, { x: endX, y: endY }];
+        const cp = el.cp || { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 - 40 };
+        return [start, cp, end];
     }
-    return [{ x: startX, y: startY }, { x: endX, y: endY }];
+    return [start, end];
 }
 
 /**
- * Distancia de un punto a un segmento rectilíneo
+ * Distancia de un punto a un segmento de línea recta
  */
-export function distToSegment(p, a, b) {
-    const l2 = (b.x - a.x) ** 2 + (b.y - a.y) ** 2;
-    if (l2 === 0) return Math.hypot(p.x - a.x, p.y - a.y);
-    let t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / l2;
+export function distToSegment(p, v, w) {
+    const l2 = (w.x - v.x) ** 2 + (w.y - v.y) ** 2;
+    if (l2 === 0) return Math.hypot(p.x - v.x, p.y - v.y);
+    let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
     t = Math.max(0, Math.min(1, t));
-    return Math.hypot(p.x - (a.x + t * (b.x - a.x)), p.y - (a.y + t * (b.y - a.y)));
+    return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
 }
 
 /**
  * Distancia de un punto a una curva cuadrática Bézier
  */
-function distToQuadraticCurve(p, p0, cp, p1) {
-    let minDist = Infinity;
-    const steps = 25;
-    let prev = p0;
-    for (let i = 1; i <= steps; i++) {
+function distToQuadraticCurve(p, p0, p1, p2) {
+    let minD = Infinity;
+    const steps = 30;
+    for (let i = 0; i <= steps; i++) {
         const t = i / steps;
-        const curr = {
-            x: (1 - t) * (1 - t) * p0.x + 2 * (1 - t) * t * cp.x + t * t * p1.x,
-            y: (1 - t) * (1 - t) * p0.y + 2 * (1 - t) * t * cp.y + t * t * p1.y
-        };
-        const d = distToSegment(p, prev, curr);
-        if (d < minDist) minDist = d;
-        prev = curr;
+        const invT = 1 - t;
+        const qx = invT * invT * p0.x + 2 * invT * t * p1.x + t * t * p2.x;
+        const qy = invT * invT * p0.y + 2 * invT * t * p1.y + t * t * p2.y;
+        const d = Math.hypot(p.x - qx, p.y - qy);
+        if (d < minD) minD = d;
     }
-    return minDist;
+    return minD;
 }
 
 /**
- * Trunca la lista de puntos desde el final consumiendo una distancia exacta
- */
-function trimPointsFromEnd(pts, trimDist) {
-    if (!pts || pts.length < 2 || trimDist <= 0) return pts;
-    let res = pts.map(p => ({ ...p }));
-    let remaining = trimDist;
-
-    while (res.length >= 2 && remaining > 0) {
-        const last = res[res.length - 1];
-        const prev = res[res.length - 2];
-        const segLen = Math.hypot(last.x - prev.x, last.y - prev.y);
-
-        if (segLen === 0) {
-            res.pop();
-            continue;
-        }
-
-        if (remaining < segLen) {
-            const ratio = (segLen - remaining) / segLen;
-            res[res.length - 1] = {
-                x: prev.x + (last.x - prev.x) * ratio,
-                y: prev.y + (last.y - prev.y) * ratio
-            };
-            remaining = 0;
-        } else {
-            remaining -= segLen;
-            res.pop();
-        }
-    }
-    return res;
-}
-
-/**
- * Trunca la lista de puntos desde el inicio consumiendo una distancia exacta
- */
-function trimPointsFromStart(pts, trimDist) {
-    if (!pts || pts.length < 2 || trimDist <= 0) return pts;
-    let res = pts.map(p => ({ ...p }));
-    let remaining = trimDist;
-
-    while (res.length >= 2 && remaining > 0) {
-        const first = res[0];
-        const next = res[1];
-        const segLen = Math.hypot(next.x - first.x, next.y - first.y);
-
-        if (segLen === 0) {
-            res.shift();
-            continue;
-        }
-
-        if (remaining < segLen) {
-            const ratio = remaining / segLen;
-            res[0] = {
-                x: first.x + (next.x - first.x) * ratio,
-                y: first.y + (next.y - first.y) * ratio
-            };
-            remaining = 0;
-        } else {
-            remaining -= segLen;
-            res.shift();
-        }
-    }
-    return res;
-}
-
-/**
- * Suaviza trazos de lápiz utilizando subdivisión de Chaikin
- */
-export function getSmoothedPoints(pts, smoothFactor = 5) {
-    if (!pts || pts.length <= 2 || smoothFactor <= 0) return pts;
-    let current = pts;
-    const iterations = Math.min(3, Math.ceil(smoothFactor / 3));
-
-    for (let it = 0; it < iterations; it++) {
-        const next = [current[0]];
-        for (let i = 0; i < current.length - 1; i++) {
-            const p0 = current[i];
-            const p1 = current[i + 1];
-            const q = { x: 0.75 * p0.x + 0.25 * p1.x, y: 0.75 * p0.y + 0.25 * p1.y };
-            const r = { x: 0.25 * p0.x + 0.75 * p1.x, y: 0.25 * p0.y + 0.75 * p1.y };
-            next.push(q, r);
-        }
-        next.push(current[current.length - 1]);
-        current = next;
-    }
-    return current;
-}
-
-/**
- * Obtiene un punto retrasado una distancia específica a lo largo de la curva para calcular la dirección de la flecha
- */
-export function getPointAtDistanceBack(pts, isEnd, targetDist) {
-    if (!pts || pts.length < 2) return pts[0] || { x: 0, y: 0 };
-    if (isEnd) {
-        let accumulated = 0;
-        for (let i = pts.length - 1; i > 0; i--) {
-            const pCurr = pts[i];
-            const pPrev = pts[i - 1];
-            const dist = Math.hypot(pCurr.x - pPrev.x, pCurr.y - pPrev.y);
-            if (accumulated + dist >= targetDist) {
-                const ratio = (targetDist - accumulated) / dist;
-                return {
-                    x: pCurr.x + (pPrev.x - pCurr.x) * ratio,
-                    y: pCurr.y + (pPrev.y - pCurr.y) * ratio
-                };
-            }
-            accumulated += dist;
-        }
-        return pts[0];
-    } else {
-        let accumulated = 0;
-        for (let i = 0; i < pts.length - 1; i++) {
-            const pCurr = pts[i];
-            const pNext = pts[i + 1];
-            const dist = Math.hypot(pNext.x - pCurr.x, pNext.y - pCurr.y);
-            if (accumulated + dist >= targetDist) {
-                const ratio = (targetDist - accumulated) / dist;
-                return {
-                    x: pCurr.x + (pNext.x - pCurr.x) * ratio,
-                    y: pCurr.y + (pNext.y - pCurr.y) * ratio
-                };
-            }
-            accumulated += dist;
-        }
-        return pts[pts.length - 1];
-    }
-}
-
-/**
- * Determina si un punto dado está dentro de un elemento
+ * Comprueba si un punto (coordenadas del mundo) está dentro o sobre un elemento
  */
 export function isPointInElement(pt, el) {
-    const bounds = getElementBounds(el);
-    const cx = bounds.x + bounds.width / 2;
-    const cy = bounds.y + bounds.height / 2;
-
-    let checkPt = pt;
-    if (el.rotation && el.type !== 'connector') {
-        checkPt = rotatePoint(pt, -el.rotation, { x: cx, y: cy });
-    }
+    if (!el) return false;
 
     if (el.type === 'pencil' || el.type === 'highlighter') {
-        if (el.points && el.points.length > 0) {
-            const threshold = Math.max(16, (el.lineWidth || 3) / 2 + 10) / state.zoom;
-            for (let i = 0; i < el.points.length - 1; i++) {
-                if (distToSegment(checkPt, el.points[i], el.points[i + 1]) <= threshold) {
-                    return true;
-                }
+        if (!el.points || el.points.length === 0) return false;
+        const smoothVal = el.smoothing !== undefined ? el.smoothing : state.smoothing;
+        const pts = getSmoothedPoints(el.points, smoothVal);
+        const threshold = Math.max(12, (el.lineWidth || 3) / 2 + 6) / state.zoom;
+
+        for (let i = 0; i < pts.length - 1; i++) {
+            if (distToSegment(pt, pts[i], pts[i + 1]) <= threshold) {
+                return true;
             }
-            return false;
         }
+        return false;
     }
 
     if (el.type === 'connector') {
@@ -295,7 +173,142 @@ export function isPointInElement(pt, el) {
         }
         return false;
     }
-    return checkPt.x >= bounds.x && checkPt.x <= bounds.x + bounds.width && checkPt.y >= bounds.y && checkPt.y <= bounds.y + bounds.height;
+
+    // Formas, Notas, Texto, Marcos, Imágenes
+    const bounds = getElementBounds(el);
+    let checkPt = pt;
+    if (el.rotation) {
+        const cx = bounds.x + bounds.width / 2;
+        const cy = bounds.y + bounds.height / 2;
+        checkPt = rotatePoint(pt, -el.rotation, { x: cx, y: cy });
+    }
+
+    return checkPt.x >= bounds.x &&
+           checkPt.x <= bounds.x + bounds.width &&
+           checkPt.y >= bounds.y &&
+           checkPt.y <= bounds.y + bounds.height;
+}
+
+/**
+ * Suavizado de curva Chaikin
+ */
+function getSmoothedPoints(points, smoothLevel = 5) {
+    if (!points || points.length <= 2 || smoothLevel === 0) return points || [];
+    
+    let current = points;
+    const iterations = Math.min(3, Math.ceil(smoothLevel / 3));
+
+    for (let it = 0; it < iterations; it++) {
+        const smoothed = [];
+        smoothed.push(current[0]);
+        for (let i = 0; i < current.length - 1; i++) {
+            const p0 = current[i];
+            const p1 = current[i + 1];
+            const q = { x: 0.75 * p0.x + 0.25 * p1.x, y: 0.75 * p0.y + 0.25 * p1.y };
+            const r = { x: 0.25 * p0.x + 0.75 * p1.x, y: 0.25 * p0.y + 0.75 * p1.y };
+            smoothed.push(q);
+            smoothed.push(r);
+        }
+        smoothed.push(current[current.length - 1]);
+        current = smoothed;
+    }
+    return current;
+}
+
+/**
+ * Truncamiento de puntos desde el final para dejar espacio exacto a la cabeza de la flecha
+ */
+function trimPointsFromEnd(pts, trimDistance) {
+    if (pts.length < 2 || trimDistance <= 0) return pts;
+    const result = [...pts];
+    let remaining = trimDistance;
+
+    while (result.length >= 2 && remaining > 0) {
+        const pLast = result[result.length - 1];
+        const pPrev = result[result.length - 2];
+        const segLen = Math.hypot(pLast.x - pPrev.x, pLast.y - pPrev.y);
+
+        if (segLen <= remaining) {
+            remaining -= segLen;
+            result.pop();
+        } else {
+            const ratio = (segLen - remaining) / segLen;
+            result[result.length - 1] = {
+                x: pPrev.x + (pLast.x - pPrev.x) * ratio,
+                y: pPrev.y + (pLast.y - pPrev.y) * ratio
+            };
+            remaining = 0;
+        }
+    }
+    return result;
+}
+
+/**
+ * Truncamiento de puntos desde el inicio para dejar espacio exacto a la cabeza de la flecha
+ */
+function trimPointsFromStart(pts, trimDistance) {
+    if (pts.length < 2 || trimDistance <= 0) return pts;
+    const result = [...pts];
+    let remaining = trimDistance;
+
+    while (result.length >= 2 && remaining > 0) {
+        const pFirst = result[0];
+        const pNext = result[1];
+        const segLen = Math.hypot(pNext.x - pFirst.x, pNext.y - pFirst.y);
+
+        if (segLen <= remaining) {
+            remaining -= segLen;
+            result.shift();
+        } else {
+            const ratio = remaining / segLen;
+            result[0] = {
+                x: pFirst.x + (pNext.x - pFirst.x) * ratio,
+                y: pFirst.y + (pNext.y - pFirst.y) * ratio
+            };
+            remaining = 0;
+        }
+    }
+    return result;
+}
+
+/**
+ * Obtiene el punto a una distancia hacia atrás sobre la curva para calcular la dirección de la flecha
+ */
+function getPointAtDistanceBack(pts, fromEnd = true, targetDistance = 15) {
+    if (pts.length < 2) return pts[0] || { x: 0, y: 0 };
+    let remaining = targetDistance;
+
+    if (fromEnd) {
+        for (let i = pts.length - 1; i > 0; i--) {
+            const pCurrent = pts[i];
+            const pPrev = pts[i - 1];
+            const segLen = Math.hypot(pCurrent.x - pPrev.x, pCurrent.y - pPrev.y);
+            if (segLen >= remaining) {
+                const ratio = remaining / segLen;
+                return {
+                    x: pCurrent.x - (pCurrent.x - pPrev.x) * ratio,
+                    y: pCurrent.y - (pCurrent.y - pPrev.y) * ratio
+                };
+            }
+            remaining -= segLen;
+        }
+        return pts[0];
+    } else {
+        for (let i = 0; i < pts.length - 1; i++) {
+            const pCurrent = pts[i];
+            const pNext = pts[i + 1];
+            const segLen = Math.hypot(pNext.x - pCurrent.x, pNext.y - pCurrent.y);
+            if (segLen >= remaining) {
+                const ratio = remaining / segLen;
+                return {
+                    x: pCurrent.x + (pNext.x - pCurrent.x) * ratio,
+                    y: pCurrent.y + (pNext.y - pCurrent.y) * ratio
+                };
+            }
+            remaining -= segLen;
+        }
+        return pts[pts.length - 1];
+    }
 }
 
 /**
@@ -373,7 +386,7 @@ function drawElement(ctx, el) {
             ctx.fillRect(el.x, el.y, el.width, el.height);
             ctx.strokeStyle = 'rgba(0,0,0,0.06)';
             ctx.strokeRect(el.x, el.y, el.width, el.height);
-            if (el.text) {
+            if (el.text && el.id !== state.editingElementId) {
                 ctx.fillStyle = '#1e293b';
                 ctx.font = `${el.fontSize || 16}px Inter, sans-serif`;
                 wrapText(ctx, el.text, el.x + 12, el.y + 24, el.width - 24, (el.fontSize || 16) * 1.3);
@@ -381,9 +394,15 @@ function drawElement(ctx, el) {
             break;
 
         case 'text':
-            ctx.fillStyle = el.color || '#1e293b';
-            ctx.font = `${el.fontSize || 20}px Inter, sans-serif`;
-            ctx.fillText(el.text || 'Haz doble clic para editar', el.x, el.y + (el.fontSize || 20));
+            if (el.id !== state.editingElementId) {
+                ctx.fillStyle = el.color || (state.darkMode ? '#f8fafc' : '#1e293b');
+                ctx.font = `${el.fontSize || 20}px Inter, sans-serif`;
+                const lines = (el.text || 'Haz doble clic para editar').split('\n');
+                const fSize = el.fontSize || 20;
+                lines.forEach((l, idx) => {
+                    ctx.fillText(l, el.x + 4, el.y + fSize + idx * (fSize * 1.3));
+                });
+            }
             break;
 
         case 'pencil':
@@ -560,7 +579,7 @@ function drawShape(ctx, el) {
     }
     ctx.setLineDash([]);
 
-    if (el.text) {
+    if (el.text && el.id !== state.editingElementId) {
         ctx.fillStyle = el.textColor || '#1e293b';
         ctx.font = `${el.fontSize || 16}px Inter, sans-serif`;
         wrapText(ctx, el.text, x + 10, y + h / 2 - 8, w - 20, (el.fontSize || 16) * 1.3);
@@ -691,20 +710,24 @@ function drawArrowHead(ctx, fromX, fromY, toX, toY, color, size = 14) {
  */
 function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
     if (!text) return;
-    const words = text.split(' ');
-    let line = '';
-    for (let n = 0; n < words.length; n++) {
-        const testLine = line + words[n] + ' ';
-        const metrics = ctx.measureText(testLine);
-        if (metrics.width > maxWidth && n > 0) {
-            ctx.fillText(line, x, y);
-            line = words[n] + ' ';
-            y += lineHeight;
-        } else {
-            line = testLine;
+    const paragraphs = text.split('\n');
+    for (let p = 0; p < paragraphs.length; p++) {
+        const words = paragraphs[p].split(' ');
+        let line = '';
+        for (let n = 0; n < words.length; n++) {
+            const testLine = line + words[n] + ' ';
+            const metrics = ctx.measureText(testLine);
+            if (metrics.width > maxWidth && n > 0) {
+                ctx.fillText(line, x, y);
+                line = words[n] + ' ';
+                y += lineHeight;
+            } else {
+                line = testLine;
+            }
         }
+        ctx.fillText(line, x, y);
+        y += lineHeight;
     }
-    ctx.fillText(line, x, y);
 }
 
 /**

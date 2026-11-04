@@ -58,12 +58,27 @@ export function openInlineEditor(el) {
     const bounds = getElementBounds(el);
     const screenPos = worldToScreen(bounds.x, bounds.y);
 
+    let bgColor = 'transparent';
+    let textColor = state.darkMode ? '#f8fafc' : '#1e293b';
+
+    if (el.type === 'sticky') {
+        bgColor = el.color || '#fef08a';
+        textColor = '#1e293b'; // Texto oscuro siempre legible sobre la nota adhesiva
+    } else if (el.type === 'shape') {
+        bgColor = el.fillColor || (state.darkMode ? '#1e293b' : '#ffffff');
+        textColor = el.textColor || el.strokeColor || (state.darkMode ? '#f8fafc' : '#1e293b');
+    } else if (el.type === 'text') {
+        bgColor = state.darkMode ? '#1e293b' : '#ffffff';
+        textColor = el.color || (state.darkMode ? '#f8fafc' : '#1e293b');
+    }
+
     inlineEditor.style.left = `${screenPos.x}px`;
     inlineEditor.style.top = `${screenPos.y}px`;
-    inlineEditor.style.width = `${Math.max(120, bounds.width * state.zoom)}px`;
-    inlineEditor.style.height = `${Math.max(60, bounds.height * state.zoom)}px`;
+    inlineEditor.style.width = `${Math.max(140, bounds.width * state.zoom)}px`;
+    inlineEditor.style.height = `${Math.max(80, bounds.height * state.zoom)}px`;
     inlineEditor.style.fontSize = `${(el.fontSize || 16) * state.zoom}px`;
-    inlineEditor.style.color = el.color || el.textColor || (state.darkMode ? '#f8fafc' : '#1e293b');
+    inlineEditor.style.color = textColor;
+    inlineEditor.style.backgroundColor = bgColor;
     inlineEditor.style.display = 'block';
     inlineEditor.value = el.text || '';
 
@@ -99,8 +114,17 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
 
     if (inlineEditor) {
         inlineEditor.addEventListener('blur', closeInlineEditor);
+        inlineEditor.addEventListener('input', () => {
+            if (state.editingElementId) {
+                const el = state.elements.find(e => e.id === state.editingElementId);
+                if (el) {
+                    el.text = inlineEditor.value;
+                    if (renderCallback) renderCallback();
+                }
+            }
+        });
         inlineEditor.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' || (e.key === 'Enter' && !e.shiftKey)) {
+            if (e.key === 'Escape' || (e.key === 'Enter' && (e.ctrlKey || e.metaKey))) {
                 e.preventDefault();
                 closeInlineEditor();
             }
