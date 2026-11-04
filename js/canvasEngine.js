@@ -539,7 +539,6 @@ function drawConnector(ctx, el) {
 
     const isCurved = el.isCurved !== undefined ? el.isCurved : (el.connType && el.connType.startsWith('curved'));
     const offset = arrowSize * 0.8;
-    const offset = arrowSize * 0.75;
 
     if (isCurved) {
         const cp = el.cp || { x: (startX + endX) / 2, y: (startY + endY) / 2 - 40 };
