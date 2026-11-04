@@ -135,6 +135,16 @@ function syncArrowModeButtons(mode) {
 export function setupUIListeners(canvas, ctx, renderFn) {
     renderCallback = renderFn;
 
+    // Listener para cambiar herramienta desde los botones de la barra lateral
+    document.querySelectorAll('[data-tool]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const toolName = btn.getAttribute('data-tool');
+            if (toolName) {
+                setTool(toolName);
+            }
+        });
+    });
+
     // Listeners para botones visuales de flechas en la barra contextual
     document.querySelectorAll('.ctx-arrow-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -584,4 +594,34 @@ export function setupUIListeners(canvas, ctx, renderFn) {
             }
         });
     }
+
+    // Atajos de Teclado (Suprimir, Borrar, Deshacer, Rehacer, Herramientas)
+    window.addEventListener('keydown', (e) => {
+        if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+            return;
+        }
+
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+            if (state.selectedIds.length > 0) {
+                state.elements = state.elements.filter(el => !state.selectedIds.includes(el.id));
+                state.selectedIds = [];
+                updateContextToolbar();
+                saveState();
+                if (renderCallback) renderCallback();
+            }
+        } else if (e.ctrlKey && e.key.toLowerCase() === 'z') {
+            e.preventDefault();
+            undo(renderCallback, updateContextToolbar);
+        } else if (e.ctrlKey && e.key.toLowerCase() === 'y') {
+            e.preventDefault();
+            redo(renderCallback, updateContextToolbar);
+        } else if (!e.ctrlKey && !e.altKey && !e.metaKey) {
+            const k = e.key.toLowerCase();
+            if (k === 'v') setTool('select');
+            else if (k === 'h') setTool('hand');
+            else if (k === 't') setTool('text');
+            else if (k === 'p') setTool('pencil');
+            else if (k === 'e') setTool('eraser');
+        }
+    });
 }

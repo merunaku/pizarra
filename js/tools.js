@@ -52,6 +52,12 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
 
     if (inlineEditor) {
         inlineEditor.addEventListener('blur', closeInlineEditor);
+        inlineEditor.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' || (e.key === 'Enter' && !e.shiftKey)) {
+                e.preventDefault();
+                closeInlineEditor();
+            }
+        });
     }
 
     // EVENTO POINTERDOWN (Clic inicial)
@@ -199,7 +205,7 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                 strokeStyle: 'solid'
             };
         } else if (state.activeTool === 'text') {
-            state.elements.push({
+            const newTextEl = {
                 id,
                 type: 'text',
                 x: worldPos.x,
@@ -208,11 +214,14 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                 text: 'Texto Nuevo',
                 fontSize: 20,
                 color: '#1e293b'
-            });
+            };
+            state.elements.push(newTextEl);
             state.selectedIds = [id];
             if (setToolCallback) setToolCallback('select');
             saveState();
             if (renderCallback) renderCallback();
+            setTimeout(() => openInlineEditor(newTextEl), 50);
+            return;
         } else if (state.activeTool === 'connector') {
             state.isDrawing = true;
             state.tempElement = {
