@@ -72,72 +72,45 @@ overflow: hidden;
 display: none;
 }
 
-/ Active Tool Highlight */
-.tool-btn.active {
-background-color: #4f46e5 !important;
-color: #ffffff !important;
-box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
-}
-
 /* Compact Tool Buttons & Flyout Menus */
-.tool-btn {
-padding: 0.6rem !important;
-}
-
-.flyout-menu {
-max-height: calc(100vh - 120px);
-overflow-y: auto;
-}
-
-/* Flyout positioning fix for bottom sidebar items */
-.flyout-bottom {
-top: auto !important;
-bottom: 0 !important;
-}
-
-/* Color Swatches /
-.color-dot {
-width: 22px;
-height: 22px;
-
-  /* Compact Tool Buttons & Flyout Menus */
 .tool-btn {
 padding: 0.45rem !important;
 }
 
 #main-sidebar {
 max-height: calc(100vh - 7rem);
-overflow-y: auto;
+overflow: visible !important; /* CRITICAL: overflow visible so absolute flyout menus are not clipped */
 }
 
 .flyout-menu {
 max-height: calc(100vh - 120px);
 overflow-y: auto;
+box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+}
+
+/* Flyout position adjustments for lower sidebar items */
+.flyout-bottom {
+top: auto !important;
+bottom: 0 !important;
 }
 
 /* Arrow Mode Visual Icon Buttons */
 .arrow-btn-opt {
-width: 28px;
-height: 28px;
-display: inline-flex;
-align-items: center;
-justify-content: center;
+padding: 4px 8px;
 border-radius: 6px;
 border: 1px solid #e2e8f0;
-background-color: #f8fafc;
+background: #f8fafc;
 color: #475569;
 cursor: pointer;
 transition: all 0.15s ease;
 }
 .arrow-btn-opt:hover {
-background-color: #e0e7ff;
-color: #4f46e5;
+background: #e0e7ff;
+color: #4338ca;
+border-color: #c7d2fe;
 }
 .arrow-btn-opt.active {
-background-color: #4f46e5 !important;
-color: #ffffff !important;
-border-color: #4f46e5 !important;
+background: #4f46e5;
+color: #ffffff;
+border-color: #4338ca;
 }
-
-/* Color Swatches */
-.color-dot {
