@@ -55,6 +55,10 @@ export function openInlineEditor(el) {
     const canvas = document.getElementById('board-canvas');
     if (!canvas) return;
 
+    if (el.type === 'text' && !el.width) {
+        el.width = 320;
+    }
+
     const bounds = getElementBounds(el);
     const screenPos = worldToScreen(bounds.x, bounds.y);
 
@@ -66,9 +70,9 @@ export function openInlineEditor(el) {
         const bgLum = getLuminance(bgColor);
         textColor = bgLum < 0.4 ? '#f8fafc' : '#1e293b';
     } else if (el.type === 'shape') {
-        bgColor = el.fillColor || (state.darkMode ? '#1e293b' : '#ffffff');
+        bgColor = getEffectiveColor(el.fillColor || (state.darkMode ? '#1e293b' : '#ffffff'), 'fill');
         const fillLum = getLuminance(bgColor);
-        textColor = fillLum < 0.4 ? '#f8fafc' : (state.darkMode ? '#f8fafc' : '#1e293b');
+        textColor = fillLum < 0.45 ? '#f8fafc' : '#0f172a';
     } else if (el.type === 'text') {
         bgColor = state.darkMode ? '#1e293b' : '#ffffff';
         textColor = getEffectiveColor(el.color || '#1e293b', 'text');
@@ -77,7 +81,7 @@ export function openInlineEditor(el) {
     inlineEditor.style.left = `${screenPos.x}px`;
     inlineEditor.style.top = `${screenPos.y}px`;
     inlineEditor.style.width = `${Math.max(140, bounds.width * state.zoom)}px`;
-    inlineEditor.style.height = `${Math.max(80, bounds.height * state.zoom)}px`;
+    inlineEditor.style.height = `${Math.max(60, bounds.height * state.zoom)}px`;
     inlineEditor.style.fontSize = `${(el.fontSize || 16) * state.zoom}px`;
     inlineEditor.style.color = textColor;
     inlineEditor.style.backgroundColor = bgColor;
@@ -90,9 +94,6 @@ export function openInlineEditor(el) {
     }, 50);
 }
 
-/**
- * Cierra el editor de texto flotante y sincroniza inmediatamente los cambios en el lienzo
- */
 export function closeInlineEditor() {
     if (state.editingElementId) {
         const editingId = state.editingElementId;
@@ -102,6 +103,10 @@ export function closeInlineEditor() {
         if (el && inlineEditor) {
             const trimmed = inlineEditor.value.trim();
             el.text = trimmed;
+
+            if (el.type === 'text' && !el.width) {
+                el.width = 320;
+            }
             
             // Si era un texto vacio recien creado, eliminar para limpiar la pantalla
             if (el.type === 'text' && !trimmed) {

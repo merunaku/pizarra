@@ -27,6 +27,56 @@ export function rotatePoint(pt, angle, center) {
 }
 
 /**
+ * Divide un texto en líneas ajustadas al ancho máximo especificado (maxWidth),
+ * contemplando saltos de línea explícitos (\n), ajuste por palabras y palabras largas.
+ */
+export function getWrappedLines(ctx, text, maxWidth) {
+    if (!text) return [];
+    const paragraphs = text.split('\n');
+    const lines = [];
+
+    for (let p = 0; p < paragraphs.length; p++) {
+        const words = paragraphs[p].split(' ');
+        let currentLine = '';
+
+        for (let n = 0; n < words.length; n++) {
+            const word = words[n];
+            const testLine = currentLine ? currentLine + ' ' + word : word;
+            const metrics = ctx.measureText(testLine);
+
+            if (metrics.width > maxWidth) {
+                if (currentLine) {
+                    lines.push(currentLine);
+                    currentLine = '';
+                }
+                // Si la palabra individual supera el ancho máximo, forzar ajuste por caracteres
+                if (ctx.measureText(word).width > maxWidth) {
+                    let subWord = '';
+                    for (let c = 0; c < word.length; c++) {
+                        const testSub = subWord + word[c];
+                        if (ctx.measureText(testSub).width > maxWidth && subWord) {
+                            lines.push(subWord);
+                            subWord = word[c];
+                        } else {
+                            subWord = testSub;
+                        }
+                    }
+                    if (subWord) currentLine = subWord;
+                } else {
+                    currentLine = word;
+                }
+            } else {
+                currentLine = testLine;
+            }
+        }
+        if (currentLine) {
+            lines.push(currentLine);
+        }
+    }
+    return lines;
+}
+
+/**
  * Calcula la luminancia percibida de una cadena de color (Hex, RGB, RGBA)
  */
 export function getLuminance(colorStr) {
@@ -76,10 +126,10 @@ export function getEffectiveColor(colorStr, role = 'stroke') {
             const parts = match[1].split(',').map(s => s.trim());
             const r = parseInt(parts[0]), g = parseInt(parts[1]), b = parseInt(parts[2]), a = parts[3] || '1';
             const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-            if (state.darkMode && lum < 0.35) {
+            if (state.darkMode && lum < 0.35 && role !== 'fill') {
                 return `rgba(248, 250, 252, ${a})`;
             }
-            if (!state.darkMode && lum > 0.75) {
+            if (!state.darkMode && lum > 0.75 && role !== 'fill') {
                 return `rgba(30, 41, 59, ${a})`;
             }
         }
@@ -94,7 +144,8 @@ export function getEffectiveColor(colorStr, role = 'stroke') {
                 return '#f8fafc';
             }
         } else if (role === 'fill') {
-            if (lum < 0.2) {
+            // FONDOS BLANCOS O MUY CLAROS SE ADAPTAN A MODO OSCURO (#1e293b)
+            if (lum > 0.85) {
                 return '#1e293b';
             }
         }
@@ -103,6 +154,10 @@ export function getEffectiveColor(colorStr, role = 'stroke') {
         if (role === 'stroke' || role === 'text') {
             if (lum > 0.75) {
                 return '#1e293b';
+            }
+        } else if (role === 'fill') {
+            if (lum < 0.15) {
+                return '#ffffff';
             }
         }
         return colorStr;
@@ -132,19 +187,43 @@ export function getElementBounds(el) {
     }
 
     if (el.type === 'text') {
-        const lines = (el.text || 'Haz doble clic para editar').split('\n');
         const fSize = el.fontSize || 20;
-        let maxW = 120;
-        lines.forEach(line => {
-            const w = line.length * (fSize * 0.58);
-            if (w > maxW) maxW = w;
+        const maxWidth = el.width ? Math.max(40, el.width - 8) : 350;
+        const rawText = el.text || 'Haz doble clic para editar';
+        const charWidth = fSize * 0.58;
+        const maxChars = Math.max(5, Math.floor(maxWidth / charWidth));
+
+        const paragraphs = rawText.split('\n');
+        let lineCount = 0;
+        let maxLineW = 0;
+
+        paragraphs.forEach(p => {
+            if (!p) {
+                lineCount++;
+                return;
+            }
+            const words = p.split(' ');
+            let curLen = 0;
+            words.forEach(w => {
+                if (curLen + w.length > maxChars && curLen > 0) {
+                    lineCount++;
+                    curLen = w.length;
+                } else {
+                    curLen += (curLen > 0 ? 1 : 0) + w.length;
+                }
+                const estimatedW = Math.min(maxWidth, curLen * charWidth);
+                if (estimatedW > maxLineW) maxLineW = estimatedW;
+            });
+            if (curLen > 0) lineCount++;
         });
-        const h = Math.max(fSize * 1.3, lines.length * (fSize * 1.35));
+
+        const calculatedWidth = el.width ? el.width : Math.max(120, maxLineW + 16);
+        const calculatedHeight = Math.max(fSize * 1.4, lineCount * (fSize * 1.35) + 12);
         return {
             x: el.x,
             y: el.y,
-            width: maxW + 16,
-            height: h + 8
+            width: calculatedWidth,
+            height: calculatedHeight
         };
     }
 
@@ -471,19 +550,35 @@ function drawElement(ctx, el) {
             if (el.text && el.id !== state.editingElementId) {
                 const bgLum = getLuminance(el.color || '#fef08a');
                 ctx.fillStyle = bgLum < 0.4 ? '#f8fafc' : '#1e293b';
-                ctx.font = `${el.fontSize || 16}px Inter, sans-serif`;
-                wrapText(ctx, el.text, el.x + 12, el.y + 24, el.width - 24, (el.fontSize || 16) * 1.3);
+                const fontSize = el.fontSize || 16;
+                ctx.font = `${fontSize}px Inter, sans-serif`;
+
+                const maxWidth = Math.max(20, el.width - 24);
+                const lines = getWrappedLines(ctx, el.text, maxWidth);
+                const lineHeight = fontSize * 1.35;
+
+                let startY = el.y + 24;
+                lines.forEach((line) => {
+                    ctx.fillText(line, el.x + 12, startY);
+                    startY += lineHeight;
+                });
             }
             break;
 
         case 'text':
             if (el.id !== state.editingElementId) {
                 ctx.fillStyle = getEffectiveColor(el.color || '#1e293b', 'text');
-                ctx.font = `${el.fontSize || 20}px Inter, sans-serif`;
-                const lines = (el.text || 'Haz doble clic para editar').split('\n');
-                const fSize = el.fontSize || 20;
-                lines.forEach((l, idx) => {
-                    ctx.fillText(l, el.x + 4, el.y + fSize + idx * (fSize * 1.3));
+                const fontSize = el.fontSize || 20;
+                ctx.font = `${fontSize}px Inter, sans-serif`;
+
+                const maxWidth = el.width ? Math.max(40, el.width - 8) : 350;
+                const lines = getWrappedLines(ctx, el.text || 'Haz doble clic para editar', maxWidth);
+                const lineHeight = fontSize * 1.35;
+
+                let startY = el.y + fontSize;
+                lines.forEach((line) => {
+                    ctx.fillText(line, el.x + 4, startY);
+                    startY += lineHeight;
                 });
             }
             break;
@@ -668,10 +763,27 @@ function drawShape(ctx, el) {
 
     if (el.text && el.id !== state.editingElementId) {
         const fillLum = getLuminance(fillColor);
-        const textColor = fillLum < 0.4 ? '#f8fafc' : getEffectiveColor(el.textColor || el.strokeColor || '#1e293b', 'text');
+        const textColor = fillLum < 0.45 ? '#f8fafc' : '#0f172a';
         ctx.fillStyle = textColor;
-        ctx.font = `${el.fontSize || 16}px Inter, sans-serif`;
-        wrapText(ctx, el.text, x + 10, y + h / 2 - 8, w - 20, (el.fontSize || 16) * 1.3);
+        const fontSize = el.fontSize || 16;
+        ctx.font = `${fontSize}px Inter, sans-serif`;
+
+        const paddingX = Math.max(12, w * 0.1);
+        const maxWidth = Math.max(20, w - paddingX * 2);
+        const lines = getWrappedLines(ctx, el.text, maxWidth);
+
+        const lineHeight = fontSize * 1.3;
+        const totalTextHeight = lines.length * lineHeight;
+
+        let startY = y + (h - totalTextHeight) / 2 + fontSize * 0.85;
+
+        ctx.textAlign = 'center';
+        const centerX = x + w / 2;
+        lines.forEach((line) => {
+            ctx.fillText(line, centerX, startY);
+            startY += lineHeight;
+        });
+        ctx.textAlign = 'left';
     }
 }
 
