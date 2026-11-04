@@ -99,3 +99,45 @@ bottom: 0 !important;
 .color-dot {
 width: 22px;
 height: 22px;
+
+  /* Compact Tool Buttons & Flyout Menus */
+.tool-btn {
+padding: 0.45rem !important;
+}
+
+#main-sidebar {
+max-height: calc(100vh - 7rem);
+overflow-y: auto;
+}
+
+.flyout-menu {
+max-height: calc(100vh - 120px);
+overflow-y: auto;
+}
+
+/* Arrow Mode Visual Icon Buttons */
+.arrow-btn-opt {
+width: 28px;
+height: 28px;
+display: inline-flex;
+align-items: center;
+justify-content: center;
+border-radius: 6px;
+border: 1px solid #e2e8f0;
+background-color: #f8fafc;
+color: #475569;
+cursor: pointer;
+transition: all 0.15s ease;
+}
+.arrow-btn-opt:hover {
+background-color: #e0e7ff;
+color: #4f46e5;
+}
+.arrow-btn-opt.active {
+background-color: #4f46e5 !important;
+color: #ffffff !important;
+border-color: #4f46e5 !important;
+}
+
+/* Color Swatches */
+.color-dot {
