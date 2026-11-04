@@ -322,27 +322,31 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                     // Proyectar la posición del cursor al sistema de coordenadas locales unrotadas
                     const localPos = rotatePoint(worldPos, -rad, centerInit);
 
-                    let newX = init.x;
-                    let newY = init.y;
                     let newW = init.width;
                     let newH = init.height;
+                    let newX = init.x;
+                    let newY = init.y;
 
                     if (h === 'se') {
                         newW = Math.max(minSize, localPos.x - init.x);
                         newH = Math.max(minSize, localPos.y - init.y);
+                        newX = init.x;
+                        newY = init.y;
                     } else if (h === 'sw') {
-                        const calculatedW = init.x + init.width - localPos.x;
-                        if (calculatedW >= minSize) { newX = localPos.x; newW = calculatedW; }
+                        newW = Math.max(minSize, init.x + init.width - localPos.x);
                         newH = Math.max(minSize, localPos.y - init.y);
+                        newX = init.x + init.width - newW;
+                        newY = init.y;
                     } else if (h === 'ne') {
                         newW = Math.max(minSize, localPos.x - init.x);
-                        const calculatedH = init.y + init.height - localPos.y;
-                        if (calculatedH >= minSize) { newY = localPos.y; newH = calculatedH; }
+                        newH = Math.max(minSize, init.y + init.height - localPos.y);
+                        newX = init.x;
+                        newY = init.y + init.height - newH;
                     } else if (h === 'nw') {
-                        const calculatedW = init.x + init.width - localPos.x;
-                        if (calculatedW >= minSize) { newX = localPos.x; newW = calculatedW; }
-                        const calculatedH = init.y + init.height - localPos.y;
-                        if (calculatedH >= minSize) { newY = localPos.y; newH = calculatedH; }
+                        newW = Math.max(minSize, init.x + init.width - localPos.x);
+                        newH = Math.max(minSize, init.y + init.height - localPos.y);
+                        newX = init.x + init.width - newW;
+                        newY = init.y + init.height - newH;
                     }
 
                     // Calcular desplazamiento del centro local y proyectar al plano general
@@ -361,9 +365,11 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                     if (el.points && state.resizeInitialPoints) {
                         const scaleX = init.width > 0 ? newW / init.width : 1;
                         const scaleY = init.height > 0 ? newH / init.height : 1;
+                        const shiftX = deltaWorld.x - deltaLocal.x;
+                        const shiftY = deltaWorld.y - deltaLocal.y;
                         el.points = state.resizeInitialPoints.map(p => ({
-                            x: newX + (p.x - init.x) * scaleX,
-                            y: newY + (p.y - init.y) * scaleY
+                            x: newX + (p.x - init.x) * scaleX + shiftX,
+                            y: newY + (p.y - init.y) * scaleY + shiftY
                         }));
                     }
                 }
