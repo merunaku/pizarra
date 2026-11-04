@@ -107,12 +107,28 @@ function distToQuadraticCurve(p, p0, cp, p1) {
  * Determina si un punto dado está dentro de un elemento (Ajustado para conectores y curvas)
  */
 export function isPointInElement(pt, el) {
+    let checkPt = pt;
+    if (el.rotation && el.type !== 'connector') {
+        const bounds = getElementBounds(el);
+        const cx = bounds.x + bounds.width / 2;
+        const cy = bounds.y + bounds.height / 2;
+        const cos = Math.cos(-el.rotation);
+        const sin = Math.sin(-el.rotation);
+        const dx = pt.x - cx;
+        const dy = pt.y - cy;
+        checkPt = {
+            x: cx + dx * cos - dy * sin,
+            y: cy + dx * sin + dy * cos
+        };
+    }
+
     if (el.type === 'connector') {
         const start = { x: el.x, y: el.y };
         const end = { x: el.endX !== undefined ? el.endX : el.x + 100, y: el.endY !== undefined ? el.endY : el.y + 100 };
         const threshold = Math.max(14, ((el.strokeWidth || 2) + 8)) / state.zoom;
 
-        if (el.connType && el.connType.startsWith('curved')) {
+        const isCurved = el.isCurved !== undefined ? el.isCurved : (el.connType && el.connType.startsWith('curved'));
+        if (isCurved) {
             const cp = el.cp || { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 - 40 };
             return distToQuadraticCurve(pt, start, cp, end) <= threshold;
         } else {
@@ -120,45 +136,37 @@ export function isPointInElement(pt, el) {
         }
     }
     const b = getElementBounds(el);
-    return pt.x >= b.x && pt.x <= b.x + b.width && pt.y >= b.y && pt.y <= b.y + b.height;
+    return checkPt.x >= b.x && checkPt.x <= b.x + b.width && checkPt.y >= b.y && checkPt.y <= b.y + b.height;
 }
 
 /**
- * Bucle principal de dibujo en el canvas
+ * Renderiza el cuadro completo del lienzo
  */
 export function render(canvas, ctx, minimapCanvas, minimapCtx) {
-    if (!canvas || !ctx) return;
-
+    if (!ctx || !canvas) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     ctx.save();
     ctx.translate(state.pan.x, state.pan.y);
     ctx.scale(state.zoom, state.zoom);
 
-    // 1. Dibujar rejilla de fondo
-    drawGrid(canvas, ctx);
+    drawGrid(ctx, canvas);
 
-    // 2. Dibujar elementos confirmados
     state.elements.forEach(el => drawElement(ctx, el));
 
-    // 3. Dibujar elemento temporal (en construcción)
-    if (state.tempElement) {
-        drawElement(ctx, state.tempElement);
-    }
+    if (state.tempElement) drawElement(ctx, state.tempElement);
 
-    // 4. Dibujar borde y controles de selección
     drawSelectionOverlay(ctx);
 
     ctx.restore();
 
-    // 5. Actualizar minimapa si está visible
     renderMinimap(minimapCanvas, minimapCtx);
 }
 
 /**
- * Dibuja la rejilla de puntos finos en el lienzo infinito
+ * Dibuja la cuadrícula infinita en el fondo
  */
-function drawGrid(canvas, ctx) {
+function drawGrid(ctx, canvas) {
     const gridSpacing = 40;
     const startX = Math.floor(-state.pan.x / (gridSpacing * state.zoom)) * gridSpacing - gridSpacing;
     const startY = Math.floor(-state.pan.y / (gridSpacing * state.zoom)) * gridSpacing - gridSpacing;
@@ -176,24 +184,30 @@ function drawGrid(canvas, ctx) {
 }
 
 /**
- * Renderiza un elemento individual en función de su tipo
+ * Renderiza un elemento individual en el lienzo
  */
 function drawElement(ctx, el) {
     ctx.save();
     ctx.globalAlpha = el.opacity !== undefined ? el.opacity : 1.0;
 
+    // Aplicar Transformación de Rotación
+    if (el.rotation && el.type !== 'connector') {
+        const bounds = getElementBounds(el);
+        const cx = bounds.x + bounds.width / 2;
+        const cy = bounds.y + bounds.height / 2;
+        ctx.translate(cx, cy);
+        ctx.rotate(el.rotation);
+        ctx.translate(-cx, -cy);
+    }
+
     switch (el.type) {
         case 'sticky':
-            // Sombra
             ctx.fillStyle = 'rgba(0,0,0,0.08)';
             ctx.fillRect(el.x + 4, el.y + 4, el.width, el.height);
-            // Fondo
             ctx.fillStyle = el.color || '#fef08a';
             ctx.fillRect(el.x, el.y, el.width, el.height);
-            // Borde tenue
             ctx.strokeStyle = 'rgba(0,0,0,0.06)';
             ctx.strokeRect(el.x, el.y, el.width, el.height);
-            // Texto contenido
             if (el.text) {
                 ctx.fillStyle = '#1e293b';
                 ctx.font = `${el.fontSize || 16}px Inter, sans-serif`;
@@ -233,6 +247,21 @@ function drawElement(ctx, el) {
                     }
                     ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
                     ctx.stroke();
+
+                    // Puntas de flechas en trazos libres de lápiz
+                    if (el.arrowMode && el.arrowMode !== 'none') {
+                        const arrowSize = el.arrowSize || Math.max(10, el.lineWidth * 3 + 4);
+                        if (el.arrowMode === 'end' || el.arrowMode === 'both') {
+                            const pEnd = pts[pts.length - 1];
+                            const pPrev = pts[Math.max(0, pts.length - 3)];
+                            drawArrowHead(ctx, pPrev.x, pPrev.y, pEnd.x, pEnd.y, el.color, arrowSize);
+                        }
+                        if (el.arrowMode === 'start' || el.arrowMode === 'both') {
+                            const pStart = pts[0];
+                            const pNext = pts[Math.min(pts.length - 1, 2)];
+                            drawArrowHead(ctx, pNext.x, pNext.y, pStart.x, pStart.y, el.color, arrowSize);
+                        }
+                    }
                 }
             }
             break;
@@ -277,7 +306,7 @@ function drawElement(ctx, el) {
 }
 
 /**
- * Configura los patrones de líneas punteadas en el contexto
+ * Ajusta el estilo de punteado de líneas
  */
 function setLineDashStyle(ctx, style) {
     if (style === 'dashed') ctx.setLineDash([8, 8]);
@@ -286,7 +315,7 @@ function setLineDashStyle(ctx, style) {
 }
 
 /**
- * Renderiza formas geométricas (rectángulo, círculo, estrella, rombo, etc.)
+ * Dibuja figuras geométricas (Rectángulo, Círculo, Rombo, Estrella, etc.)
  */
 function drawShape(ctx, el) {
     ctx.fillStyle = el.fillColor || '#ffffff';
@@ -303,7 +332,8 @@ function drawShape(ctx, el) {
             break;
         case 'rounded-rect':
             ctx.beginPath();
-            ctx.roundRect(x, y, w, h, 12);
+            if (ctx.roundRect) ctx.roundRect(x, y, w, h, 12);
+            else ctx.rect(x, y, w, h);
             ctx.fill();
             ctx.stroke();
             break;
@@ -333,14 +363,15 @@ function drawShape(ctx, el) {
             ctx.stroke();
             break;
         case 'star':
-            drawStar(ctx, x + w / 2, y + h / 2, 5, Math.min(w, h) / 2, Math.min(w, h) / 4);
+            drawStar(ctx, x + w / 2, y + h / 2, 5, Math.min(Math.abs(w), Math.abs(h)) / 2, Math.min(Math.abs(w), Math.abs(h)) / 4);
             break;
         case 'hexagon':
-            drawPolygon(ctx, x + w / 2, y + h / 2, 6, Math.min(w, h) / 2);
+            drawPolygon(ctx, x + w / 2, y + h / 2, 6, Math.min(Math.abs(w), Math.abs(h)) / 2);
             break;
         case 'bubble':
             ctx.beginPath();
-            ctx.roundRect(x, y, w, h - 16, 12);
+            if (ctx.roundRect) ctx.roundRect(x, y, w, h - 16, 12);
+            else ctx.rect(x, y, w, h - 16);
             ctx.moveTo(x + 20, y + h - 16);
             ctx.lineTo(x + 10, y + h);
             ctx.lineTo(x + 35, y + h - 16);
@@ -389,7 +420,7 @@ function drawPolygon(ctx, cx, cy, sides, radius) {
 }
 
 /**
- * Renderiza conectores rectos y curvos
+ * Renderiza conectores rectos o curvos cortando limpiamente la línea antes de la flecha
  */
 function drawConnector(ctx, el) {
     ctx.strokeStyle = el.strokeColor || '#1e293b';
@@ -399,57 +430,46 @@ function drawConnector(ctx, el) {
     const startX = el.x, startY = el.y;
     const endX = el.endX !== undefined ? el.endX : el.x + 100;
     const endY = el.endY !== undefined ? el.endY : el.y + 100;
-    const arrowSize = el.arrowSize || Math.max(10, (el.strokeWidth || 2) * 3 + 4);
+    const arrowSize = el.arrowSize || 14;
 
-    const isCurved = el.isCurved !== undefined ? el.isCurved : (el.connType && el.connType.startsWith('curved'));
-    
-    let hasEndArrow = false;
-    let hasStartArrow = false;
-    if (el.arrowMode) {
-        hasEndArrow = el.arrowMode === 'end' || el.arrowMode === 'both';
-        hasStartArrow = el.arrowMode === 'start' || el.arrowMode === 'both';
-    } else {
-        hasEndArrow = el.connType === 'arrow' || el.connType === 'double-arrow' || el.connType === 'curved-arrow' || el.connType === 'curved-double-arrow';
-        hasStartArrow = el.connType === 'double-arrow' || el.connType === 'curved-double-arrow';
+    // Determinar modo de flecha (compatibilidad con connType previo o arrowMode directo)
+    let mode = el.arrowMode;
+    if (!mode) {
+        if (el.connType && el.connType.includes('double')) mode = 'both';
+        else if (el.connType && el.connType.includes('arrow')) mode = 'end';
+        else mode = 'none';
     }
 
-    let lineStartX = startX, lineStartY = startY;
-    let lineEndX = endX, lineEndY = endY;
+    const isCurved = el.isCurved !== undefined ? el.isCurved : (el.connType && el.connType.startsWith('curved'));
 
     if (isCurved) {
         const cp = el.cp || { x: (startX + endX) / 2, y: (startY + endY) / 2 - 40 };
-
-        if (hasEndArrow) {
-            const angleEnd = Math.atan2(endY - cp.y, endX - cp.x);
-            lineEndX = endX - (arrowSize * 0.5) * Math.cos(angleEnd);
-            lineEndY = endY - (arrowSize * 0.5) * Math.sin(angleEnd);
-        }
-        if (hasStartArrow) {
-            const angleStart = Math.atan2(startY - cp.y, startX - cp.x);
-            lineStartX = startX - (arrowSize * 0.5) * Math.cos(angleStart);
-            lineStartY = startY - (arrowSize * 0.5) * Math.sin(angleStart);
-        }
-
         ctx.beginPath();
-        ctx.moveTo(lineStartX, lineStartY);
-        ctx.quadraticCurveTo(cp.x, cp.y, lineEndX, lineEndY);
+        ctx.moveTo(startX, startY);
+        ctx.quadraticCurveTo(cp.x, cp.y, endX, endY);
         ctx.stroke();
 
-        if (hasEndArrow) {
+        if (mode === 'end' || mode === 'both') {
             drawArrowHead(ctx, cp.x, cp.y, endX, endY, el.strokeColor, arrowSize);
         }
-        if (hasStartArrow) {
+        if (mode === 'start' || mode === 'both') {
             drawArrowHead(ctx, cp.x, cp.y, startX, startY, el.strokeColor, arrowSize);
         }
     } else {
         const angle = Math.atan2(endY - startY, endX - startX);
-        if (hasEndArrow) {
-            lineEndX = endX - (arrowSize * 0.5) * Math.cos(angle);
-            lineEndY = endY - (arrowSize * 0.5) * Math.sin(angle);
+        let lineStartX = startX;
+        let lineStartY = startY;
+        let lineEndX = endX;
+        let lineEndY = endY;
+
+        const offset = arrowSize * 0.75;
+        if (mode === 'end' || mode === 'both') {
+            lineEndX = endX - offset * Math.cos(angle);
+            lineEndY = endY - offset * Math.sin(angle);
         }
-        if (hasStartArrow) {
-            lineStartX = startX + (arrowSize * 0.5) * Math.cos(angle);
-            lineStartY = startY + (arrowSize * 0.5) * Math.sin(angle);
+        if (mode === 'start' || mode === 'both') {
+            lineStartX = startX + offset * Math.cos(angle);
+            lineStartY = startY + offset * Math.sin(angle);
         }
 
         ctx.beginPath();
@@ -457,33 +477,35 @@ function drawConnector(ctx, el) {
         ctx.lineTo(lineEndX, lineEndY);
         ctx.stroke();
 
-        if (hasEndArrow) {
+        if (mode === 'end' || mode === 'both') {
             drawArrowHead(ctx, startX, startY, endX, endY, el.strokeColor, arrowSize);
         }
-        if (hasStartArrow) {
+        if (mode === 'start' || mode === 'both') {
             drawArrowHead(ctx, endX, endY, startX, startY, el.strokeColor, arrowSize);
         }
     }
     ctx.setLineDash([]);
 }
 
-function drawArrowHead(ctx, fromX, fromY, toX, toY, color, headlen = 12) {
+/**
+ * Renderiza la cabeza de una flecha orientada según el ángulo del vector
+ */
+function drawArrowHead(ctx, fromX, fromY, toX, toY, color, size = 14) {
     const angle = Math.atan2(toY - fromY, toX - fromX);
-    ctx.save();
     ctx.fillStyle = color || '#1e293b';
-    ctx.strokeStyle = color || '#1e293b';
-    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(toX, toY);
-    ctx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
-    ctx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
+    ctx.lineTo(toX - size * Math.cos(angle - Math.PI / 6), toY - size * Math.sin(angle - Math.PI / 6));
+    ctx.lineTo(toX - size * Math.cos(angle + Math.PI / 6), toY - size * Math.sin(angle + Math.PI / 6));
     ctx.closePath();
     ctx.fill();
-    ctx.stroke();
-    ctx.restore();
 }
 
+/**
+ * Ajusta y renderiza párrafos con salto de línea dentro de formas o notas
+ */
 function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+    if (!text) return;
     const words = text.split(' ');
     let line = '';
     for (let n = 0; n < words.length; n++) {
@@ -501,7 +523,7 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
 }
 
 /**
- * Dibuja la superposición de selección y los puntos de control de redimensionamiento y curvatura
+ * Renderiza la superposición visual de selección con puntos de control de rotación y tamaño
  */
 function drawSelectionOverlay(ctx) {
     if (state.selectedIds.length === 0) return;
@@ -531,15 +553,37 @@ function drawSelectionOverlay(ctx) {
                 drawHandleCircle(ctx, cp.x, cp.y, '#f59e0b');
             }
         } else {
+            ctx.save();
             const bounds = getElementBounds(el);
+            const cx = bounds.x + bounds.width / 2;
+            const cy = bounds.y + bounds.height / 2;
+
+            if (el.rotation) {
+                ctx.translate(cx, cy);
+                ctx.rotate(el.rotation);
+                ctx.translate(-cx, -cy);
+            }
+
             ctx.strokeStyle = '#4f46e5';
             ctx.lineWidth = 1.5 / state.zoom;
             ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
 
+            // Nodos de esquina
             drawHandleRect(ctx, bounds.x, bounds.y);
             drawHandleRect(ctx, bounds.x + bounds.width, bounds.y);
             drawHandleRect(ctx, bounds.x + bounds.width, bounds.y + bounds.height);
             drawHandleRect(ctx, bounds.x, bounds.y + bounds.height);
+
+            // Manipulador de Rotación arriba del centro
+            const rotY = bounds.y - 24 / state.zoom;
+            ctx.strokeStyle = '#4f46e5';
+            ctx.beginPath();
+            ctx.moveTo(cx, bounds.y);
+            ctx.lineTo(cx, rotY);
+            ctx.stroke();
+            drawHandleCircle(ctx, cx, rotY, '#6366f1');
+
+            ctx.restore();
         }
     });
 }
