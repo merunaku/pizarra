@@ -67,7 +67,6 @@ export function updateContextToolbar() {
     const groupSmoothing = document.getElementById('ctx-group-smoothing');
     const btnEditText = document.getElementById('ctx-edit-text');
 
-    // Ocultar todos por defecto para hacer un filtrado estricto
     [groupFill, groupStroke, groupWidth, groupArrowSize, groupConnStyle, groupConnArrows, groupStyle, groupFont, groupSmoothing, btnEditText].forEach(g => g && g.classList.add('hidden'));
 
     if (selected.type === 'text') {
@@ -127,7 +126,6 @@ export function updateContextToolbar() {
     } else if (selected.type === 'shape') {
         [groupFill, groupStroke, groupWidth, groupStyle, btnEditText].forEach(g => g && g.classList.remove('hidden'));
     } else {
-        // Imágenes o Marcos
         [groupStroke, groupStyle].forEach(g => g && g.classList.remove('hidden'));
     }
 }
@@ -158,6 +156,7 @@ export function setupUIListeners(canvas, ctx, renderFn) {
                     : 'fa-solid fa-moon text-sm';
             }
             saveState();
+            updateContextToolbar();
             if (renderCallback) renderCallback();
             showToast(state.darkMode ? 'Modo Oscuro activado' : 'Modo Claro activado', state.darkMode ? 'fa-solid fa-moon' : 'fa-solid fa-sun');
         });
@@ -689,7 +688,7 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         });
     }
 
-    // Atajos de Teclado (Suprimir, Borrar, Deshacer, Rehacer, Herramientas)
+    // Atajos de Teclado
     window.addEventListener('keydown', (e) => {
         if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
             return;

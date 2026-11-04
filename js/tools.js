@@ -1,6 +1,6 @@
 // CANVAS TOOLS & POINTER EVENTS - PIZARRA PROFEDIEGO
 import { state, screenToWorld, worldToScreen, saveState } from './state.js';
-import { isPointInElement, getElementBounds, rotatePoint, getConnectorPoints, distToSegment } from './canvasEngine.js';
+import { isPointInElement, getElementBounds, rotatePoint, getConnectorPoints, distToSegment, getEffectiveColor, getLuminance } from './canvasEngine.js';
 
 let renderCallback = null;
 let setToolCallback = null;
@@ -58,18 +58,20 @@ export function openInlineEditor(el) {
     const bounds = getElementBounds(el);
     const screenPos = worldToScreen(bounds.x, bounds.y);
 
-    let bgColor = 'transparent';
+    let bgColor = state.darkMode ? '#1e293b' : '#ffffff';
     let textColor = state.darkMode ? '#f8fafc' : '#1e293b';
 
     if (el.type === 'sticky') {
         bgColor = el.color || '#fef08a';
-        textColor = '#1e293b'; // Texto oscuro siempre legible sobre la nota adhesiva
+        const bgLum = getLuminance(bgColor);
+        textColor = bgLum < 0.4 ? '#f8fafc' : '#1e293b';
     } else if (el.type === 'shape') {
         bgColor = el.fillColor || (state.darkMode ? '#1e293b' : '#ffffff');
-        textColor = el.textColor || el.strokeColor || (state.darkMode ? '#f8fafc' : '#1e293b');
+        const fillLum = getLuminance(bgColor);
+        textColor = fillLum < 0.4 ? '#f8fafc' : (state.darkMode ? '#f8fafc' : '#1e293b');
     } else if (el.type === 'text') {
         bgColor = state.darkMode ? '#1e293b' : '#ffffff';
-        textColor = el.color || (state.darkMode ? '#f8fafc' : '#1e293b');
+        textColor = getEffectiveColor(el.color || '#1e293b', 'text');
     }
 
     inlineEditor.style.left = `${screenPos.x}px`;
@@ -89,19 +91,28 @@ export function openInlineEditor(el) {
 }
 
 /**
- * Cierra el editor de texto flotante y guarda los cambios
+ * Cierra el editor de texto flotante y sincroniza inmediatamente los cambios en el lienzo
  */
 export function closeInlineEditor() {
     if (state.editingElementId) {
-        const el = state.elements.find(e => e.id === state.editingElementId);
+        const editingId = state.editingElementId;
+        state.editingElementId = null; // Liberar ID antes de guardar y renderizar
+
+        const el = state.elements.find(e => e.id === editingId);
         if (el && inlineEditor) {
-            el.text = inlineEditor.value.trim();
+            const trimmed = inlineEditor.value.trim();
+            el.text = trimmed;
+            
+            // Si era un texto vacio recien creado, eliminar para limpiar la pantalla
+            if (el.type === 'text' && !trimmed) {
+                state.elements = state.elements.filter(e => e.id !== editingId);
+                state.selectedIds = state.selectedIds.filter(id => id !== editingId);
+            }
             saveState();
-            if (renderCallback) renderCallback();
         }
     }
-    state.editingElementId = null;
     if (inlineEditor) inlineEditor.style.display = 'none';
+    if (renderCallback) renderCallback();
 }
 
 /**
@@ -119,7 +130,6 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                 const el = state.elements.find(e => e.id === state.editingElementId);
                 if (el) {
                     el.text = inlineEditor.value;
-                    if (renderCallback) renderCallback();
                 }
             }
         });
@@ -133,6 +143,11 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
 
     // EVENTO POINTERDOWN (Clic inicial)
     canvas.addEventListener('pointerdown', (e) => {
+        // Cerrar inmediatamente cualquier edicion activa al hacer clic en el lienzo
+        if (state.editingElementId) {
+            closeInlineEditor();
+        }
+
         const worldPos = screenToWorld(e.clientX, e.clientY, canvas);
         state.startPoint = worldPos;
         state.lastMousePos = { x: e.clientX, y: e.clientY };
@@ -151,7 +166,6 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                     const pts = getConnectorPoints(selected);
                     for (let i = 0; i < pts.length; i++) {
                         if (Math.hypot(worldPos.x - pts[i].x, worldPos.y - pts[i].y) < 14 / state.zoom) {
-                            // Alt + Clic en punto intermedio para eliminarlo
                             if (e.altKey && i > 0 && i < pts.length - 1) {
                                 removeConnectorIntermediatePoint(selected, i);
                                 saveState();
@@ -168,7 +182,6 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                     const cx = b.x + b.width / 2;
                     const cy = b.y + b.height / 2;
 
-                    // Ajustar punto clicado si hay rotación existente
                     let checkPos = worldPos;
                     if (selected.rotation) {
                         const cos = Math.cos(-selected.rotation);
@@ -178,7 +191,6 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                         checkPos = { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos };
                     }
 
-                    // Check Manipulador de Rotación
                     const rotY = b.y - 24 / state.zoom;
                     if (Math.hypot(checkPos.x - cx, checkPos.y - rotY) <= 14 / state.zoom) {
                         state.isRotating = true;
@@ -186,7 +198,6 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                         return;
                     }
 
-                    // Check Manipuladores de Esquinas
                     const handleRadius = 12 / state.zoom;
                     const corners = [
                         { name: 'nw', x: b.x, y: b.y },
@@ -248,7 +259,7 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
             return;
         }
 
-        // Creación de nuevos elementos según la herramienta activa
+        // Creación de nuevos elementos
         state.isDrawing = true;
         const newId = 'el_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
 
@@ -389,7 +400,6 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                     const rad = state.resizeRotation || 0;
                     const minSize = 10;
 
-                    // Proyectar la posición del cursor al sistema de coordenadas locales unrotadas
                     const localPos = rotatePoint(worldPos, -rad, centerInit);
 
                     let newW = init.width;
@@ -419,7 +429,6 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                         newY = init.y + init.height - newH;
                     }
 
-                    // Calcular desplazamiento del centro local y proyectar al plano general
                     const localCenterInit = { x: init.x + init.width / 2, y: init.y + init.height / 2 };
                     const localCenterNew = { x: newX + newW / 2, y: newY + newH / 2 };
                     const deltaLocal = { x: localCenterNew.x - localCenterInit.x, y: localCenterNew.y - localCenterInit.y };

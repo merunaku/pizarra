@@ -27,6 +27,83 @@ export function rotatePoint(pt, angle, center) {
 }
 
 /**
+ * Calcula la luminancia percibida de una cadena de color (Hex, RGB, RGBA)
+ */
+export function getLuminance(colorStr) {
+    if (!colorStr) return 0;
+    let r = 0, g = 0, b = 0;
+    
+    if (colorStr.startsWith('#')) {
+        let hex = colorStr.slice(1);
+        if (hex.length === 3) {
+            hex = hex.split('').map(c => c + c).join('');
+        }
+        if (hex.length === 6) {
+            r = parseInt(hex.slice(0, 2), 16);
+            g = parseInt(hex.slice(2, 4), 16);
+            b = parseInt(hex.slice(4, 6), 16);
+        }
+    } else if (colorStr.startsWith('rgb')) {
+        const match = colorStr.match(/\d+/g);
+        if (match && match.length >= 3) {
+            r = parseInt(match[0]);
+            g = parseInt(match[1]);
+            b = parseInt(match[2]);
+        }
+    }
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+}
+
+/**
+ * Retorna el color adaptado visualmente para el lienzo.
+ * En Modo Oscuro (state.darkMode = true), los colores oscuros (luminancia < 0.35)
+ * se transforman temporalmente a #f8fafc para garantizar máximo contraste.
+ * En Modo Claro (state.darkMode = false), retorna el color original guardado.
+ */
+export function getEffectiveColor(colorStr, role = 'stroke') {
+    if (!state.darkMode) {
+        if (!colorStr) {
+            if (role === 'fill') return '#ffffff';
+            return '#1e293b';
+        }
+        return colorStr;
+    }
+
+    // Modo Oscuro activo:
+    if (!colorStr) {
+        if (role === 'fill') return '#1e293b';
+        return '#f8fafc';
+    }
+
+    if (colorStr.startsWith('rgba')) {
+        const match = colorStr.match(/rgba?\(([^)]+)\)/);
+        if (match) {
+            const parts = match[1].split(',').map(s => s.trim());
+            const r = parseInt(parts[0]), g = parseInt(parts[1]), b = parseInt(parts[2]), a = parts[3] || '1';
+            const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+            if (lum < 0.35) {
+                return `rgba(248, 250, 252, ${a})`;
+            }
+        }
+        return colorStr;
+    }
+
+    const lum = getLuminance(colorStr);
+
+    if (role === 'stroke' || role === 'text') {
+        if (lum < 0.35) {
+            return '#f8fafc';
+        }
+    } else if (role === 'fill') {
+        if (lum < 0.2) {
+            return '#1e293b';
+        }
+    }
+
+    return colorStr;
+}
+
+/**
  * Obtiene los límites rectangulares exactos (bounding box) de cualquier elemento
  */
 export function getElementBounds(el) {
@@ -174,7 +251,6 @@ export function isPointInElement(pt, el) {
         return false;
     }
 
-    // Formas, Notas, Texto, Marcos, Imágenes
     const bounds = getElementBounds(el);
     let checkPt = pt;
     if (el.rotation) {
@@ -387,7 +463,8 @@ function drawElement(ctx, el) {
             ctx.strokeStyle = 'rgba(0,0,0,0.06)';
             ctx.strokeRect(el.x, el.y, el.width, el.height);
             if (el.text && el.id !== state.editingElementId) {
-                ctx.fillStyle = '#1e293b';
+                const bgLum = getLuminance(el.color || '#fef08a');
+                ctx.fillStyle = bgLum < 0.4 ? '#f8fafc' : '#1e293b';
                 ctx.font = `${el.fontSize || 16}px Inter, sans-serif`;
                 wrapText(ctx, el.text, el.x + 12, el.y + 24, el.width - 24, (el.fontSize || 16) * 1.3);
             }
@@ -395,7 +472,7 @@ function drawElement(ctx, el) {
 
         case 'text':
             if (el.id !== state.editingElementId) {
-                ctx.fillStyle = el.color || (state.darkMode ? '#f8fafc' : '#1e293b');
+                ctx.fillStyle = getEffectiveColor(el.color || '#1e293b', 'text');
                 ctx.font = `${el.fontSize || 20}px Inter, sans-serif`;
                 const lines = (el.text || 'Haz doble clic para editar').split('\n');
                 const fSize = el.fontSize || 20;
@@ -410,11 +487,12 @@ function drawElement(ctx, el) {
             if (el.points && el.points.length > 0) {
                 const smoothVal = el.smoothing !== undefined ? el.smoothing : state.smoothing;
                 const pts = getSmoothedPoints(el.points, smoothVal);
+                const effectiveColor = getEffectiveColor(el.color, 'stroke');
 
                 if (pts.length === 1) {
                     ctx.beginPath();
                     ctx.arc(pts[0].x, pts[0].y, el.lineWidth / 2, 0, Math.PI * 2);
-                    ctx.fillStyle = el.color;
+                    ctx.fillStyle = effectiveColor;
                     ctx.fill();
                 } else {
                     const hasArrows = el.arrowMode && el.arrowMode !== 'none';
@@ -432,7 +510,7 @@ function drawElement(ctx, el) {
 
                     if (strokePts.length >= 2) {
                         ctx.beginPath();
-                        ctx.strokeStyle = el.color;
+                        ctx.strokeStyle = effectiveColor;
                         ctx.lineWidth = el.lineWidth;
                         ctx.lineCap = hasArrows ? 'butt' : 'round';
                         ctx.lineJoin = 'round';
@@ -452,12 +530,12 @@ function drawElement(ctx, el) {
                         if (el.arrowMode === 'end' || el.arrowMode === 'both') {
                             const pEnd = pts[pts.length - 1];
                             const pRef = getPointAtDistanceBack(pts, true, refDist);
-                            drawArrowHead(ctx, pRef.x, pRef.y, pEnd.x, pEnd.y, el.color, arrowSize);
+                            drawArrowHead(ctx, pRef.x, pRef.y, pEnd.x, pEnd.y, effectiveColor, arrowSize);
                         }
                         if (el.arrowMode === 'start' || el.arrowMode === 'both') {
                             const pStart = pts[0];
                             const pRef = getPointAtDistanceBack(pts, false, refDist);
-                            drawArrowHead(ctx, pRef.x, pRef.y, pStart.x, pStart.y, el.color, arrowSize);
+                            drawArrowHead(ctx, pRef.x, pRef.y, pStart.x, pStart.y, effectiveColor, arrowSize);
                         }
                     }
                 }
@@ -482,7 +560,7 @@ function drawElement(ctx, el) {
             ctx.strokeStyle = '#4f46e5';
             ctx.lineWidth = 2;
             ctx.setLineDash([6, 6]);
-            ctx.fillStyle = 'rgba(241, 245, 249, 0.2)';
+            ctx.fillStyle = state.darkMode ? 'rgba(30, 41, 59, 0.3)' : 'rgba(241, 245, 249, 0.2)';
             ctx.strokeRect(el.x, el.y, el.width, el.height);
             ctx.fillRect(el.x, el.y, el.width, el.height);
             ctx.setLineDash([]);
@@ -516,8 +594,11 @@ function setLineDashStyle(ctx, style) {
  * Dibuja figuras geométricas (Rectángulo, Círculo, Rombo, Estrella, etc.)
  */
 function drawShape(ctx, el) {
-    ctx.fillStyle = el.fillColor || '#ffffff';
-    ctx.strokeStyle = el.strokeColor || '#1e293b';
+    const fillColor = getEffectiveColor(el.fillColor || (state.darkMode ? '#1e293b' : '#ffffff'), 'fill');
+    const strokeColor = getEffectiveColor(el.strokeColor || '#1e293b', 'stroke');
+
+    ctx.fillStyle = fillColor;
+    ctx.strokeStyle = strokeColor;
     ctx.lineWidth = el.strokeWidth || 2;
     setLineDashStyle(ctx, el.strokeStyle);
 
@@ -580,7 +661,9 @@ function drawShape(ctx, el) {
     ctx.setLineDash([]);
 
     if (el.text && el.id !== state.editingElementId) {
-        ctx.fillStyle = el.textColor || '#1e293b';
+        const fillLum = getLuminance(fillColor);
+        const textColor = fillLum < 0.4 ? '#f8fafc' : getEffectiveColor(el.textColor || el.strokeColor || '#1e293b', 'text');
+        ctx.fillStyle = textColor;
         ctx.font = `${el.fontSize || 16}px Inter, sans-serif`;
         wrapText(ctx, el.text, x + 10, y + h / 2 - 8, w - 20, (el.fontSize || 16) * 1.3);
     }
@@ -621,8 +704,8 @@ function drawPolygon(ctx, cx, cy, sides, radius) {
  * Renderiza conectores rectos o curvos con soporte para múltiples puntos intermedios
  */
 function drawConnector(ctx, el) {
-    const defaultColor = state.darkMode ? '#f8fafc' : '#1e293b';
-    ctx.strokeStyle = el.strokeColor || defaultColor;
+    const strokeColor = getEffectiveColor(el.strokeColor || '#1e293b', 'stroke');
+    ctx.strokeStyle = strokeColor;
     const strokeWidth = el.strokeWidth || 2;
     ctx.lineWidth = strokeWidth;
     setLineDashStyle(ctx, el.strokeStyle);
@@ -680,12 +763,12 @@ function drawConnector(ctx, el) {
         if (mode === 'end' || mode === 'both') {
             const pEnd = pts[pts.length - 1];
             const pRef = getPointAtDistanceBack(pts, true, refDist);
-            drawArrowHead(ctx, pRef.x, pRef.y, pEnd.x, pEnd.y, el.strokeColor || defaultColor, arrowSize);
+            drawArrowHead(ctx, pRef.x, pRef.y, pEnd.x, pEnd.y, strokeColor, arrowSize);
         }
         if (mode === 'start' || mode === 'both') {
             const pStart = pts[0];
             const pRef = getPointAtDistanceBack(pts, false, refDist);
-            drawArrowHead(ctx, pRef.x, pRef.y, pStart.x, pStart.y, el.strokeColor || defaultColor, arrowSize);
+            drawArrowHead(ctx, pRef.x, pRef.y, pStart.x, pStart.y, strokeColor, arrowSize);
         }
     }
     ctx.setLineDash([]);
@@ -823,11 +906,11 @@ export function renderMinimap(minimapCanvas, minimapCtx) {
     if (!minimapCtx || !minimapCanvas || !minimapContainer || minimapContainer.classList.contains('hidden')) return;
 
     minimapCtx.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
-    minimapCtx.fillStyle = '#f8fafc';
+    minimapCtx.fillStyle = state.darkMode ? '#0f172a' : '#f8fafc';
     minimapCtx.fillRect(0, 0, minimapCanvas.width, minimapCanvas.height);
 
     state.elements.forEach(el => {
-        minimapCtx.fillStyle = '#94a3b8';
+        minimapCtx.fillStyle = state.darkMode ? '#64748b' : '#94a3b8';
         const b = getElementBounds(el);
         const mx = (b.x / 10) + minimapCanvas.width / 2;
         const my = (b.y / 10) + minimapCanvas.height / 2;
