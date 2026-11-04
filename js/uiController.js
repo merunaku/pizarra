@@ -81,6 +81,11 @@ export function updateContextToolbar() {
             if (groupArrowSize) groupArrowSize.classList.remove('hidden');
         }
 
+        if (groupArrowSize) {
+            const arrowInput = document.getElementById('ctx-arrow-size');
+            if (arrowInput) arrowInput.value = selected.arrowSize !== undefined ? selected.arrowSize : 14;
+        }
+
         if (groupSmoothing) {
             const smInput = document.getElementById('ctx-smoothing');
             if (smInput) smInput.value = selected.smoothing !== undefined ? selected.smoothing : state.smoothing;
@@ -334,7 +339,7 @@ export function setupUIListeners(canvas, ctx, renderFn) {
             const size = parseInt(e.target.value);
             state.selectedIds.forEach(id => {
                 const el = state.elements.find(m => m.id === id);
-                if (el && el.type === 'connector') {
+                if (el && (el.type === 'connector' || el.type === 'pencil' || el.type === 'highlighter')) {
                     el.arrowSize = size;
                 }
             });

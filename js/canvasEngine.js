@@ -104,7 +104,73 @@ function distToQuadraticCurve(p, p0, cp, p1) {
 }
 
 /**
- * Determina si un punto dado está dentro de un elemento (Ajustado para conectores y curvas)
+ * Trunca la lista de puntos desde el final consumiendo una distancia exacta
+ */
+function trimPointsFromEnd(pts, trimDist) {
+    if (!pts || pts.length < 2 || trimDist <= 0) return pts;
+    let res = pts.map(p => ({ ...p }));
+    let remaining = trimDist;
+
+    while (res.length >= 2 && remaining > 0) {
+        const last = res[res.length - 1];
+        const prev = res[res.length - 2];
+        const segLen = Math.hypot(last.x - prev.x, last.y - prev.y);
+
+        if (segLen === 0) {
+            res.pop();
+            continue;
+        }
+
+        if (remaining < segLen) {
+            const ratio = (segLen - remaining) / segLen;
+            res[res.length - 1] = {
+                x: prev.x + (last.x - prev.x) * ratio,
+                y: prev.y + (last.y - prev.y) * ratio
+            };
+            remaining = 0;
+        } else {
+            remaining -= segLen;
+            res.pop();
+        }
+    }
+    return res;
+}
+
+/**
+ * Trunca la lista de puntos desde el inicio consumiendo una distancia exacta
+ */
+function trimPointsFromStart(pts, trimDist) {
+    if (!pts || pts.length < 2 || trimDist <= 0) return pts;
+    let res = pts.map(p => ({ ...p }));
+    let remaining = trimDist;
+
+    while (res.length >= 2 && remaining > 0) {
+        const first = res[0];
+        const next = res[1];
+        const segLen = Math.hypot(next.x - first.x, next.y - first.y);
+
+        if (segLen === 0) {
+            res.shift();
+            continue;
+        }
+
+        if (remaining < segLen) {
+            const ratio = remaining / segLen;
+            res[0] = {
+                x: first.x + (next.x - first.x) * ratio,
+                y: first.y + (next.y - first.y) * ratio
+            };
+            remaining = 0;
+        } else {
+            remaining -= segLen;
+            res.shift();
+        }
+    }
+    return res;
+}
+
+/**
+ * Determina si un punto dado está dentro de un elemento (Ajustado para conectores, lápiz y curvas)
  */
 export function isPointInElement(pt, el) {
     let checkPt = pt;
@@ -120,6 +186,17 @@ export function isPointInElement(pt, el) {
             x: cx + dx * cos - dy * sin,
             y: cy + dx * sin + dy * cos
         };
+    }
+
+    if (el.type === 'pencil' || el.type === 'highlighter') {
+        if (el.points && el.points.length > 0) {
+            const threshold = Math.max(12, (el.lineWidth || 3) / 2 + 6) / state.zoom;
+            for (let i = 0; i < el.points.length - 1; i++) {
+                if (distToSegment(checkPt, el.points[i], el.points[i + 1]) <= threshold) {
+                    return true;
+                }
+            }
+        }
     }
 
     if (el.type === 'connector') {
@@ -234,52 +311,38 @@ function drawElement(ctx, el) {
                     ctx.fill();
                 } else {
                     const hasArrows = el.arrowMode && el.arrowMode !== 'none';
-                    // Escalar proporcionalmente la flecha según el grosor del trazo
-                    const baseArrowSize = el.arrowSize || 14;
-                    const arrowSize = Math.max(baseArrowSize, el.lineWidth * 2.8);
-                    const offset = arrowSize * 0.85;
+                    // Usar tamaño de flecha configurado manualmente o cálculo automático proporcional
+                    const arrowSize = el.arrowSize !== undefined ? el.arrowSize : Math.max(14, (el.lineWidth || 2) * 2.5);
+                    const offset = arrowSize * 0.8;
 
-                    // Clonar la lista de puntos para recortar extremos sin alterar el historial
                     let strokePts = pts.map(p => ({ ...p }));
 
-                    // Recortar punto final si hay flecha al final
-                    if ((el.arrowMode === 'end' || el.arrowMode === 'both') && strokePts.length >= 2) {
-                        const last = strokePts[strokePts.length - 1];
-                        const prev = strokePts[Math.max(0, strokePts.length - 2)];
-                        const angle = Math.atan2(last.y - prev.y, last.x - prev.x);
-                        strokePts[strokePts.length - 1] = {
-                            x: last.x - offset * Math.cos(angle),
-                            y: last.y - offset * Math.sin(angle)
-                        };
+                    // Truncar puntos del trazo recorriendo la distancia exacta acumulada
+                    if (el.arrowMode === 'end' || el.arrowMode === 'both') {
+                        strokePts = trimPointsFromEnd(strokePts, offset);
+                    }
+                    if (el.arrowMode === 'start' || el.arrowMode === 'both') {
+                        strokePts = trimPointsFromStart(strokePts, offset);
                     }
 
-                    // Recortar punto inicial si hay flecha al inicio
-                    if ((el.arrowMode === 'start' || el.arrowMode === 'both') && strokePts.length >= 2) {
-                        const first = strokePts[0];
-                        const next = strokePts[Math.min(strokePts.length - 1, 1)];
-                        const angle = Math.atan2(next.y - first.y, next.x - first.x);
-                        strokePts[0] = {
-                            x: first.x + offset * Math.cos(angle),
-                            y: first.y + offset * Math.sin(angle)
-                        };
+                    if (strokePts.length >= 2) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = el.color;
+                        ctx.lineWidth = el.lineWidth;
+                        ctx.lineCap = hasArrows ? 'butt' : 'round';
+                        ctx.lineJoin = 'round';
+
+                        ctx.moveTo(strokePts[0].x, strokePts[0].y);
+                        for (let i = 1; i < strokePts.length - 1; i++) {
+                            const xc = (strokePts[i].x + strokePts[i + 1].x) / 2;
+                            const yc = (strokePts[i].y + strokePts[i + 1].y) / 2;
+                            ctx.quadraticCurveTo(strokePts[i].x, strokePts[i].y, xc, yc);
+                        }
+                        ctx.lineTo(strokePts[strokePts.length - 1].x, strokePts[strokePts.length - 1].y);
+                        ctx.stroke();
                     }
 
-                    ctx.beginPath();
-                    ctx.strokeStyle = el.color;
-                    ctx.lineWidth = el.lineWidth;
-                    ctx.lineCap = hasArrows ? 'butt' : 'round';
-                    ctx.lineJoin = 'round';
-
-                    ctx.moveTo(strokePts[0].x, strokePts[0].y);
-                    for (let i = 1; i < strokePts.length - 1; i++) {
-                        const xc = (strokePts[i].x + strokePts[i + 1].x) / 2;
-                        const yc = (strokePts[i].y + strokePts[i + 1].y) / 2;
-                        ctx.quadraticCurveTo(strokePts[i].x, strokePts[i].y, xc, yc);
-                    }
-                    ctx.lineTo(strokePts[strokePts.length - 1].x, strokePts[strokePts.length - 1].y);
-                    ctx.stroke();
-
-                    // Dibujar puntas de flechas en los puntos finales exactos
+                    // Dibujar puntas de flechas en los extremos exactos del trazo original
                     if (hasArrows) {
                         if (el.arrowMode === 'end' || el.arrowMode === 'both') {
                             const pEnd = pts[pts.length - 1];
@@ -461,8 +524,7 @@ function drawConnector(ctx, el) {
     const startX = el.x, startY = el.y;
     const endX = el.endX !== undefined ? el.endX : el.x + 100;
     const endY = el.endY !== undefined ? el.endY : el.y + 100;
-    const baseArrowSize = el.arrowSize || 14;
-    const arrowSize = Math.max(baseArrowSize, strokeWidth * 2.8);
+    const arrowSize = el.arrowSize !== undefined ? el.arrowSize : Math.max(14, strokeWidth * 2.5);
 
     // Determinar modo de flecha
     let mode = el.arrowMode;
@@ -476,6 +538,7 @@ function drawConnector(ctx, el) {
     ctx.lineCap = hasArrows ? 'butt' : 'round';
 
     const isCurved = el.isCurved !== undefined ? el.isCurved : (el.connType && el.connType.startsWith('curved'));
+    const offset = arrowSize * 0.8;
     const offset = arrowSize * 0.75;
 
     if (isCurved) {
