@@ -67,29 +67,53 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
             return;
         }
 
-        // Detección de puntos de control en conectores seleccionados
+        // Detección de puntos de control y redimensionamiento
         if (state.selectedIds.length === 1) {
             const selected = state.elements.find(el => el.id === state.selectedIds[0]);
-            if (selected && selected.type === 'connector') {
-                const startX = selected.x, startY = selected.y;
-                const endX = selected.endX !== undefined ? selected.endX : selected.x + 100;
-                const endY = selected.endY !== undefined ? selected.endY : selected.y + 100;
-                const cp = selected.cp || { x: (startX + endX) / 2, y: (startY + endY) / 2 - 40 };
+            if (selected) {
+                if (selected.type === 'connector') {
+                    const startX = selected.x, startY = selected.y;
+                    const endX = selected.endX !== undefined ? selected.endX : selected.x + 100;
+                    const endY = selected.endY !== undefined ? selected.endY : selected.y + 100;
+                    const isCurved = selected.isCurved !== undefined ? selected.isCurved : (selected.connType && selected.connType.startsWith('curved'));
 
-                if (Math.hypot(worldPos.x - cp.x, worldPos.y - cp.y) < 12 / state.zoom) {
-                    state.isResizing = true;
-                    state.activeHandle = 'cp';
-                    return;
-                }
-                if (Math.hypot(worldPos.x - startX, worldPos.y - startY) < 12 / state.zoom) {
-                    state.isResizing = true;
-                    state.activeHandle = 'start';
-                    return;
-                }
-                if (Math.hypot(worldPos.x - endX, worldPos.y - endY) < 12 / state.zoom) {
-                    state.isResizing = true;
-                    state.activeHandle = 'end';
-                    return;
+                    if (isCurved) {
+                        const cp = selected.cp || { x: (startX + endX) / 2, y: (startY + endY) / 2 - 40 };
+                        if (Math.hypot(worldPos.x - cp.x, worldPos.y - cp.y) < 14 / state.zoom) {
+                            state.isResizing = true;
+                            state.activeHandle = 'cp';
+                            return;
+                        }
+                    }
+                    if (Math.hypot(worldPos.x - startX, worldPos.y - startY) < 14 / state.zoom) {
+                        state.isResizing = true;
+                        state.activeHandle = 'start';
+                        return;
+                    }
+                    if (Math.hypot(worldPos.x - endX, worldPos.y - endY) < 14 / state.zoom) {
+                        state.isResizing = true;
+                        state.activeHandle = 'end';
+                        return;
+                    }
+                } else if (selected.width !== undefined && selected.height !== undefined) {
+                    const b = getElementBounds(selected);
+                    const handleRadius = 12 / state.zoom;
+                    
+                    const corners = [
+                        { name: 'nw', x: b.x, y: b.y },
+                        { name: 'ne', x: b.x + b.width, y: b.y },
+                        { name: 'se', x: b.x + b.width, y: b.y + b.height },
+                        { name: 'sw', x: b.x, y: b.y + b.height }
+                    ];
+
+                    for (const c of corners) {
+                        if (Math.hypot(worldPos.x - c.x, worldPos.y - c.y) <= handleRadius) {
+                            state.isResizing = true;
+                            state.activeHandle = c.name;
+                            state.resizeInitialBounds = { x: selected.x, y: selected.y, width: selected.width, height: selected.height };
+                            return;
+                        }
+                    }
                 }
             }
         }
@@ -203,10 +227,46 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
 
         if (state.isResizing && state.selectedIds.length === 1) {
             const el = state.elements.find(e => e.id === state.selectedIds[0]);
-            if (el && el.type === 'connector') {
-                if (state.activeHandle === 'cp') el.cp = { x: worldPos.x, y: worldPos.y };
-                else if (state.activeHandle === 'start') { el.x = worldPos.x; el.y = worldPos.y; }
-                else if (state.activeHandle === 'end') { el.endX = worldPos.x; el.endY = worldPos.y; }
+            if (el) {
+                if (el.type === 'connector') {
+                    if (state.activeHandle === 'cp') el.cp = { x: worldPos.x, y: worldPos.y };
+                    else if (state.activeHandle === 'start') { el.x = worldPos.x; el.y = worldPos.y; }
+                    else if (state.activeHandle === 'end') { el.endX = worldPos.x; el.endY = worldPos.y; }
+                } else if (state.resizeInitialBounds) {
+                    const h = state.activeHandle;
+                    const init = state.resizeInitialBounds;
+                    const minSize = 20;
+
+                    if (h === 'se') {
+                        el.width = Math.max(minSize, worldPos.x - init.x);
+                        el.height = Math.max(minSize, worldPos.y - init.y);
+                    } else if (h === 'sw') {
+                        const newW = init.x + init.width - worldPos.x;
+                        if (newW >= minSize) {
+                            el.x = worldPos.x;
+                            el.width = newW;
+                        }
+                        el.height = Math.max(minSize, worldPos.y - init.y);
+                    } else if (h === 'ne') {
+                        el.width = Math.max(minSize, worldPos.x - init.x);
+                        const newH = init.y + init.height - worldPos.y;
+                        if (newH >= minSize) {
+                            el.y = worldPos.y;
+                            el.height = newH;
+                        }
+                    } else if (h === 'nw') {
+                        const newW = init.x + init.width - worldPos.x;
+                        if (newW >= minSize) {
+                            el.x = worldPos.x;
+                            el.width = newW;
+                        }
+                        const newH = init.y + init.height - worldPos.y;
+                        if (newH >= minSize) {
+                            el.y = worldPos.y;
+                            el.height = newH;
+                        }
+                    }
+                }
                 if (renderCallback) renderCallback();
             }
             return;
@@ -258,6 +318,7 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
         if (state.isDragging || state.isResizing) {
             state.isDragging = false;
             state.isResizing = false;
+            state.resizeInitialBounds = null;
             saveState();
         }
         if (state.isDrawing && state.tempElement) {
