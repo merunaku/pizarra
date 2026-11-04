@@ -1,6 +1,6 @@
 // UI CONTROLLER & TOOLBAR ACTIONS - PIZARRA PROFEDIEGO
 import { state, saveState, undo, redo, restoreSnapshot } from './state.js';
-import { openInlineEditor, closeInlineEditor, addConnectorIntermediatePoint } from './tools.js';
+import { openInlineEditor, closeInlineEditor, addConnectorIntermediatePoint, removeConnectorIntermediatePoint } from './tools.js';
 import { getConnectorPoints } from './canvasEngine.js';
 
 let renderCallback = null;
@@ -174,6 +174,21 @@ export function setupUIListeners(canvas, ctx, renderFn) {
                     const midX = (pts[0].x + pts[pts.length - 1].x) / 2 + (Math.random() * 20 - 10);
                     const midY = (pts[0].y + pts[pts.length - 1].y) / 2 + (Math.random() * 20 - 10);
                     addConnectorIntermediatePoint(el, { x: midX, y: midY });
+                }
+            });
+            saveState();
+            if (renderCallback) renderCallback();
+        });
+    }
+
+    // Botón para eliminar el último punto intermedio
+    const btnRemovePoint = document.getElementById('ctx-remove-point');
+    if (btnRemovePoint) {
+        btnRemovePoint.addEventListener('click', () => {
+            state.selectedIds.forEach(id => {
+                const el = state.elements.find(m => m.id === id);
+                if (el && el.type === 'connector' && el.points && el.points.length > 2) {
+                    removeConnectorIntermediatePoint(el, el.points.length - 2);
                 }
             });
             saveState();

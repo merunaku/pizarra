@@ -32,6 +32,20 @@ export function addConnectorIntermediatePoint(el, pt) {
 }
 
 /**
+ * Elimina un punto intermedio específico de un conector
+ */
+export function removeConnectorIntermediatePoint(el, index) {
+    if (!el || !el.points || el.points.length <= 2) return;
+    if (index > 0 && index < el.points.length - 1) {
+        el.points.splice(index, 1);
+        el.x = el.points[0].x;
+        el.y = el.points[0].y;
+        el.endX = el.points[el.points.length - 1].x;
+        el.endY = el.points[el.points.length - 1].y;
+    }
+}
+
+/**
  * Abre el editor de texto flotante e inline sobre el elemento especificado
  */
 export function openInlineEditor(el) {
@@ -113,6 +127,13 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                     const pts = getConnectorPoints(selected);
                     for (let i = 0; i < pts.length; i++) {
                         if (Math.hypot(worldPos.x - pts[i].x, worldPos.y - pts[i].y) < 14 / state.zoom) {
+                            // Alt + Clic en punto intermedio para eliminarlo
+                            if (e.altKey && i > 0 && i < pts.length - 1) {
+                                removeConnectorIntermediatePoint(selected, i);
+                                saveState();
+                                if (renderCallback) renderCallback();
+                                return;
+                            }
                             state.isResizing = true;
                             state.activeHandle = 'pt_' + i;
                             return;
