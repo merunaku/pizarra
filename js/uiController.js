@@ -1,6 +1,7 @@
 // UI CONTROLLER & TOOLBAR ACTIONS - PIZARRA PROFEDIEGO
 import { state, saveState, undo, redo, restoreSnapshot } from './state.js';
-import { openInlineEditor, closeInlineEditor } from './tools.js';
+import { openInlineEditor, closeInlineEditor, addConnectorIntermediatePoint } from './tools.js';
+import { getConnectorPoints } from './canvasEngine.js';
 
 let renderCallback = null;
 
@@ -65,18 +66,17 @@ export function updateContextToolbar() {
     const groupFont = document.getElementById('ctx-group-font');
     const groupSmoothing = document.getElementById('ctx-group-smoothing');
     const btnEditText = document.getElementById('ctx-edit-text');
-    const sepEdit = document.getElementById('ctx-sep-edit');
 
     // Ocultar todos por defecto para hacer un filtrado estricto
-    [groupFill, groupStroke, groupWidth, groupArrowSize, groupConnStyle, groupConnArrows, groupStyle, groupFont, groupSmoothing, btnEditText, sepEdit].forEach(g => g && g.classList.add('hidden'));
+    [groupFill, groupStroke, groupWidth, groupArrowSize, groupConnStyle, groupConnArrows, groupStyle, groupFont, groupSmoothing, btnEditText].forEach(g => g && g.classList.add('hidden'));
 
     if (selected.type === 'text') {
-        [groupStroke, groupFont, btnEditText, sepEdit].forEach(g => g && g.classList.remove('hidden'));
+        [groupStroke, groupFont, btnEditText].forEach(g => g && g.classList.remove('hidden'));
     } else if (selected.type === 'sticky') {
-        [groupFill, groupFont, btnEditText, sepEdit].forEach(g => g && g.classList.remove('hidden'));
+        [groupFill, groupFont, btnEditText].forEach(g => g && g.classList.remove('hidden'));
     } else if (selected.type === 'pencil' || selected.type === 'highlighter') {
         [groupStroke, groupWidth, groupConnArrows, groupSmoothing].forEach(g => g && g.classList.remove('hidden'));
-        
+
         const strokeInput = document.getElementById('ctx-stroke-color');
         if (strokeInput) strokeInput.value = selected.color || '#1e293b';
 
@@ -100,7 +100,7 @@ export function updateContextToolbar() {
         syncArrowModeButtons(selected.arrowMode || 'none');
     } else if (selected.type === 'connector') {
         [groupStroke, groupWidth, groupConnStyle, groupConnArrows, groupStyle].forEach(g => g && g.classList.remove('hidden'));
-        
+
         let currentArrowMode = selected.arrowMode;
         if (!currentArrowMode && selected.connType) {
             if (selected.connType.includes('double')) currentArrowMode = 'both';
@@ -125,7 +125,7 @@ export function updateContextToolbar() {
 
         syncArrowModeButtons(currentArrowMode || 'none');
     } else if (selected.type === 'shape') {
-        [groupFill, groupStroke, groupWidth, groupStyle, btnEditText, sepEdit].forEach(g => g && g.classList.remove('hidden'));
+        [groupFill, groupStroke, groupWidth, groupStyle, btnEditText].forEach(g => g && g.classList.remove('hidden'));
     } else {
         // Imágenes o Marcos
         [groupStroke, groupStyle].forEach(g => g && g.classList.remove('hidden'));
@@ -145,9 +145,45 @@ function syncArrowModeButtons(mode) {
 export function setupUIListeners(canvas, ctx, renderFn) {
     renderCallback = renderFn;
 
+    // Botón Toggle Modo Oscuro / Claro
+    const btnDarkMode = document.getElementById('btn-toggle-darkmode');
+    if (btnDarkMode) {
+        btnDarkMode.addEventListener('click', () => {
+            state.darkMode = !state.darkMode;
+            document.documentElement.classList.toggle('dark', state.darkMode);
+            const icon = document.getElementById('darkmode-icon');
+            if (icon) {
+                icon.className = state.darkMode 
+                    ? 'fa-solid fa-sun text-amber-400 text-sm' 
+                    : 'fa-solid fa-moon text-sm';
+            }
+            saveState();
+            if (renderCallback) renderCallback();
+            showToast(state.darkMode ? 'Modo Oscuro activado' : 'Modo Claro activado', state.darkMode ? 'fa-solid fa-moon' : 'fa-solid fa-sun');
+        });
+    }
+
+    // Botón para añadir puntos intermedios a un conector desde la barra flotante
+    const btnAddPoint = document.getElementById('ctx-add-point');
+    if (btnAddPoint) {
+        btnAddPoint.addEventListener('click', () => {
+            state.selectedIds.forEach(id => {
+                const el = state.elements.find(m => m.id === id);
+                if (el && el.type === 'connector') {
+                    const pts = getConnectorPoints(el);
+                    const midX = (pts[0].x + pts[pts.length - 1].x) / 2 + (Math.random() * 20 - 10);
+                    const midY = (pts[0].y + pts[pts.length - 1].y) / 2 + (Math.random() * 20 - 10);
+                    addConnectorIntermediatePoint(el, { x: midX, y: midY });
+                }
+            });
+            saveState();
+            if (renderCallback) renderCallback();
+        });
+    }
+
     // Listener para cambiar herramienta desde los botones de la barra lateral
     document.querySelectorAll('[data-tool]').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+        btn.addEventListener('click', () => {
             const toolName = btn.getAttribute('data-tool');
             if (toolName) {
                 setTool(toolName);
@@ -166,7 +202,8 @@ export function setupUIListeners(canvas, ctx, renderFn) {
                 }
             });
             updateContextToolbar();
-            saveState(); if (renderCallback) renderCallback();
+            saveState();
+            if (renderCallback) renderCallback();
         });
     });
 
@@ -186,7 +223,7 @@ export function setupUIListeners(canvas, ctx, renderFn) {
             e.stopPropagation();
             const flyoutId = btn.getAttribute('data-flyout');
             const flyout = document.getElementById(flyoutId);
-            
+
             document.querySelectorAll('.flyout-menu').forEach(m => {
                 if (m !== flyout) m.classList.add('hidden');
             });
@@ -287,21 +324,8 @@ export function setupUIListeners(canvas, ctx, renderFn) {
                     }
                 }
             });
-            saveState(); if (renderCallback) renderCallback();
-        });
-    }
-
-    const ctxConnArrow = document.getElementById('ctx-conn-arrow');
-    if (ctxConnArrow) {
-        ctxConnArrow.addEventListener('change', (e) => {
-            const arrowMode = e.target.value;
-            state.selectedIds.forEach(id => {
-                const el = state.elements.find(m => m.id === id);
-                if (el && el.type === 'connector') {
-                    el.arrowMode = arrowMode;
-                }
-            });
-            saveState(); if (renderCallback) renderCallback();
+            saveState();
+            if (renderCallback) renderCallback();
         });
     }
 
@@ -312,7 +336,8 @@ export function setupUIListeners(canvas, ctx, renderFn) {
                 const el = state.elements.find(m => m.id === id);
                 if (el) el.fillColor = e.target.value;
             });
-            saveState(); if (renderCallback) renderCallback();
+            saveState();
+            if (renderCallback) renderCallback();
         });
     }
 
@@ -323,7 +348,8 @@ export function setupUIListeners(canvas, ctx, renderFn) {
                 const el = state.elements.find(m => m.id === id);
                 if (el) { el.strokeColor = e.target.value; el.color = e.target.value; }
             });
-            saveState(); if (renderCallback) renderCallback();
+            saveState();
+            if (renderCallback) renderCallback();
         });
     }
 
@@ -334,7 +360,8 @@ export function setupUIListeners(canvas, ctx, renderFn) {
                 const el = state.elements.find(m => m.id === id);
                 if (el) { el.strokeWidth = parseInt(e.target.value); el.lineWidth = parseInt(e.target.value); }
             });
-            saveState(); if (renderCallback) renderCallback();
+            saveState();
+            if (renderCallback) renderCallback();
         });
     }
 
@@ -348,7 +375,8 @@ export function setupUIListeners(canvas, ctx, renderFn) {
                     el.arrowSize = size;
                 }
             });
-            saveState(); if (renderCallback) renderCallback();
+            saveState();
+            if (renderCallback) renderCallback();
         });
     }
 
@@ -359,7 +387,8 @@ export function setupUIListeners(canvas, ctx, renderFn) {
                 const el = state.elements.find(m => m.id === id);
                 if (el) el.strokeStyle = e.target.value;
             });
-            saveState(); if (renderCallback) renderCallback();
+            saveState();
+            if (renderCallback) renderCallback();
         });
     }
 
@@ -370,7 +399,8 @@ export function setupUIListeners(canvas, ctx, renderFn) {
                 const el = state.elements.find(m => m.id === id);
                 if (el) el.fontSize = parseInt(e.target.value);
             });
-            saveState(); if (renderCallback) renderCallback();
+            saveState();
+            if (renderCallback) renderCallback();
         });
     }
 
@@ -384,7 +414,8 @@ export function setupUIListeners(canvas, ctx, renderFn) {
                     el.smoothing = val;
                 }
             });
-            saveState(); if (renderCallback) renderCallback();
+            saveState();
+            if (renderCallback) renderCallback();
         });
     }
 
@@ -395,7 +426,8 @@ export function setupUIListeners(canvas, ctx, renderFn) {
                 const el = state.elements.find(m => m.id === id);
                 if (el) el.opacity = parseFloat(e.target.value);
             });
-            saveState(); if (renderCallback) renderCallback();
+            saveState();
+            if (renderCallback) renderCallback();
         });
     }
 
@@ -405,7 +437,8 @@ export function setupUIListeners(canvas, ctx, renderFn) {
             state.elements = state.elements.filter(e => !state.selectedIds.includes(e.id));
             state.selectedIds = [];
             updateContextToolbar();
-            saveState(); if (renderCallback) renderCallback();
+            saveState();
+            if (renderCallback) renderCallback();
         });
     }
 
@@ -427,7 +460,8 @@ export function setupUIListeners(canvas, ctx, renderFn) {
                 }
             });
             state.selectedIds = newSelected;
-            saveState(); if (renderCallback) renderCallback();
+            saveState();
+            if (renderCallback) renderCallback();
         });
     }
 
@@ -451,7 +485,8 @@ export function setupUIListeners(canvas, ctx, renderFn) {
                     state.elements.push(el);
                 }
             });
-            saveState(); if (renderCallback) renderCallback();
+            saveState();
+            if (renderCallback) renderCallback();
         });
     }
 
@@ -465,7 +500,8 @@ export function setupUIListeners(canvas, ctx, renderFn) {
                     state.elements.unshift(el);
                 }
             });
-            saveState(); if (renderCallback) renderCallback();
+            saveState();
+            if (renderCallback) renderCallback();
         });
     }
 

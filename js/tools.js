@@ -1,6 +1,6 @@
 // CANVAS TOOLS & POINTER EVENTS - PIZARRA PROFEDIEGO
 import { state, screenToWorld, worldToScreen, saveState } from './state.js';
-import { isPointInElement, getElementBounds, rotatePoint } from './canvasEngine.js';
+import { isPointInElement, getElementBounds, rotatePoint, getConnectorPoints, distToSegment } from './canvasEngine.js';
 
 let renderCallback = null;
 let setToolCallback = null;
@@ -9,21 +9,54 @@ let updateContextToolbarCallback = null;
 const inlineEditor = document.getElementById('inline-text-editor');
 
 /**
- * Abre el editor de texto flotante en la posición del elemento seleccionado
+ * Inserta un nuevo punto intermedio en la posición indicada sobre el conector
+ */
+export function addConnectorIntermediatePoint(el, pt) {
+    if (!el.points) {
+        el.points = getConnectorPoints(el);
+    }
+    let minD = Infinity;
+    let insertIdx = 1;
+    for (let i = 0; i < el.points.length - 1; i++) {
+        const d = distToSegment(pt, el.points[i], el.points[i + 1]);
+        if (d < minD) {
+            minD = d;
+            insertIdx = i + 1;
+        }
+    }
+    el.points.splice(insertIdx, 0, { x: pt.x, y: pt.y });
+    el.x = el.points[0].x;
+    el.y = el.points[0].y;
+    el.endX = el.points[el.points.length - 1].x;
+    el.endY = el.points[el.points.length - 1].y;
+}
+
+/**
+ * Abre el editor de texto flotante e inline sobre el elemento especificado
  */
 export function openInlineEditor(el) {
     if (!el || !inlineEditor) return;
-    const pos = worldToScreen(el.x, el.y);
-    const bounds = getElementBounds(el);
-
-    inlineEditor.style.left = `${pos.x}px`;
-    inlineEditor.style.top = `${pos.y}px`;
-    inlineEditor.style.width = `${Math.max(140, bounds.width * state.zoom)}px`;
-    inlineEditor.style.height = `${Math.max(60, bounds.height * state.zoom)}px`;
-    inlineEditor.value = el.text || '';
-    inlineEditor.style.display = 'block';
-    inlineEditor.focus();
     state.editingElementId = el.id;
+
+    const canvas = document.getElementById('board-canvas');
+    if (!canvas) return;
+
+    const bounds = getElementBounds(el);
+    const screenPos = worldToScreen(bounds.x, bounds.y);
+
+    inlineEditor.style.left = `${screenPos.x}px`;
+    inlineEditor.style.top = `${screenPos.y}px`;
+    inlineEditor.style.width = `${Math.max(120, bounds.width * state.zoom)}px`;
+    inlineEditor.style.height = `${Math.max(60, bounds.height * state.zoom)}px`;
+    inlineEditor.style.fontSize = `${(el.fontSize || 16) * state.zoom}px`;
+    inlineEditor.style.color = el.color || el.textColor || (state.darkMode ? '#f8fafc' : '#1e293b');
+    inlineEditor.style.display = 'block';
+    inlineEditor.value = el.text || '';
+
+    setTimeout(() => {
+        inlineEditor.focus();
+        inlineEditor.select();
+    }, 50);
 }
 
 /**
@@ -72,33 +105,18 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
             return;
         }
 
-        // Detección de manipuladores de Selección / Rotación / Tamaño
+        // Detección de manipuladores de Selección / Rotación / Tamaño / Puntos de Conector
         if (state.selectedIds.length === 1) {
             const selected = state.elements.find(el => el.id === state.selectedIds[0]);
             if (selected) {
                 if (selected.type === 'connector') {
-                    const startX = selected.x, startY = selected.y;
-                    const endX = selected.endX !== undefined ? selected.endX : selected.x + 100;
-                    const endY = selected.endY !== undefined ? selected.endY : selected.y + 100;
-                    const isCurved = selected.isCurved !== undefined ? selected.isCurved : (selected.connType && selected.connType.startsWith('curved'));
-
-                    if (isCurved) {
-                        const cp = selected.cp || { x: (startX + endX) / 2, y: (startY + endY) / 2 - 40 };
-                        if (Math.hypot(worldPos.x - cp.x, worldPos.y - cp.y) < 14 / state.zoom) {
+                    const pts = getConnectorPoints(selected);
+                    for (let i = 0; i < pts.length; i++) {
+                        if (Math.hypot(worldPos.x - pts[i].x, worldPos.y - pts[i].y) < 14 / state.zoom) {
                             state.isResizing = true;
-                            state.activeHandle = 'cp';
+                            state.activeHandle = 'pt_' + i;
                             return;
                         }
-                    }
-                    if (Math.hypot(worldPos.x - startX, worldPos.y - startY) < 14 / state.zoom) {
-                        state.isResizing = true;
-                        state.activeHandle = 'start';
-                        return;
-                    }
-                    if (Math.hypot(worldPos.x - endX, worldPos.y - endY) < 14 / state.zoom) {
-                        state.isResizing = true;
-                        state.activeHandle = 'end';
-                        return;
                     }
                 } else {
                     const b = getElementBounds(selected);
@@ -308,10 +326,17 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
         if (state.isResizing && state.selectedIds.length === 1) {
             const el = state.elements.find(e => e.id === state.selectedIds[0]);
             if (el) {
-                if (el.type === 'connector') {
-                    if (state.activeHandle === 'cp') el.cp = { x: worldPos.x, y: worldPos.y };
-                    else if (state.activeHandle === 'start') { el.x = worldPos.x; el.y = worldPos.y; }
-                    else if (state.activeHandle === 'end') { el.endX = worldPos.x; el.endY = worldPos.y; }
+                if (el.type === 'connector' && state.activeHandle.startsWith('pt_')) {
+                    const idx = parseInt(state.activeHandle.split('_')[1]);
+                    if (!el.points) el.points = getConnectorPoints(el);
+                    if (el.points && el.points[idx]) {
+                        el.points[idx] = { x: worldPos.x, y: worldPos.y };
+                        el.x = el.points[0].x;
+                        el.y = el.points[0].y;
+                        el.endX = el.points[el.points.length - 1].x;
+                        el.endY = el.points[el.points.length - 1].y;
+                        if (el.points.length === 3) el.cp = { x: el.points[1].x, y: el.points[1].y };
+                    }
                 } else if (state.resizeInitialBounds && state.resizeCenter) {
                     const h = state.activeHandle;
                     const init = state.resizeInitialBounds;
@@ -415,7 +440,7 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
         }
     });
 
-    // EVENTO POINTERUP
+    // EVENTO POINTERUP (Finalizar acciones de puntero)
     canvas.addEventListener('pointerup', () => {
         if (state.isPanning) {
             state.isPanning = false;
@@ -442,15 +467,22 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
             state.tempElement = null;
             state.isDrawing = false;
             saveState();
-            if (setToolCallback) setToolCallback('select');
+            if (updateContextToolbarCallback) updateContextToolbarCallback();
+            if (renderCallback) renderCallback();
         }
     });
 
-    // EVENTO DBLCLICK (Edición rápida)
+    // EVENTO DBLCLICK (Edición rápida y adición de puntos intermedios)
     canvas.addEventListener('dblclick', (e) => {
         const worldPos = screenToWorld(e.clientX, e.clientY, canvas);
         const clicked = [...state.elements].reverse().find(el => isPointInElement(worldPos, el));
         if (clicked) {
+            if (clicked.type === 'connector') {
+                addConnectorIntermediatePoint(clicked, worldPos);
+                saveState();
+                if (renderCallback) renderCallback();
+                return;
+            }
             openInlineEditor(clicked);
         }
     });
@@ -460,7 +492,7 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
         e.preventDefault();
         const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
         const newZoom = Math.min(Math.max(0.05, state.zoom * zoomFactor), 5.0);
-        
+
         const mouseWorldBefore = screenToWorld(e.clientX, e.clientY, canvas);
         state.zoom = newZoom;
         const mouseWorldAfter = screenToWorld(e.clientX, e.clientY, canvas);

@@ -7,6 +7,7 @@ export const state = {
     activeShape: 'rect',
     activeConnector: 'line',
     activeFrame: 'free',
+    darkMode: false,
     pencilColor: '#1e293b',
     pencilWidth: 3,
     pencilArrowMode: 'none',
@@ -71,6 +72,7 @@ export function saveState() {
     
     try {
         localStorage.setItem('profediego_board_data', snapshot);
+        localStorage.setItem('profediego_dark_mode', state.darkMode ? 'true' : 'false');
         const titleInput = document.getElementById('board-title');
         if (titleInput) {
             localStorage.setItem('profediego_board_title', titleInput.value);
@@ -141,6 +143,12 @@ export function restoreSnapshot(jsonStr, renderCallback) {
                 }
                 if (el.arrowSize === undefined) el.arrowSize = 14;
                 if (el.strokeWidth === undefined) el.strokeWidth = 2;
+                if (el.points && el.points.length >= 2) {
+                    el.x = el.points[0].x;
+                    el.y = el.points[0].y;
+                    el.endX = el.points[el.points.length - 1].x;
+                    el.endY = el.points[el.points.length - 1].y;
+                }
             }
             if (el.type === 'image' && el.src) {
                 const img = new Image();
@@ -163,7 +171,15 @@ export function restoreSnapshot(jsonStr, renderCallback) {
 export function loadFromLocalStorage(renderCallback) {
     const savedData = localStorage.getItem('profediego_board_data');
     const savedTitle = localStorage.getItem('profediego_board_title');
-    
+    const savedDarkMode = localStorage.getItem('profediego_dark_mode');
+
+    if (savedDarkMode === 'true') {
+        state.darkMode = true;
+        document.documentElement.classList.add('dark');
+        const icon = document.getElementById('darkmode-icon');
+        if (icon) icon.className = 'fa-solid fa-sun text-amber-400 text-sm';
+    }
+
     if (savedTitle) {
         const titleInput = document.getElementById('board-title');
         if (titleInput) titleInput.value = savedTitle;

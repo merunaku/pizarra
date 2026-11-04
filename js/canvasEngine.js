@@ -2,14 +2,24 @@
 import { state } from './state.js';
 
 /**
- * Rotar un punto en torno a un centro por un ángulo dado
+ * Ajusta la dimensión del canvas según el tamaño del contenedor o ventana
  */
-export function rotatePoint(p, angle, center) {
-    if (!angle) return { x: p.x, y: p.y };
+export function resizeCanvas(canvas, renderCallback) {
+    if (!canvas) return;
+    const parent = canvas.parentElement;
+    canvas.width = parent ? parent.clientWidth : window.innerWidth;
+    canvas.height = parent ? parent.clientHeight : window.innerHeight;
+    if (renderCallback) renderCallback();
+}
+
+/**
+ * Rotación geométrica de un punto respecto a un centro
+ */
+export function rotatePoint(pt, angle, center) {
     const cos = Math.cos(angle);
     const sin = Math.sin(angle);
-    const dx = p.x - center.x;
-    const dy = p.y - center.y;
+    const dx = pt.x - center.x;
+    const dy = pt.y - center.y;
     return {
         x: center.x + dx * cos - dy * sin,
         y: center.y + dx * sin + dy * cos
@@ -17,119 +27,77 @@ export function rotatePoint(p, angle, center) {
 }
 
 /**
- * Ajusta la resolución del canvas al tamaño actual de la ventana
- */
-export function resizeCanvas(canvas, renderFn) {
-    if (!canvas) return;
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    if (renderFn) renderFn();
-}
-
-/**
- * Algoritmo de suavizado de esquinas de Chaikin para trazos continuos
- */
-export function applyChaikinSmoothing(points, iterations) {
-    if (!points || points.length <= 2 || iterations === 0) return points;
-    let current = points;
-    for (let iter = 0; iter < iterations; iter++) {
-        const next = [current[0]];
-        for (let i = 0; i < current.length - 1; i++) {
-            const p0 = current[i];
-            const p1 = current[i + 1];
-            const q = { x: 0.75 * p0.x + 0.25 * p1.x, y: 0.75 * p0.y + 0.25 * p1.y };
-            const r = { x: 0.25 * p0.x + 0.75 * p1.x, y: 0.25 * p0.y + 0.75 * p1.y };
-            next.push(q, r);
-        }
-        next.push(current[current.length - 1]);
-        current = next;
-    }
-    return current;
-}
-
-/**
- * Filtra y aplica el suavizado a un conjunto de puntos según el nivel indicado (0-10)
- */
-export function getSmoothedPoints(rawPoints, smoothLevel) {
-    if (!rawPoints || rawPoints.length <= 2 || smoothLevel === 0) return rawPoints;
-    const minDist = 1.0 + (smoothLevel * 2.2);
-    const filtered = [rawPoints[0]];
-    for (let i = 1; i < rawPoints.length - 1; i++) {
-        const last = filtered[filtered.length - 1];
-        const dist = Math.hypot(rawPoints[i].x - last.x, rawPoints[i].y - last.y);
-        if (dist >= minDist) {
-            filtered.push(rawPoints[i]);
-        }
-    }
-    filtered.push(rawPoints[rawPoints.length - 1]);
-    if (filtered.length <= 2) return filtered;
-    const iterations = Math.min(4, Math.ceil(smoothLevel / 2.5));
-    return applyChaikinSmoothing(filtered, iterations);
-}
-
-/**
- * Calcula los límites rectangulares (Bounding Box) de cualquier elemento
+ * Obtiene los límites rectangulares exactos (bounding box) de cualquier elemento
  */
 export function getElementBounds(el) {
-    if (el.width !== undefined && el.height !== undefined) {
-        return { x: el.x, y: el.y, width: el.width, height: el.height };
-    }
-    if (el.points && el.points.length > 0) {
+    if (el.type === 'pencil' || el.type === 'highlighter') {
+        if (!el.points || el.points.length === 0) return { x: el.x || 0, y: el.y || 0, width: 20, height: 20 };
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         el.points.forEach(p => {
-            minX = Math.min(minX, p.x);
-            minY = Math.min(minY, p.y);
-            maxX = Math.max(maxX, p.x);
-            maxY = Math.max(maxY, p.y);
+            if (p.x < minX) minX = p.x;
+            if (p.y < minY) minY = p.y;
+            if (p.x > maxX) maxX = p.x;
+            if (p.y > maxY) maxY = p.y;
         });
-        const w = Math.max(10, maxX - minX);
-        const h = Math.max(10, maxY - minY);
-        return { x: minX, y: minY, width: w, height: h };
+        const padding = Math.max(8, (el.lineWidth || 3) / 2);
+        return {
+            x: minX - padding,
+            y: minY - padding,
+            width: Math.max(10, maxX - minX + padding * 2),
+            height: Math.max(10, maxY - minY + padding * 2)
+        };
     }
-    return { x: el.x - 5, y: el.y - 5, width: 120, height: 40 };
+
+    if (el.type === 'connector') {
+        const pts = getConnectorPoints(el);
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        pts.forEach(p => {
+            if (p.x < minX) minX = p.x;
+            if (p.y < minY) minY = p.y;
+            if (p.x > maxX) maxX = p.x;
+            if (p.y > maxY) maxY = p.y;
+        });
+        const pad = Math.max(10, (el.strokeWidth || 2) * 2);
+        return {
+            x: minX - pad,
+            y: minY - pad,
+            width: Math.max(10, maxX - minX + pad * 2),
+            height: Math.max(10, maxY - minY + pad * 2)
+        };
+    }
+
+    const w = el.width !== undefined ? el.width : 100;
+    const h = el.height !== undefined ? el.height : 100;
+    return {
+        x: el.x,
+        y: el.y,
+        width: w,
+        height: h
+    };
 }
 
 /**
- * Obtiene un punto de referencia a lo largo de la curva a una distancia fija desde el extremo
+ * Obtiene o construye la lista de puntos de control de un conector
  */
-function getPointAtDistanceBack(pts, fromEnd, dist) {
-    if (!pts || pts.length === 0) return { x: 0, y: 0 };
-    if (pts.length === 1) return pts[0];
-    
-    let acc = 0;
-    if (fromEnd) {
-        for (let i = pts.length - 1; i > 0; i--) {
-            const seg = Math.hypot(pts[i].x - pts[i-1].x, pts[i].y - pts[i-1].y);
-            acc += seg;
-            if (acc >= dist) {
-                const ratio = (acc - dist) / seg;
-                return {
-                    x: pts[i-1].x + (pts[i].x - pts[i-1].x) * ratio,
-                    y: pts[i-1].y + (pts[i].y - pts[i-1].y) * ratio
-                };
-            }
-        }
-        return pts[0];
-    } else {
-        for (let i = 0; i < pts.length - 1; i++) {
-            const seg = Math.hypot(pts[i+1].x - pts[i].x, pts[i+1].y - pts[i].y);
-            acc += seg;
-            if (acc >= dist) {
-                const ratio = (dist - (acc - seg)) / seg;
-                return {
-                    x: pts[i].x + (pts[i+1].x - pts[i].x) * ratio,
-                    y: pts[i].y + (pts[i+1].y - pts[i].y) * ratio
-                };
-            }
-        }
-        return pts[pts.length - 1];
+export function getConnectorPoints(el) {
+    if (el.points && el.points.length >= 2) return el.points;
+    const startX = el.x;
+    const startY = el.y;
+    const endX = el.endX !== undefined ? el.endX : el.x + 100;
+    const endY = el.endY !== undefined ? el.endY : el.y + 100;
+    const isCurved = el.isCurved !== undefined ? el.isCurved : (el.connType && el.connType.startsWith('curved'));
+
+    if (isCurved) {
+        const cp = el.cp || { x: (startX + endX) / 2, y: (startY + endY) / 2 - 40 };
+        return [{ x: startX, y: startY }, { x: cp.x, y: cp.y }, { x: endX, y: endY }];
     }
+    return [{ x: startX, y: startY }, { x: endX, y: endY }];
 }
 
 /**
  * Distancia de un punto a un segmento rectilíneo
  */
-function distToSegment(p, a, b) {
+export function distToSegment(p, a, b) {
     const l2 = (b.x - a.x) ** 2 + (b.y - a.y) ** 2;
     if (l2 === 0) return Math.hypot(p.x - a.x, p.y - a.y);
     let t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / l2;
@@ -224,7 +192,70 @@ function trimPointsFromStart(pts, trimDist) {
 }
 
 /**
- * Determina si un punto dado está dentro de un elemento (Ajustado para conectores, lápiz y curvas)
+ * Suaviza trazos de lápiz utilizando subdivisión de Chaikin
+ */
+export function getSmoothedPoints(pts, smoothFactor = 5) {
+    if (!pts || pts.length <= 2 || smoothFactor <= 0) return pts;
+    let current = pts;
+    const iterations = Math.min(3, Math.ceil(smoothFactor / 3));
+
+    for (let it = 0; it < iterations; it++) {
+        const next = [current[0]];
+        for (let i = 0; i < current.length - 1; i++) {
+            const p0 = current[i];
+            const p1 = current[i + 1];
+            const q = { x: 0.75 * p0.x + 0.25 * p1.x, y: 0.75 * p0.y + 0.25 * p1.y };
+            const r = { x: 0.25 * p0.x + 0.75 * p1.x, y: 0.25 * p0.y + 0.75 * p1.y };
+            next.push(q, r);
+        }
+        next.push(current[current.length - 1]);
+        current = next;
+    }
+    return current;
+}
+
+/**
+ * Obtiene un punto retrasado una distancia específica a lo largo de la curva para calcular la dirección de la flecha
+ */
+export function getPointAtDistanceBack(pts, isEnd, targetDist) {
+    if (!pts || pts.length < 2) return pts[0] || { x: 0, y: 0 };
+    if (isEnd) {
+        let accumulated = 0;
+        for (let i = pts.length - 1; i > 0; i--) {
+            const pCurr = pts[i];
+            const pPrev = pts[i - 1];
+            const dist = Math.hypot(pCurr.x - pPrev.x, pCurr.y - pPrev.y);
+            if (accumulated + dist >= targetDist) {
+                const ratio = (targetDist - accumulated) / dist;
+                return {
+                    x: pCurr.x + (pPrev.x - pCurr.x) * ratio,
+                    y: pCurr.y + (pPrev.y - pCurr.y) * ratio
+                };
+            }
+            accumulated += dist;
+        }
+        return pts[0];
+    } else {
+        let accumulated = 0;
+        for (let i = 0; i < pts.length - 1; i++) {
+            const pCurr = pts[i];
+            const pNext = pts[i + 1];
+            const dist = Math.hypot(pNext.x - pCurr.x, pNext.y - pCurr.y);
+            if (accumulated + dist >= targetDist) {
+                const ratio = (targetDist - accumulated) / dist;
+                return {
+                    x: pCurr.x + (pNext.x - pCurr.x) * ratio,
+                    y: pCurr.y + (pNext.y - pCurr.y) * ratio
+                };
+            }
+            accumulated += dist;
+        }
+        return pts[pts.length - 1];
+    }
+}
+
+/**
+ * Determina si un punto dado está dentro de un elemento
  */
 export function isPointInElement(pt, el) {
     const bounds = getElementBounds(el);
@@ -249,17 +280,20 @@ export function isPointInElement(pt, el) {
     }
 
     if (el.type === 'connector') {
-        const start = { x: el.x, y: el.y };
-        const end = { x: el.endX !== undefined ? el.endX : el.x + 100, y: el.endY !== undefined ? el.endY : el.y + 100 };
+        const pts = getConnectorPoints(el);
         const threshold = Math.max(14, ((el.strokeWidth || 2) + 8)) / state.zoom;
-
         const isCurved = el.isCurved !== undefined ? el.isCurved : (el.connType && el.connType.startsWith('curved'));
-        if (isCurved) {
-            const cp = el.cp || { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 - 40 };
-            return distToQuadraticCurve(pt, start, cp, end) <= threshold;
-        } else {
-            return distToSegment(pt, start, end) <= threshold;
+
+        if (isCurved && pts.length === 3) {
+            return distToQuadraticCurve(pt, pts[0], pts[1], pts[2]) <= threshold;
         }
+
+        for (let i = 0; i < pts.length - 1; i++) {
+            if (distToSegment(pt, pts[i], pts[i + 1]) <= threshold) {
+                return true;
+            }
+        }
+        return false;
     }
     return checkPt.x >= bounds.x && checkPt.x <= bounds.x + bounds.width && checkPt.y >= bounds.y && checkPt.y <= bounds.y + bounds.height;
 }
@@ -269,7 +303,13 @@ export function isPointInElement(pt, el) {
  */
 export function render(canvas, ctx, minimapCanvas, minimapCtx) {
     if (!ctx || !canvas) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (state.darkMode) {
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    } else {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
 
     ctx.save();
     ctx.translate(state.pan.x, state.pan.y);
@@ -298,7 +338,7 @@ function drawGrid(ctx, canvas) {
     const endX = startX + (canvas.width / state.zoom) + gridSpacing * 2;
     const endY = startY + (canvas.height / state.zoom) + gridSpacing * 2;
 
-    ctx.fillStyle = '#cbd5e1';
+    ctx.fillStyle = state.darkMode ? '#334155' : '#cbd5e1';
     for (let x = startX; x < endX; x += gridSpacing) {
         for (let y = startY; y < endY; y += gridSpacing) {
             ctx.beginPath();
@@ -559,20 +599,17 @@ function drawPolygon(ctx, cx, cy, sides, radius) {
 }
 
 /**
- * Renderiza conectores rectos o curvos cortando limpiamente la línea antes de la flecha
+ * Renderiza conectores rectos o curvos con soporte para múltiples puntos intermedios
  */
 function drawConnector(ctx, el) {
-    ctx.strokeStyle = el.strokeColor || '#1e293b';
+    const defaultColor = state.darkMode ? '#f8fafc' : '#1e293b';
+    ctx.strokeStyle = el.strokeColor || defaultColor;
     const strokeWidth = el.strokeWidth || 2;
     ctx.lineWidth = strokeWidth;
     setLineDashStyle(ctx, el.strokeStyle);
 
-    const startX = el.x, startY = el.y;
-    const endX = el.endX !== undefined ? el.endX : el.x + 100;
-    const endY = el.endY !== undefined ? el.endY : el.y + 100;
     const arrowSize = el.arrowSize !== undefined ? el.arrowSize : Math.max(14, strokeWidth * 2.5);
 
-    // Determinar modo de flecha
     let mode = el.arrowMode;
     if (!mode) {
         if (el.connType && el.connType.includes('double')) mode = 'both';
@@ -583,66 +620,53 @@ function drawConnector(ctx, el) {
     const hasArrows = mode && mode !== 'none';
     ctx.lineCap = hasArrows ? 'butt' : 'round';
 
+    const pts = getConnectorPoints(el);
     const isCurved = el.isCurved !== undefined ? el.isCurved : (el.connType && el.connType.startsWith('curved'));
     const offset = arrowSize * 0.8;
 
-    if (isCurved) {
-        const cp = el.cp || { x: (startX + endX) / 2, y: (startY + endY) / 2 - 40 };
-        
-        const angleEnd = Math.atan2(endY - cp.y, endX - cp.x);
-        const angleStart = Math.atan2(startY - cp.y, startX - cp.x);
+    let strokePts = pts.map(p => ({ ...p }));
 
-        let lineStartX = startX;
-        let lineStartY = startY;
-        let lineEndX = endX;
-        let lineEndY = endY;
+    if (mode === 'end' || mode === 'both') {
+        strokePts = trimPointsFromEnd(strokePts, offset);
+    }
+    if (mode === 'start' || mode === 'both') {
+        strokePts = trimPointsFromStart(strokePts, offset);
+    }
 
-        if (mode === 'end' || mode === 'both') {
-            lineEndX = endX - offset * Math.cos(angleEnd);
-            lineEndY = endY - offset * Math.sin(angleEnd);
-        }
-        if (mode === 'start' || mode === 'both') {
-            lineStartX = startX + offset * Math.cos(angleStart);
-            lineStartY = startY + offset * Math.sin(angleStart);
-        }
-
+    if (strokePts.length >= 2) {
         ctx.beginPath();
-        ctx.moveTo(lineStartX, lineStartY);
-        ctx.quadraticCurveTo(cp.x, cp.y, lineEndX, lineEndY);
+        ctx.moveTo(strokePts[0].x, strokePts[0].y);
+
+        if (isCurved) {
+            if (strokePts.length === 3) {
+                ctx.quadraticCurveTo(strokePts[1].x, strokePts[1].y, strokePts[2].x, strokePts[2].y);
+            } else {
+                for (let i = 1; i < strokePts.length - 1; i++) {
+                    const xc = (strokePts[i].x + strokePts[i + 1].x) / 2;
+                    const yc = (strokePts[i].y + strokePts[i + 1].y) / 2;
+                    ctx.quadraticCurveTo(strokePts[i].x, strokePts[i].y, xc, yc);
+                }
+                ctx.lineTo(strokePts[strokePts.length - 1].x, strokePts[strokePts.length - 1].y);
+            }
+        } else {
+            for (let i = 1; i < strokePts.length; i++) {
+                ctx.lineTo(strokePts[i].x, strokePts[i].y);
+            }
+        }
         ctx.stroke();
+    }
 
+    if (hasArrows && pts.length >= 2) {
+        const refDist = Math.max(15, arrowSize);
         if (mode === 'end' || mode === 'both') {
-            drawArrowHead(ctx, cp.x, cp.y, endX, endY, el.strokeColor, arrowSize);
+            const pEnd = pts[pts.length - 1];
+            const pRef = getPointAtDistanceBack(pts, true, refDist);
+            drawArrowHead(ctx, pRef.x, pRef.y, pEnd.x, pEnd.y, el.strokeColor || defaultColor, arrowSize);
         }
         if (mode === 'start' || mode === 'both') {
-            drawArrowHead(ctx, cp.x, cp.y, startX, startY, el.strokeColor, arrowSize);
-        }
-    } else {
-        const angle = Math.atan2(endY - startY, endX - startX);
-        let lineStartX = startX;
-        let lineStartY = startY;
-        let lineEndX = endX;
-        let lineEndY = endY;
-
-        if (mode === 'end' || mode === 'both') {
-            lineEndX = endX - offset * Math.cos(angle);
-            lineEndY = endY - offset * Math.sin(angle);
-        }
-        if (mode === 'start' || mode === 'both') {
-            lineStartX = startX + offset * Math.cos(angle);
-            lineStartY = startY + offset * Math.sin(angle);
-        }
-
-        ctx.beginPath();
-        ctx.moveTo(lineStartX, lineStartY);
-        ctx.lineTo(lineEndX, lineEndY);
-        ctx.stroke();
-
-        if (mode === 'end' || mode === 'both') {
-            drawArrowHead(ctx, startX, startY, endX, endY, el.strokeColor, arrowSize);
-        }
-        if (mode === 'start' || mode === 'both') {
-            drawArrowHead(ctx, endX, endY, startX, startY, el.strokeColor, arrowSize);
+            const pStart = pts[0];
+            const pRef = getPointAtDistanceBack(pts, false, refDist);
+            drawArrowHead(ctx, pRef.x, pRef.y, pStart.x, pStart.y, el.strokeColor || defaultColor, arrowSize);
         }
     }
     ctx.setLineDash([]);
@@ -694,25 +718,25 @@ function drawSelectionOverlay(ctx) {
         if (!el) return;
 
         if (el.type === 'connector') {
-            const startX = el.x, startY = el.y;
-            const endX = el.endX || el.x + 100, endY = el.endY || el.y + 100;
+            const pts = getConnectorPoints(el);
             const isCurved = el.isCurved !== undefined ? el.isCurved : (el.connType && el.connType.startsWith('curved'));
-            
-            drawHandleCircle(ctx, startX, startY, '#3b82f6');
-            drawHandleCircle(ctx, endX, endY, '#3b82f6');
-            
-            if (isCurved) {
-                const cp = el.cp || { x: (startX + endX) / 2, y: (startY + endY) / 2 - 40 };
+
+            if (isCurved && pts.length > 2) {
                 ctx.strokeStyle = '#f59e0b';
                 ctx.setLineDash([3, 3]);
                 ctx.beginPath();
-                ctx.moveTo(startX, startY);
-                ctx.lineTo(cp.x, cp.y);
-                ctx.lineTo(endX, endY);
+                ctx.moveTo(pts[0].x, pts[0].y);
+                for (let i = 1; i < pts.length; i++) {
+                    ctx.lineTo(pts[i].x, pts[i].y);
+                }
                 ctx.stroke();
                 ctx.setLineDash([]);
-                drawHandleCircle(ctx, cp.x, cp.y, '#f59e0b');
             }
+
+            pts.forEach((p, idx) => {
+                const color = (idx === 0 || idx === pts.length - 1) ? '#3b82f6' : '#f59e0b';
+                drawHandleCircle(ctx, p.x, p.y, color);
+            });
         } else {
             ctx.save();
             const bounds = getElementBounds(el);

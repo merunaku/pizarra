@@ -1,4 +1,7 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+/* ESTILOS PRINCIPALES - PIZARRA PROFEDIEGO */
+
+/* Importación de tipografía Inter */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 body {
 font-family: 'Inter', sans-serif;
@@ -6,111 +9,180 @@ user-select: none;
 -webkit-user-select: none;
 }
 
-/* Glassmorphism Panel */
+/* Efecto Glassmorphic para paneles flotantes */
 .glass-panel {
-background: rgba(255, 255, 255, 0.95);
-backdrop-filter: blur(16px);
--webkit-backdrop-filter: blur(16px);
+background: rgba(255, 255, 255, 0.88);
+backdrop-filter: blur(12px);
+-webkit-backdrop-filter: blur(12px);
 border: 1px solid rgba(226, 232, 240, 0.9);
 }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-width: 6px;
-height: 6px;
-}
-::-webkit-scrollbar-track {
-background: rgba(0, 0, 0, 0.04);
-}
-::-webkit-scrollbar-thumb {
-background: rgba(0, 0, 0, 0.2);
-border-radius: 9999px;
+/* Botones de la barra lateral de herramientas */
+.tool-btn {
+transition: all 0.15s ease;
 }
 
-/* Active Tool Highlight */
+.tool-btn:hover {
+transform: translateY(-1px);
+}
+
 .tool-btn.active {
 background-color: #4f46e5 !important;
 color: #ffffff !important;
-box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
+box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
 }
 
-/* Color Swatches */
-.color-dot {
-width: 22px;
-height: 22px;
-border-radius: 50%;
-cursor: pointer;
-transition: transform 0.12s ease, box-shadow 0.12s ease;
-border: 2px solid rgba(0,0,0,0.12);
-}
-.color-dot:hover {
-transform: scale(1.2);
-box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-}
-.color-dot.active {
-outline: 2px solid #4f46e5;
-outline-offset: 2px;
-}
-
-canvas {
-touch-action: none;
-}
-
-/* Inline Textarea Editor Overlay */
-#inline-text-editor {
-position: absolute;
-z-index: 100;
-background: rgba(255, 255, 255, 0.98);
-border: 2px solid #4f46e5;
-border-radius: 8px;
-box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.25);
-padding: 8px;
-font-family: 'Inter', sans-serif;
-resize: none;
-outline: none;
-overflow: hidden;
-display: none;
-}
-
-/* Compact Tool Buttons & Flyout Menus */
-.tool-btn {
-padding: 0.45rem !important;
-}
-
-#main-sidebar {
-max-height: calc(100vh - 7rem);
-overflow: visible !important; /* CRITICAL: overflow visible so absolute flyout menus are not clipped */
-}
-
-.flyout-menu {
-max-height: calc(100vh - 120px);
-overflow-y: auto;
-box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-}
-
-/* Flyout position adjustments for lower sidebar items */
-.flyout-bottom {
-top: auto !important;
-bottom: 0 !important;
-}
-
-/* Arrow Mode Visual Icon Buttons */
+/* Botones de opciones de flecha */
 .arrow-btn-opt {
-padding: 4px 8px;
+width: 28px;
+height: 28px;
+display: inline-flex;
+align-items: center;
+justify-content: center;
 border-radius: 6px;
 border: 1px solid #e2e8f0;
-background: #f8fafc;
+background: #ffffff;
+font-weight: bold;
+font-size: 13px;
 color: #475569;
 cursor: pointer;
 transition: all 0.15s ease;
 }
+
 .arrow-btn-opt:hover {
-background: #e0e7ff;
-color: #4338ca;
-border-color: #c7d2fe;
+background: #f1f5f9;
+color: #1e293b;
 }
+
 .arrow-btn-opt.active {
 background: #4f46e5;
 color: #ffffff;
 border-color: #4338ca;
+box-shadow: 0 2px 6px rgba(79, 70, 229, 0.3);
+}
+
+/* Puntos de selección de color */
+.color-dot {
+width: 24px;
+height: 24px;
+border-radius: 50%;
+cursor: pointer;
+border: 2px solid transparent;
+transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.color-dot:hover {
+transform: scale(1.15);
+}
+
+.color-dot.active {
+border-color: #4f46e5;
+box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.3);
+}
+
+/* Editor de texto flotante inline en el canvas */
+#inline-text-editor {
+position: absolute;
+display: none;
+z-index: 40;
+background: transparent;
+border: 1px dashed #6366f1;
+outline: none;
+resize: none;
+overflow: hidden;
+font-family: 'Inter', sans-serif;
+color: #1e293b;
+padding: 2px 4px;
+box-sizing: border-box;
+border-radius: 4px;
+}
+
+/* Menús desplegables (Flyouts) */
+.flyout-menu {
+animation: flyoutFadeIn 0.15s ease-out forwards;
+}
+
+@keyframes flyoutFadeIn {
+from {
+opacity: 0;
+transform: translateY(-4px) scale(0.97);
+}
+to {
+opacity: 1;
+transform: translateY(0) scale(1);
+}
+}
+
+/* Personalización de Scrollbars en modales y listas */
+::-webkit-scrollbar {
+width: 6px;
+height: 6px;
+}
+
+::-webkit-scrollbar-track {
+background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+background: #cbd5e1;
+border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+background: #94a3b8;
+}
+
+/* Estilos de Tema Oscuro (Dark Mode) */
+html.dark, html.dark body {
+background-color: #0f172a !important;
+color: #f1f5f9 !important;
+}
+
+html.dark .glass-panel {
+background: rgba(30, 41, 59, 0.92) !important;
+border-color: rgba(51, 65, 85, 0.8) !important;
+color: #f8fafc !important;
+}
+
+html.dark .tool-btn {
+color: #94a3b8 !important;
+}
+
+html.dark .tool-btn:hover {
+background-color: #334155 !important;
+color: #f8fafc !important;
+}
+
+html.dark .tool-btn.active {
+background-color: #6366f1 !important;
+color: #ffffff !important;
+}
+
+html.dark input, html.dark select, html.dark textarea {
+background-color: #1e293b !important;
+color: #f8fafc !important;
+border-color: #475569 !important;
+}
+
+html.dark #inline-text-editor {
+background-color: #1e293b !important;
+color: #f8fafc !important;
+border-color: #6366f1 !important;
+}
+
+html.dark .arrow-btn-opt {
+background: #1e293b;
+border-color: #334155;
+color: #cbd5e1;
+}
+
+html.dark .arrow-btn-opt:hover {
+background: #334155;
+color: #ffffff;
+}
+
+html.dark .arrow-btn-opt.active {
+background: #6366f1;
+color: #ffffff;
+border-color: #4f46e5;
 }
