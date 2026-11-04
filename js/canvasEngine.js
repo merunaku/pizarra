@@ -2,6 +2,21 @@
 import { state } from './state.js';
 
 /**
+ * Rotar un punto en torno a un centro por un ángulo dado
+ */
+export function rotatePoint(p, angle, center) {
+    if (!angle) return { x: p.x, y: p.y };
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const dx = p.x - center.x;
+    const dy = p.y - center.y;
+    return {
+        x: center.x + dx * cos - dy * sin,
+        y: center.y + dx * sin + dy * cos
+    };
+}
+
+/**
  * Ajusta la resolución del canvas al tamaño actual de la ventana
  */
 export function resizeCanvas(canvas, renderFn) {
@@ -212,19 +227,13 @@ function trimPointsFromStart(pts, trimDist) {
  * Determina si un punto dado está dentro de un elemento (Ajustado para conectores, lápiz y curvas)
  */
 export function isPointInElement(pt, el) {
+    const bounds = getElementBounds(el);
+    const cx = bounds.x + bounds.width / 2;
+    const cy = bounds.y + bounds.height / 2;
+
     let checkPt = pt;
     if (el.rotation && el.type !== 'connector') {
-        const bounds = getElementBounds(el);
-        const cx = bounds.x + bounds.width / 2;
-        const cy = bounds.y + bounds.height / 2;
-        const cos = Math.cos(-el.rotation);
-        const sin = Math.sin(-el.rotation);
-        const dx = pt.x - cx;
-        const dy = pt.y - cy;
-        checkPt = {
-            x: cx + dx * cos - dy * sin,
-            y: cy + dx * sin + dy * cos
-        };
+        checkPt = rotatePoint(pt, -el.rotation, { x: cx, y: cy });
     }
 
     if (el.type === 'pencil' || el.type === 'highlighter') {
@@ -252,8 +261,7 @@ export function isPointInElement(pt, el) {
             return distToSegment(pt, start, end) <= threshold;
         }
     }
-    const b = getElementBounds(el);
-    return checkPt.x >= b.x && checkPt.x <= b.x + b.width && checkPt.y >= b.y && checkPt.y <= b.y + b.height;
+    return checkPt.x >= bounds.x && checkPt.x <= bounds.x + bounds.width && checkPt.y >= bounds.y && checkPt.y <= bounds.y + bounds.height;
 }
 
 /**

@@ -1,6 +1,6 @@
 // CANVAS TOOLS & POINTER EVENTS - PIZARRA PROFEDIEGO
 import { state, screenToWorld, worldToScreen, saveState } from './state.js';
-import { isPointInElement, getElementBounds } from './canvasEngine.js';
+import { isPointInElement, getElementBounds, rotatePoint } from './canvasEngine.js';
 
 let renderCallback = null;
 let setToolCallback = null;
@@ -137,6 +137,11 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                             state.isResizing = true;
                             state.activeHandle = c.name;
                             state.resizeInitialBounds = getElementBounds(selected);
+                            state.resizeRotation = selected.rotation || 0;
+                            state.resizeCenter = {
+                                x: state.resizeInitialBounds.x + state.resizeInitialBounds.width / 2,
+                                y: state.resizeInitialBounds.y + state.resizeInitialBounds.height / 2
+                            };
                             if (selected.points) {
                                 state.resizeInitialPoints = selected.points.map(p => ({ ...p }));
                             }
@@ -147,11 +152,20 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
             }
         }
 
-        // Herramienta Selección
+        // Selección o Creación de Elementos
+        const clickedEl = [...state.elements].reverse().find(el => isPointInElement(worldPos, el));
+
         if (state.activeTool === 'select') {
-            const clicked = [...state.elements].reverse().find(el => isPointInElement(worldPos, el));
-            if (clicked) {
-                state.selectedIds = [clicked.id];
+            if (clickedEl) {
+                if (!e.shiftKey && !state.selectedIds.includes(clickedEl.id)) {
+                    state.selectedIds = [clickedEl.id];
+                } else if (e.shiftKey) {
+                    if (state.selectedIds.includes(clickedEl.id)) {
+                        state.selectedIds = state.selectedIds.filter(id => id !== clickedEl.id);
+                    } else {
+                        state.selectedIds.push(clickedEl.id);
+                    }
+                }
                 state.isDragging = true;
             } else {
                 state.selectedIds = [];
@@ -161,95 +175,115 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
             return;
         }
 
-        // Creación con Lápiz / Destacador
-        const id = 'el_' + Date.now();
-        if (state.activeTool === 'pencil' || state.activeTool === 'highlighter') {
-            state.isDrawing = true;
-            const isHighlighter = state.activeTool === 'highlighter';
+        if (state.activeTool === 'eraser') {
+            if (clickedEl) {
+                state.elements = state.elements.filter(el => el.id !== clickedEl.id);
+                state.selectedIds = state.selectedIds.filter(id => id !== clickedEl.id);
+                saveState();
+                if (renderCallback) renderCallback();
+            }
+            return;
+        }
+
+        // Creación de nuevos elementos según la herramienta activa
+        state.isDrawing = true;
+        const newId = 'el_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+
+        if (state.activeTool === 'pencil') {
             state.tempElement = {
-                id,
-                type: isHighlighter ? 'highlighter' : 'pencil',
-                color: isHighlighter ? state.hlColor : state.pencilColor,
-                lineWidth: isHighlighter ? state.hlWidth : state.pencilWidth,
+                id: newId,
+                type: 'pencil',
+                color: state.pencilColor,
+                lineWidth: state.pencilWidth,
+                arrowMode: state.pencilArrowMode,
+                arrowSize: 14,
                 smoothing: state.smoothing,
-                arrowMode: state.pencilArrowMode || 'none',
+                points: [{ x: worldPos.x, y: worldPos.y }]
+            };
+        } else if (state.activeTool === 'highlighter') {
+            state.tempElement = {
+                id: newId,
+                type: 'highlighter',
+                color: state.hlColor,
+                lineWidth: state.hlWidth,
                 points: [{ x: worldPos.x, y: worldPos.y }]
             };
         } else if (state.activeTool === 'sticky') {
-            state.elements.push({
-                id,
-                type: 'sticky',
-                x: worldPos.x - 70,
-                y: worldPos.y - 70,
-                width: 140,
-                height: 140,
-                color: state.stickyColor,
-                rotation: 0,
-                text: 'Nueva Nota'
-            });
-            state.selectedIds = [id];
-            if (setToolCallback) setToolCallback('select');
-            saveState();
-            if (renderCallback) renderCallback();
-        } else if (state.activeTool === 'shape') {
-            state.isDrawing = true;
             state.tempElement = {
-                id,
+                id: newId,
+                type: 'sticky',
+                x: worldPos.x - 80,
+                y: worldPos.y - 80,
+                width: 160,
+                height: 160,
+                color: state.stickyColor,
+                text: ''
+            };
+            state.elements.push(state.tempElement);
+            state.selectedIds = [newId];
+            state.tempElement = null;
+            state.isDrawing = false;
+            saveState();
+            openInlineEditor(state.elements[state.elements.length - 1]);
+            if (setToolCallback) setToolCallback('select');
+        } else if (state.activeTool === 'text') {
+            state.tempElement = {
+                id: newId,
+                type: 'text',
+                x: worldPos.x,
+                y: worldPos.y,
+                text: '',
+                fontSize: 20,
+                color: state.pencilColor
+            };
+            state.elements.push(state.tempElement);
+            state.selectedIds = [newId];
+            state.tempElement = null;
+            state.isDrawing = false;
+            saveState();
+            openInlineEditor(state.elements[state.elements.length - 1]);
+            if (setToolCallback) setToolCallback('select');
+        } else if (state.activeTool === 'shape') {
+            state.tempElement = {
+                id: newId,
                 type: 'shape',
                 shapeType: state.activeShape,
                 x: worldPos.x,
                 y: worldPos.y,
-                width: 0,
-                height: 0,
-                rotation: 0,
+                width: 1,
+                height: 1,
                 fillColor: '#ffffff',
-                strokeColor: '#1e293b',
+                strokeColor: state.pencilColor,
                 strokeWidth: 2,
-                strokeStyle: 'solid'
+                strokeStyle: 'solid',
+                text: ''
             };
-        } else if (state.activeTool === 'text') {
-            const newTextEl = {
-                id,
-                type: 'text',
-                x: worldPos.x,
-                y: worldPos.y,
-                rotation: 0,
-                text: 'Texto Nuevo',
-                fontSize: 20,
-                color: '#1e293b'
-            };
-            state.elements.push(newTextEl);
-            state.selectedIds = [id];
-            if (setToolCallback) setToolCallback('select');
-            saveState();
-            if (renderCallback) renderCallback();
-            setTimeout(() => openInlineEditor(newTextEl), 50);
-            return;
         } else if (state.activeTool === 'connector') {
-            state.isDrawing = true;
+            const isCurved = state.activeConnector.startsWith('curved');
+            let arrowMode = 'none';
+            if (state.activeConnector.includes('arrow')) arrowMode = 'end';
+
             state.tempElement = {
-                id,
+                id: newId,
                 type: 'connector',
                 connType: state.activeConnector,
+                isCurved,
+                arrowMode,
+                arrowSize: 14,
                 x: worldPos.x,
                 y: worldPos.y,
                 endX: worldPos.x,
                 endY: worldPos.y,
                 cp: { x: worldPos.x, y: worldPos.y - 30 },
-                strokeColor: '#1e293b',
-                strokeWidth: 2
+                strokeColor: state.pencilColor,
+                strokeWidth: 2,
+                strokeStyle: 'solid'
             };
-        } else if (state.activeTool === 'eraser') {
-            const target = [...state.elements].reverse().find(el => isPointInElement(worldPos, el));
-            if (target) {
-                state.elements = state.elements.filter(e => e.id !== target.id);
-                saveState();
-                if (renderCallback) renderCallback();
-            }
         }
+        if (renderCallback) renderCallback();
     });
 
-    // EVENTO POINTERMOVE (Arrastre / Rotación)
+    // EVENTO POINTERMOVE (Arrastrar, Escalar, Rotar, Dibujar)
     canvas.addEventListener('pointermove', (e) => {
         const worldPos = screenToWorld(e.clientX, e.clientY, canvas);
 
@@ -261,9 +295,9 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
             return;
         }
 
-        if (state.isRotating && state.selectedIds.length === 1) {
+        if (state.isRotating && state.selectedIds.length === 1 && state.rotationCenter) {
             const el = state.elements.find(e => e.id === state.selectedIds[0]);
-            if (el && state.rotationCenter) {
+            if (el) {
                 const angle = Math.atan2(worldPos.y - state.rotationCenter.y, worldPos.x - state.rotationCenter.x);
                 el.rotation = angle + Math.PI / 2;
                 if (renderCallback) renderCallback();
@@ -278,10 +312,15 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                     if (state.activeHandle === 'cp') el.cp = { x: worldPos.x, y: worldPos.y };
                     else if (state.activeHandle === 'start') { el.x = worldPos.x; el.y = worldPos.y; }
                     else if (state.activeHandle === 'end') { el.endX = worldPos.x; el.endY = worldPos.y; }
-                } else if (state.resizeInitialBounds) {
+                } else if (state.resizeInitialBounds && state.resizeCenter) {
                     const h = state.activeHandle;
                     const init = state.resizeInitialBounds;
+                    const centerInit = state.resizeCenter;
+                    const rad = state.resizeRotation || 0;
                     const minSize = 10;
+
+                    // Proyectar la posición del cursor al sistema de coordenadas locales unrotadas
+                    const localPos = rotatePoint(worldPos, -rad, centerInit);
 
                     let newX = init.x;
                     let newY = init.y;
@@ -289,22 +328,35 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                     let newH = init.height;
 
                     if (h === 'se') {
-                        newW = Math.max(minSize, worldPos.x - init.x);
-                        newH = Math.max(minSize, worldPos.y - init.y);
+                        newW = Math.max(minSize, localPos.x - init.x);
+                        newH = Math.max(minSize, localPos.y - init.y);
                     } else if (h === 'sw') {
-                        const calculatedW = init.x + init.width - worldPos.x;
-                        if (calculatedW >= minSize) { newX = worldPos.x; newW = calculatedW; }
-                        newH = Math.max(minSize, worldPos.y - init.y);
+                        const calculatedW = init.x + init.width - localPos.x;
+                        if (calculatedW >= minSize) { newX = localPos.x; newW = calculatedW; }
+                        newH = Math.max(minSize, localPos.y - init.y);
                     } else if (h === 'ne') {
-                        newW = Math.max(minSize, worldPos.x - init.x);
-                        const calculatedH = init.y + init.height - worldPos.y;
-                        if (calculatedH >= minSize) { newY = worldPos.y; newH = calculatedH; }
+                        newW = Math.max(minSize, localPos.x - init.x);
+                        const calculatedH = init.y + init.height - localPos.y;
+                        if (calculatedH >= minSize) { newY = localPos.y; newH = calculatedH; }
                     } else if (h === 'nw') {
-                        const calculatedW = init.x + init.width - worldPos.x;
-                        if (calculatedW >= minSize) { newX = worldPos.x; newW = calculatedW; }
-                        const calculatedH = init.y + init.height - worldPos.y;
-                        if (calculatedH >= minSize) { newY = worldPos.y; newH = calculatedH; }
+                        const calculatedW = init.x + init.width - localPos.x;
+                        if (calculatedW >= minSize) { newX = localPos.x; newW = calculatedW; }
+                        const calculatedH = init.y + init.height - localPos.y;
+                        if (calculatedH >= minSize) { newY = localPos.y; newH = calculatedH; }
                     }
+
+                    // Calcular desplazamiento del centro local y proyectar al plano general
+                    const localCenterInit = { x: init.x + init.width / 2, y: init.y + init.height / 2 };
+                    const localCenterNew = { x: newX + newW / 2, y: newY + newH / 2 };
+                    const deltaLocal = { x: localCenterNew.x - localCenterInit.x, y: localCenterNew.y - localCenterInit.y };
+
+                    const deltaWorld = rotatePoint({ x: deltaLocal.x, y: deltaLocal.y }, rad, { x: 0, y: 0 });
+                    const worldCenterNew = { x: centerInit.x + deltaWorld.x, y: centerInit.y + deltaWorld.y };
+
+                    el.width = newW;
+                    el.height = newH;
+                    el.x = worldCenterNew.x - newW / 2;
+                    el.y = worldCenterNew.y - newH / 2;
 
                     if (el.points && state.resizeInitialPoints) {
                         const scaleX = init.width > 0 ? newW / init.width : 1;
@@ -313,11 +365,6 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                             x: newX + (p.x - init.x) * scaleX,
                             y: newY + (p.y - init.y) * scaleY
                         }));
-                    } else {
-                        el.x = newX;
-                        el.y = newY;
-                        el.width = newW;
-                        el.height = newH;
                     }
                 }
                 if (renderCallback) renderCallback();
@@ -331,8 +378,8 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
             state.selectedIds.forEach(id => {
                 const el = state.elements.find(e => e.id === id);
                 if (el) {
-                    el.x += dx;
-                    el.y += dy;
+                    if (el.x !== undefined) el.x += dx;
+                    if (el.y !== undefined) el.y += dy;
                     if (el.endX !== undefined) el.endX += dx;
                     if (el.endY !== undefined) el.endY += dy;
                     if (el.cp) { el.cp.x += dx; el.cp.y += dy; }

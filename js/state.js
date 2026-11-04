@@ -121,6 +121,27 @@ export function restoreSnapshot(jsonStr, renderCallback) {
     try {
         const data = JSON.parse(jsonStr);
         state.elements = data.map(el => {
+            // Rehidratar y sanitizar trazos libres de lápiz/destacador guardados
+            if (el.type === 'pencil' || el.type === 'highlighter') {
+                if (el.arrowMode === undefined) el.arrowMode = 'none';
+                if (el.arrowSize === undefined) el.arrowSize = 14;
+                if (el.smoothing === undefined) el.smoothing = 5;
+                if (el.lineWidth === undefined) el.lineWidth = el.type === 'highlighter' ? 20 : 3;
+                if (el.rotation === undefined) el.rotation = 0;
+                delete el.x;
+                delete el.y;
+                delete el.width;
+                delete el.height;
+            }
+            if (el.type === 'connector') {
+                if (el.arrowMode === undefined) {
+                    if (el.connType && el.connType.includes('double')) el.arrowMode = 'both';
+                    else if (el.connType && el.connType.includes('arrow')) el.arrowMode = 'end';
+                    else el.arrowMode = 'none';
+                }
+                if (el.arrowSize === undefined) el.arrowSize = 14;
+                if (el.strokeWidth === undefined) el.strokeWidth = 2;
+            }
             if (el.type === 'image' && el.src) {
                 const img = new Image();
                 img.src = el.src;
