@@ -8,9 +8,9 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome 6 Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
-    <!-- Google Identity Services (GIS) for Google Drive Login -->
+    <!-- Google Identity Services (GIS) -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <!-- Custom CSS Styles -->
+    <!-- Custom CSS -->
     <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body class="h-full w-full overflow-hidden text-slate-800 bg-slate-100 flex flex-col relative">
@@ -48,13 +48,11 @@
 
         <!-- Right: Google Drive Account, Clear & Export -->
         <div class="flex items-center gap-2">
-            <!-- Google Drive Profile Header Badge -->
             <div id="header-user-profile" class="hidden flex items-center gap-2 bg-emerald-50/80 border border-emerald-200 px-2.5 py-1 rounded-xl">
                 <img id="header-user-avatar" src="" alt="Avatar" class="w-5 h-5 rounded-full border border-emerald-500 object-cover" />
                 <span id="header-user-name" class="text-xs font-bold text-emerald-900 max-w-[90px] truncate"></span>
             </div>
 
-            <!-- Google Drive Account Button -->
             <button id="btn-gdrive-account" class="flex items-center gap-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 px-3 py-1.5 rounded-xl font-semibold text-xs transition-all">
                 <i class="fa-brands fa-google-drive text-emerald-600 text-sm"></i>
                 <span id="gdrive-user-label">Google Drive</span>
@@ -93,7 +91,237 @@
         </div>
     </header>
 
-    <!-- GOOGLE DRIVE INTEGRATION MODAL -->
+    <!-- CONTEXTUAL FLOATING TOOLBAR -->
+    <div id="context-toolbar" class="fixed top-20 left-1/2 -translate-x-1/2 z-30 hidden glass-panel px-3 py-1.5 rounded-2xl shadow-xl border border-slate-200 flex items-center gap-2 text-xs">
+        <div id="ctx-group-fill" class="flex items-center gap-1.5">
+            <span class="text-slate-400 text-[10px]">Relleno</span>
+            <input id="ctx-fill-color" type="color" value="#ffffff" class="w-6 h-6 rounded cursor-pointer border-none bg-transparent" />
+        </div>
+        <div id="ctx-group-stroke" class="flex items-center gap-1.5">
+            <span class="text-slate-400 text-[10px]">Borde/Color</span>
+            <input id="ctx-stroke-color" type="color" value="#1e293b" class="w-6 h-6 rounded cursor-pointer border-none bg-transparent" />
+        </div>
+        <div id="ctx-group-width" class="flex items-center gap-1">
+            <i class="fa-solid fa-ruler-horizontal text-slate-400"></i>
+            <input id="ctx-stroke-width" type="range" min="1" max="24" value="2" class="w-16 accent-indigo-600" />
+        </div>
+
+        <!-- Opción para transformar líneas en Recta / Curva -->
+        <div id="ctx-group-conn-style" class="hidden flex items-center gap-1">
+            <select id="ctx-conn-line" class="bg-slate-100 border border-slate-200 rounded px-1.5 py-1 text-slate-700 focus:outline-none">
+                <option value="line">Recta</option>
+                <option value="curved">Curva</option>
+            </select>
+        </div>
+
+        <!-- Botones Visuales de Flechas (Íconos) -->
+        <div id="ctx-group-conn-arrows" class="hidden flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+            <button class="arrow-btn-opt ctx-arrow-btn" data-arrow="none" title="Sin Flecha">—</button>
+            <button class="arrow-btn-opt ctx-arrow-btn" data-arrow="end" title="Flecha Final">→</button>
+            <button class="arrow-btn-opt ctx-arrow-btn" data-arrow="start" title="Flecha Inicial">←</button>
+            <button class="arrow-btn-opt ctx-arrow-btn" data-arrow="both" title="Doble Flecha">↔</button>
+        </div>
+
+        <!-- Control Deslizable de Tamaño de Flecha -->
+        <div id="ctx-group-arrow-size" class="hidden flex items-center gap-1">
+            <span class="text-slate-400 text-[10px]">Flecha</span>
+            <input id="ctx-arrow-size" type="range" min="8" max="40" value="14" class="w-14 accent-indigo-600" title="Tamaño de la Punta" />
+        </div>
+
+        <!-- Estilo de Borde -->
+        <select id="ctx-stroke-style" class="bg-slate-100 border border-slate-200 rounded px-1.5 py-1 text-slate-700 focus:outline-none">
+            <option value="solid">Sólido</option>
+            <option value="dashed">Guiones</option>
+            <option value="dotted">Puntos</option>
+        </select>
+
+        <div id="ctx-group-font" class="hidden flex items-center gap-1">
+            <i class="fa-solid fa-font text-slate-400"></i>
+            <select id="ctx-font-size" class="bg-slate-100 border border-slate-200 rounded px-1.5 py-1 text-slate-700">
+                <option value="14">14px</option>
+                <option value="16" selected>16px</option>
+                <option value="20">20px</option>
+                <option value="24">24px</option>
+                <option value="32">32px</option>
+            </select>
+        </div>
+
+        <div id="ctx-group-smoothing" class="hidden flex items-center gap-1">
+            <span class="text-slate-400 text-[10px]">Suave</span>
+            <input id="ctx-smoothing" type="range" min="0" max="10" value="5" class="w-14 accent-indigo-600" />
+        </div>
+
+        <div class="h-4 w-px bg-slate-300 mx-0.5"></div>
+
+        <div class="flex items-center gap-1">
+            <span class="text-slate-400 text-[10px]">Opacidad</span>
+            <input id="ctx-opacity" type="range" min="0.1" max="1.0" step="0.1" value="1.0" class="w-14 accent-indigo-600" />
+        </div>
+
+        <div class="h-4 w-px bg-slate-300 mx-0.5"></div>
+
+        <button id="ctx-edit-text" title="Editar Texto" class="p-1 hover:bg-slate-100 rounded text-slate-600"><i class="fa-solid fa-pen-to-square"></i></button>
+        <button id="ctx-duplicate" title="Duplicar" class="p-1 hover:bg-slate-100 rounded text-slate-600"><i class="fa-regular fa-clone"></i></button>
+        <button id="ctx-bring-front" title="Traer al frente" class="p-1 hover:bg-slate-100 rounded text-slate-600"><i class="fa-solid fa-layer-group"></i></button>
+        <button id="ctx-send-back" title="Enviar al fondo" class="p-1 hover:bg-slate-100 rounded text-slate-600"><i class="fa-solid fa-square-arrow-up-right rotate-180"></i></button>
+        <button id="ctx-delete" title="Eliminar" class="p-1 hover:bg-red-100 rounded text-red-600"><i class="fa-solid fa-trash"></i></button>
+    </div>
+
+    <!-- MAIN SIDEBAR TOOLBAR -->
+    <aside id="main-sidebar" class="fixed top-20 left-3 z-30 glass-panel rounded-2xl shadow-xl border border-slate-200/90 p-1.5 flex flex-col gap-1 items-center">
+        <!-- Selector -->
+        <button data-tool="select" title="Seleccionar / Mover (V)" class="tool-btn active w-9 h-9 rounded-xl flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-all">
+            <i class="fa-solid fa-arrow-pointer text-sm"></i>
+        </button>
+
+        <!-- Mano (Pan) -->
+        <button data-tool="hand" title="Mano / Mover Pizarra (H)" class="tool-btn w-9 h-9 rounded-xl flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-all">
+            <i class="fa-solid fa-hand text-sm"></i>
+        </button>
+
+        <!-- Nota Adhesiva -->
+        <div class="relative">
+            <button data-tool="sticky" data-flyout="flyout-sticky" title="Nota Adhesiva" class="tool-btn has-flyout w-9 h-9 rounded-xl flex items-center justify-center text-amber-500 hover:bg-amber-50 transition-all">
+                <i class="fa-solid fa-note-sticky text-sm"></i>
+            </button>
+            <div id="flyout-sticky" class="flyout-menu hidden absolute left-full top-0 ml-2 glass-panel p-2 rounded-xl shadow-xl border border-slate-200 flex flex-col gap-1.5 z-40">
+                <span class="text-[10px] font-bold text-slate-400 px-1">Color de Nota</span>
+                <div class="grid grid-cols-3 gap-1.5">
+                    <div class="sticky-color-opt w-6 h-6 rounded-lg bg-yellow-200 border cursor-pointer hover:scale-110" data-color="#fef08a"></div>
+                    <div class="sticky-color-opt w-6 h-6 rounded-lg bg-emerald-200 border cursor-pointer hover:scale-110" data-color="#bbf7d0"></div>
+                    <div class="sticky-color-opt w-6 h-6 rounded-lg bg-blue-200 border cursor-pointer hover:scale-110" data-color="#bfdbfe"></div>
+                    <div class="sticky-color-opt w-6 h-6 rounded-lg bg-pink-200 border cursor-pointer hover:scale-110" data-color="#fbcfe8"></div>
+                    <div class="sticky-color-opt w-6 h-6 rounded-lg bg-orange-200 border cursor-pointer hover:scale-110" data-color="#fed7aa"></div>
+                    <div class="sticky-color-opt w-6 h-6 rounded-lg bg-purple-200 border cursor-pointer hover:scale-110" data-color="#e9d5ff"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Texto -->
+        <button data-tool="text" title="Texto (T)" class="tool-btn w-9 h-9 rounded-xl flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-all">
+            <i class="fa-solid fa-font text-sm"></i>
+        </button>
+
+        <!-- Lápiz Libre -->
+        <div class="relative">
+            <button data-tool="pencil" data-flyout="flyout-pencil" title="Lápiz / Dibujo Libre (P)" class="tool-btn has-flyout w-9 h-9 rounded-xl flex items-center justify-center text-indigo-600 hover:bg-indigo-50 transition-all">
+                <i class="fa-solid fa-pen text-sm"></i>
+            </button>
+            <div id="flyout-pencil" class="flyout-menu hidden absolute left-full top-0 ml-2 glass-panel p-2.5 rounded-xl shadow-xl border border-slate-200 flex flex-col gap-2 w-48 z-40">
+                <span class="text-[10px] font-bold text-slate-400">Color de Lápiz</span>
+                <div class="grid grid-cols-4 gap-1.5">
+                    <div class="pencil-color-opt color-dot active" style="background:#1e293b" data-color="#1e293b"></div>
+                    <div class="pencil-color-opt color-dot" style="background:#ef4444" data-color="#ef4444"></div>
+                    <div class="pencil-color-opt color-dot" style="background:#3b82f6" data-color="#3b82f6"></div>
+                    <div class="pencil-color-opt color-dot" style="background:#10b981" data-color="#10b981"></div>
+                </div>
+                <div class="h-px bg-slate-200 my-0.5"></div>
+                <span class="text-[10px] font-bold text-slate-400">Flecha al dibujar</span>
+                <div class="flex items-center gap-1">
+                    <button class="arrow-btn-opt pencil-arrow-opt active" data-arrow="none" title="Sin Flecha">—</button>
+                    <button class="arrow-btn-opt pencil-arrow-opt" data-arrow="end" title="Flecha Final">→</button>
+                    <button class="arrow-btn-opt pencil-arrow-opt" data-arrow="start" title="Flecha Inicial">←</button>
+                    <button class="arrow-btn-opt pencil-arrow-opt" data-arrow="both" title="Doble Flecha">↔</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Destacador Neón -->
+        <button data-tool="highlighter" title="Resaltador Neón" class="tool-btn w-9 h-9 rounded-xl flex items-center justify-center text-amber-500 hover:bg-amber-50 transition-all">
+            <i class="fa-solid fa-highlighter text-sm"></i>
+        </button>
+
+        <!-- Formas Geométricas -->
+        <div class="relative">
+            <button data-tool="shape" data-flyout="flyout-shape" title="Formas Geométricas" class="tool-btn has-flyout w-9 h-9 rounded-xl flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-all">
+                <i class="fa-regular fa-square text-sm"></i>
+            </button>
+            <div id="flyout-shape" class="flyout-menu flyout-bottom hidden absolute left-full ml-2 glass-panel p-2 rounded-xl shadow-xl border border-slate-200 flex flex-col gap-1 w-36 z-40">
+                <button class="shape-opt text-left px-2 py-1.5 text-xs text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded flex items-center gap-2" data-shape="rect">
+                    <i class="fa-regular fa-square"></i> Rectángulo
+                </button>
+                <button class="shape-opt text-left px-2 py-1.5 text-xs text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded flex items-center gap-2" data-shape="rounded-rect">
+                    <i class="fa-solid fa-vector-square"></i> Redondeado
+                </button>
+                <button class="shape-opt text-left px-2 py-1.5 text-xs text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded flex items-center gap-2" data-shape="circle">
+                    <i class="fa-regular fa-circle"></i> Círculo
+                </button>
+                <button class="shape-opt text-left px-2 py-1.5 text-xs text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded flex items-center gap-2" data-shape="diamond">
+                    <i class="fa-solid fa-diamond"></i> Rombo
+                </button>
+                <button class="shape-opt text-left px-2 py-1.5 text-xs text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded flex items-center gap-2" data-shape="triangle">
+                    <i class="fa-solid fa-play -rotate-90"></i> Triángulo
+                </button>
+                <button class="shape-opt text-left px-2 py-1.5 text-xs text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded flex items-center gap-2" data-shape="star">
+                    <i class="fa-regular fa-star"></i> Estrella
+                </button>
+            </div>
+        </div>
+
+        <!-- Conectores y Flechas -->
+        <div class="relative">
+            <button data-tool="connector" data-flyout="flyout-connector" title="Líneas y Flechas" class="tool-btn has-flyout w-9 h-9 rounded-xl flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-all">
+                <i class="fa-solid fa-arrow-right-arrow-left text-sm"></i>
+            </button>
+            <div id="flyout-connector" class="flyout-menu flyout-bottom hidden absolute left-full ml-2 glass-panel p-2 rounded-xl shadow-xl border border-slate-200 flex flex-col gap-1 w-44 z-40">
+                <button class="conn-opt text-left px-2 py-1.5 text-xs text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded flex items-center gap-2" data-conn="line">
+                    <i class="fa-solid fa-minus"></i> Recta
+                </button>
+                <button class="conn-opt text-left px-2 py-1.5 text-xs text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded flex items-center gap-2" data-conn="arrow">
+                    <i class="fa-solid fa-arrow-right"></i> Flecha
+                </button>
+                <button class="conn-opt text-left px-2 py-1.5 text-xs text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded flex items-center gap-2" data-conn="curved">
+                    <i class="fa-solid fa-bezier-curve"></i> Curva Simple
+                </button>
+                <button class="conn-opt text-left px-2 py-1.5 text-xs text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded flex items-center gap-2" data-conn="curved-arrow">
+                    <i class="fa-solid fa-route"></i> Flecha Curva
+                </button>
+            </div>
+        </div>
+
+        <!-- Borrador -->
+        <button data-tool="eraser" title="Borrador (E)" class="tool-btn w-9 h-9 rounded-xl flex items-center justify-center text-slate-600 hover:bg-red-50 hover:text-red-600 transition-all">
+            <i class="fa-solid fa-eraser text-sm"></i>
+        </button>
+
+        <div class="w-6 h-px bg-slate-200 my-0.5"></div>
+
+        <!-- Subir Imagen -->
+        <label title="Insertar Imagen" class="tool-btn w-9 h-9 rounded-xl flex items-center justify-center text-slate-600 hover:bg-slate-100 cursor-pointer transition-all">
+            <i class="fa-regular fa-image text-sm"></i>
+            <input id="image-upload-input" type="file" accept="image/*" class="hidden" />
+        </label>
+    </aside>
+
+    <!-- CANVAS PRINCIPAL Y TEXTAREA OVERLAY -->
+    <main class="relative w-full h-full overflow-hidden flex-1">
+        <canvas id="board-canvas" class="absolute inset-0 w-full h-full cursor-crosshair z-0"></canvas>
+        <textarea id="inline-text-editor" placeholder="Escribe aquí..."></textarea>
+    </main>
+
+    <!-- CONTROLES DE ZOOM Y MINIMAPA (Abajo a la derecha) -->
+    <div class="fixed bottom-4 right-4 z-30 flex items-center gap-2">
+        <div class="glass-panel px-2 py-1 rounded-2xl shadow-lg border border-slate-200 flex items-center gap-1 text-xs">
+            <button id="btn-zoom-out" title="Alejar (-)" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600"><i class="fa-solid fa-minus"></i></button>
+            <select id="zoom-dropdown" class="bg-transparent text-slate-700 font-semibold focus:outline-none cursor-pointer text-xs">
+                <option value="0.5">50%</option>
+                <option value="1.0" selected>100%</option>
+                <option value="1.5">150%</option>
+                <option value="2.0">200%</option>
+            </select>
+            <button id="btn-zoom-in" title="Acercar (+)" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600"><i class="fa-solid fa-plus"></i></button>
+            <div class="h-4 w-px bg-slate-300 mx-0.5"></div>
+            <button id="btn-zoom-fit" title="Centrar Vista" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600"><i class="fa-solid fa-expand"></i></button>
+            <button id="btn-toggle-minimap" title="Ver Minimapa" class="p-1.5 hover:bg-slate-100 rounded-lg text-indigo-600"><i class="fa-solid fa-map"></i></button>
+        </div>
+
+        <!-- CONTENEDOR DEL MINIMAPA -->
+        <div id="minimap-container" class="hidden glass-panel p-1 rounded-2xl shadow-xl border border-slate-200 overflow-hidden bg-white">
+            <canvas id="minimap-canvas" width="160" height="100" class="rounded-xl border border-slate-100"></canvas>
+        </div>
+    </div>
+
+    <!-- MODAL GOOGLE DRIVE CLOUD SYNC -->
     <div id="modal-gdrive" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
         <div class="glass-panel w-full max-w-lg rounded-3xl shadow-2xl p-6 flex flex-col gap-5 border border-slate-200 bg-white">
             <div class="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -109,14 +337,14 @@
                 <button id="btn-close-gdrive" class="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100"><i class="fa-solid fa-xmark text-base"></i></button>
             </div>
 
-            <!-- Account Status Box -->
+            <!-- Estado de Cuenta -->
             <div id="gdrive-login-box" class="p-4 bg-emerald-50/70 border border-emerald-200 rounded-2xl flex flex-col gap-3">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-3">
                         <img id="gdrive-user-avatar" src="https://placehold.co/40x40/10b981/ffffff?text=P" class="w-10 h-10 rounded-full border border-emerald-300 shadow-sm" />
                         <div class="flex flex-col">
                             <span id="gdrive-user-name" class="font-bold text-xs text-slate-800">Cuenta de Google</span>
-                            <span id="gdrive-user-email" class="text-[11px] text-slate-500">No conectado</span>
+                            <span id="gdrive-user-email" class="text-[11px] text-slate-500">Sin conectar</span>
                         </div>
                     </div>
                     <button id="btn-gdrive-login" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs px-3.5 py-2 rounded-xl shadow-md transition-all flex items-center gap-1.5">
@@ -124,419 +352,109 @@
                         <span id="btn-login-text">Conectar Google Drive</span>
                     </button>
                 </div>
-                <!-- Optional OAuth Client ID input -->
+                <!-- Input Opcional de Client ID -->
                 <div class="flex items-center gap-2 pt-2 border-t border-emerald-200/60">
-                    <span class="text-[10px] font-semibold text-emerald-800 whitespace-nowrap">Client ID Google Cloud (Opcional):</span>
-                    <input id="gdrive-client-id-input" type="text" placeholder="Tu Client ID de Google Cloud Console" class="w-full text-[10px] px-2 py-1 rounded-lg border border-emerald-300 bg-white/90 text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
+                    <span class="text-[10px] font-semibold text-emerald-800 whitespace-nowrap">Client ID (Opcional):</span>
+                    <input id="gdrive-client-id-input" type="text" placeholder="OAuth Client ID de Google Cloud Console" class="w-full text-[10px] px-2 py-1 rounded border border-emerald-200 bg-white focus:outline-none" />
                 </div>
             </div>
 
-            <!-- Drive File Operations -->
-            <div class="flex flex-col gap-2.5">
-                <button id="btn-gdrive-save-direct" class="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 hover:bg-emerald-50/80 border border-slate-200 hover:border-emerald-300 text-slate-800 font-medium text-xs transition-all group">
-                    <div class="flex items-center gap-3">
-                        <i class="fa-solid fa-cloud-arrow-up text-emerald-600 text-xl group-hover:scale-110 transition-transform"></i>
-                        <div class="flex flex-col text-left">
-                            <span class="font-bold text-slate-800">Guardar Pizarra en Google Drive</span>
-                            <span class="text-[10px] text-slate-500">Crea o actualiza el archivo en la carpeta 'Pizarra ProfeDiego'</span>
-                        </div>
-                    </div>
-                    <i class="fa-solid fa-angle-right text-slate-400 group-hover:text-emerald-600"></i>
+            <!-- Acciones de Drive -->
+            <div class="grid grid-cols-2 gap-3">
+                <button id="btn-gdrive-save-direct" class="flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white p-3 rounded-2xl font-semibold text-xs shadow-md transition-all">
+                    <i class="fa-solid fa-cloud-arrow-up text-sm"></i>
+                    <span>Guardar Pizarra (.json)</span>
                 </button>
-
-                <button id="btn-gdrive-list-files" class="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 hover:bg-indigo-50/80 border border-slate-200 hover:border-indigo-300 text-slate-800 font-medium text-xs transition-all group">
-                    <div class="flex items-center gap-3">
-                        <i class="fa-solid fa-folder-open text-indigo-600 text-xl group-hover:scale-110 transition-transform"></i>
-                        <div class="flex flex-col text-left">
-                            <span class="font-bold text-slate-800">Explorar Pizarras en Google Drive</span>
-                            <span class="text-[10px] text-slate-500">Ver lista de archivos guardados en tu cuenta de Drive</span>
-                        </div>
-                    </div>
-                    <i class="fa-solid fa-angle-right text-slate-400 group-hover:text-indigo-600"></i>
+                <button id="btn-gdrive-list-files" class="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 p-3 rounded-2xl font-semibold text-xs transition-all">
+                    <i class="fa-solid fa-folder-open text-slate-500 text-sm"></i>
+                    <span>Abrir desde Drive</span>
                 </button>
-
-                <div class="flex items-center justify-between p-3 bg-slate-100/70 border border-slate-200 rounded-2xl">
-                    <div class="flex items-center gap-2 text-xs font-semibold text-slate-700">
-                        <i class="fa-solid fa-arrows-rotate text-indigo-600"></i>
-                        <span>Sincronización Automática con Drive</span>
-                    </div>
-                    <input id="toggle-autosync-gdrive" type="checkbox" class="w-4 h-4 accent-indigo-600 cursor-pointer" />
-                </div>
             </div>
 
-            <!-- Drive File List Drawer (Dynamic) -->
-            <div id="gdrive-file-list-container" class="hidden flex flex-col gap-2 max-h-48 overflow-y-auto border border-slate-200 rounded-2xl p-2 bg-slate-50/50">
-                <span class="text-[10px] font-bold text-slate-400 uppercase px-2">Pizarras Encontradas en Drive</span>
-                <div id="gdrive-file-items" class="flex flex-col gap-1"></div>
+            <div class="flex items-center justify-between px-1">
+                <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-600 font-medium">
+                    <input id="toggle-autosync-gdrive" type="checkbox" class="w-4 h-4 rounded text-emerald-600 accent-emerald-600" />
+                    <span>Sincronización Automática en segundo plano</span>
+                </label>
             </div>
 
-            <!-- Local Desktop Drive Info -->
-            <div class="bg-amber-50 border border-amber-200 p-3 rounded-2xl text-[11px] text-amber-800 flex gap-2.5">
-                <i class="fa-solid fa-circle-info text-amber-600 mt-0.5 text-sm"></i>
-                <div>
-                    <strong>Sincronización con Carpetas Locales:</strong> Si usas <em>Google Drive para Escritorio</em>, puedes guardar tus archivos `.json` directamente en tu carpeta local sincronizada para acceso inmediato.
-                </div>
+            <!-- Lista de Archivos -->
+            <div id="gdrive-file-list-container" class="hidden flex flex-col gap-2 bg-slate-50 p-3 rounded-2xl border border-slate-200 max-h-48 overflow-y-auto">
+                <span class="text-[11px] font-bold text-slate-500 uppercase">Pizarras encontradas en Drive</span>
+                <div id="gdrive-file-items" class="flex flex-col gap-1.5"></div>
             </div>
         </div>
     </div>
 
-    <!-- MAIN TOOLBAR (LEFT SIDEBAR) -->
-    <aside id="main-sidebar" class="fixed top-24 left-3 z-30 glass-panel p-2 rounded-2xl shadow-xl border border-slate-200/90 flex flex-col gap-1.5">
-        <!-- Selection Pointer (V) -->
-        <button id="tool-select" data-tool="select" title="Seleccionar / Mover (V)" class="tool-btn active p-3 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-all">
-            <i class="fa-solid fa-arrow-pointer text-base"></i>
-        </button>
-
-        <!-- Hand / Pan (H) -->
-        <button id="tool-hand" data-tool="hand" title="Mano / Mover Lienzo (H)" class="tool-btn p-3 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-all">
-            <i class="fa-solid fa-hand text-base"></i>
-        </button>
-
-        <div class="h-px bg-slate-200 my-0.5"></div>
-
-        <!-- Sticky Notes (N) -->
-        <div class="relative">
-            <button id="tool-sticky" data-tool="sticky" data-flyout="menu-sticky" title="Nota Adhesiva (N)" class="tool-btn has-flyout p-3 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-between gap-1 w-full transition-all">
-                <i class="fa-solid fa-note-sticky text-base text-amber-500"></i>
-                <i class="fa-solid fa-caret-right text-[9px] opacity-40"></i>
-            </button>
-            <div id="menu-sticky" class="flyout-menu hidden absolute left-full top-0 ml-3 glass-panel p-2.5 rounded-xl shadow-xl border border-slate-200 z-50 flex gap-2 items-center bg-white">
-                <div class="color-dot sticky-color-opt active" data-color="#fef08a" style="background:#fef08a;"></div>
-                <div class="color-dot sticky-color-opt" data-color="#bbf7d0" style="background:#bbf7d0;"></div>
-                <div class="color-dot sticky-color-opt" data-color="#bfdbfe" style="background:#bfdbfe;"></div>
-                <div class="color-dot sticky-color-opt" data-color="#fbcfe8" style="background:#fbcfe8;"></div>
-                <div class="color-dot sticky-color-opt" data-color="#fed7aa" style="background:#fed7aa;"></div>
-                <div class="color-dot sticky-color-opt" data-color="#e9d5ff" style="background:#e9d5ff;"></div>
+    <!-- MODAL CONFIRMAR LIMPIEZA -->
+    <div id="modal-confirm-clear" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-md rounded-3xl shadow-2xl p-6 flex flex-col gap-4 border border-slate-200 bg-white text-center">
+            <div class="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-xl mx-auto">
+                <i class="fa-solid fa-triangle-exclamation"></i>
             </div>
-        </div>
-
-        <!-- Text (T) -->
-        <button id="tool-text" data-tool="text" title="Texto Libre (T)" class="tool-btn p-3 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-all">
-            <i class="fa-solid fa-font text-base"></i>
-        </button>
-
-        <!-- Pencil / Freehand (P) -->
-        <div class="relative">
-            <button id="tool-pencil" data-tool="pencil" data-flyout="menu-pencil" title="Lápiz (P)" class="tool-btn has-flyout p-2.5 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-between gap-1 w-full transition-all">
-                <i class="fa-solid fa-pencil text-base text-indigo-600"></i>
-                <i class="fa-solid fa-caret-right text-[9px] opacity-40"></i>
-            </button>
-            <div id="menu-pencil" class="flyout-menu hidden absolute left-full top-0 ml-3 glass-panel p-3 rounded-xl shadow-xl border border-slate-200 z-50 flex flex-col gap-2.5 w-48 bg-white">
-                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Color de Trazo</span>
-                <div class="flex gap-1.5 flex-wrap">
-                    <div class="color-dot pencil-color-opt active" data-color="#1e293b" style="background:#1e293b;"></div>
-                    <div class="color-dot pencil-color-opt" data-color="#ef4444" style="background:#ef4444;"></div>
-                    <div class="color-dot pencil-color-opt" data-color="#3b82f6" style="background:#3b82f6;"></div>
-                    <div class="color-dot pencil-color-opt" data-color="#10b981" style="background:#10b981;"></div>
-                    <div class="color-dot pencil-color-opt" data-color="#f59e0b" style="background:#f59e0b;"></div>
-                    <div class="color-dot pencil-color-opt" data-color="#8b5cf6" style="background:#8b5cf6;"></div>
-                </div>
-                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">Flechas</span>
-                <div class="flex items-center gap-1">
-                    <button class="arrow-btn-opt pencil-arrow-opt active" data-arrow="none" title="Sin flecha"><i class="fa-solid fa-minus text-xs"></i></button>
-                    <button class="arrow-btn-opt pencil-arrow-opt" data-arrow="end" title="Flecha al final"><i class="fa-solid fa-arrow-right text-xs"></i></button>
-                    <button class="arrow-btn-opt pencil-arrow-opt" data-arrow="start" title="Flecha al inicio"><i class="fa-solid fa-arrow-left text-xs"></i></button>
-                    <button class="arrow-btn-opt pencil-arrow-opt" data-arrow="both" title="Doble flecha"><i class="fa-solid fa-arrows-left-right text-xs"></i></button>
-                </div>
-                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">Grosor</span>
-                <input id="pencil-width" type="range" min="1" max="24" value="3" class="w-full accent-indigo-600" />
-                <div class="flex items-center justify-between mt-1">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Suavizado</span>
-                    <span id="pencil-smooth-label" class="text-xs font-bold text-indigo-600">5</span>
-                </div>
-                <input id="pencil-smooth" type="range" min="0" max="10" value="5" class="w-full accent-indigo-600" />
+            <h3 class="font-bold text-slate-800 text-lg">¿Borrar todo el contenido?</h3>
+            <p class="text-xs text-slate-500">Esta acción eliminará todas las notas, trazos y formas de la pizarra. No podrás deshacer este cambio.</p>
+            <div class="flex items-center gap-3 mt-2">
+                <button id="btn-cancel-clear" class="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold text-xs hover:bg-slate-100 transition-all">Cancelar</button>
+                <button id="btn-confirm-clear" class="flex-1 py-2.5 rounded-xl bg-red-600 text-white font-semibold text-xs hover:bg-red-700 shadow-md shadow-red-200 transition-all">Sí, Limpiar</button>
             </div>
-        </div>
-
-        <!-- Neon Highlighter -->
-        <div class="relative">
-            <button id="tool-highlighter" data-tool="highlighter" data-flyout="menu-highlighter" title="Destacador Neón" class="tool-btn has-flyout p-3 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-between gap-1 w-full transition-all">
-                <i class="fa-solid fa-highlighter text-base text-yellow-500"></i>
-                <i class="fa-solid fa-caret-right text-[9px] opacity-40"></i>
-            </button>
-            <div id="menu-highlighter" class="flyout-menu hidden absolute left-full top-0 ml-3 glass-panel p-3 rounded-xl shadow-xl border border-slate-200 z-50 flex flex-col gap-2.5 w-48 bg-white">
-                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tinta Neón</span>
-                <div class="flex gap-1.5 flex-wrap">
-                    <div class="color-dot hl-color-opt active" data-color="rgba(250, 204, 21, 0.45)" style="background:#facc15;"></div>
-                    <div class="color-dot hl-color-opt" data-color="rgba(74, 222, 128, 0.45)" style="background:#4ade80;"></div>
-                    <div class="color-dot hl-color-opt" data-color="rgba(244, 114, 182, 0.45)" style="background:#f472b6;"></div>
-                    <div class="color-dot hl-color-opt" data-color="rgba(56, 189, 248, 0.45)" style="background:#38bdf8;"></div>
-                    <div class="color-dot hl-color-opt" data-color="rgba(251, 146, 60, 0.45)" style="background:#fb923c;"></div>
-                </div>
-                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">Ancho</span>
-                <input id="hl-width" type="range" min="10" max="40" value="20" class="w-full accent-yellow-500" />
-            </div>
-        </div>
-
-        <!-- Shapes -->
-        <div class="relative">
-            <button id="tool-shape" data-tool="shape" data-flyout="menu-shape" title="Formas Geométricas" class="tool-btn has-flyout p-3 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-between gap-1 w-full transition-all">
-                <i class="fa-regular fa-square text-base"></i>
-                <i class="fa-solid fa-caret-right text-[9px] opacity-40"></i>
-            </button>
-            <div id="menu-shape" class="flyout-menu hidden absolute left-full top-0 ml-3 glass-panel p-2.5 rounded-2xl shadow-xl border border-slate-200 z-50 grid grid-cols-2 gap-2 w-64 bg-white">
-                <button class="shape-opt flex items-center gap-2 p-2 rounded-xl text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700 bg-slate-50 border border-slate-100 transition-all" data-shape="rect">
-                    <i class="fa-regular fa-square text-indigo-500 w-4 text-center"></i> <span class="truncate">Rectángulo</span>
-                </button>
-                <button class="shape-opt flex items-center gap-2 p-2 rounded-xl text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700 bg-slate-50 border border-slate-100 transition-all" data-shape="rounded-rect">
-                    <i class="fa-solid fa-square-full text-[10px] rounded text-indigo-500 w-4 text-center"></i> <span class="truncate">Redondeado</span>
-                </button>
-                <button class="shape-opt flex items-center gap-2 p-2 rounded-xl text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700 bg-slate-50 border border-slate-100 transition-all" data-shape="circle">
-                    <i class="fa-regular fa-circle text-indigo-500 w-4 text-center"></i> <span class="truncate">Círculo</span>
-                </button>
-                <button class="shape-opt flex items-center gap-2 p-2 rounded-xl text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700 bg-slate-50 border border-slate-100 transition-all" data-shape="triangle">
-                    <i class="fa-solid fa-play -rotate-90 text-[10px] text-indigo-500 w-4 text-center"></i> <span class="truncate">Triángulo</span>
-                </button>
-                <button class="shape-opt flex items-center gap-2 p-2 rounded-xl text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700 bg-slate-50 border border-slate-100 transition-all" data-shape="diamond">
-                    <i class="fa-solid fa-diamond text-[10px] text-indigo-500 w-4 text-center"></i> <span class="truncate">Rombo</span>
-                </button>
-                <button class="shape-opt flex items-center gap-2 p-2 rounded-xl text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700 bg-slate-50 border border-slate-100 transition-all" data-shape="star">
-                    <i class="fa-regular fa-star text-indigo-500 w-4 text-center"></i> <span class="truncate">Estrella</span>
-                </button>
-                <button class="shape-opt flex items-center gap-2 p-2 rounded-xl text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700 bg-slate-50 border border-slate-100 transition-all" data-shape="hexagon">
-                    <i class="fa-solid fa-cube text-indigo-500 w-4 text-center"></i> <span class="truncate">Hexágono</span>
-                </button>
-                <button class="shape-opt flex items-center gap-2 p-2 rounded-xl text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700 bg-slate-50 border border-slate-100 transition-all" data-shape="bubble">
-                    <i class="fa-regular fa-comment text-indigo-500 w-4 text-center"></i> <span class="truncate">Globo</span>
-                </button>
-            </div>
-        </div>
-
-        <!-- Connectors / Lines -->
-        <div class="relative">
-            <button id="tool-connector" data-tool="connector" data-flyout="menu-connector" title="Líneas y Conectores" class="tool-btn has-flyout p-2.5 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-between gap-1 w-full transition-all">
-                <i class="fa-solid fa-arrows-alt-h text-base"></i>
-                <i class="fa-solid fa-caret-right text-[9px] opacity-40"></i>
-            </button>
-            <div id="menu-connector" class="flyout-menu flyout-bottom hidden absolute left-full ml-3 glass-panel p-2 rounded-xl shadow-xl border border-slate-200 z-50 flex flex-col gap-1 w-44 bg-white">
-                <button class="conn-opt flex items-center gap-2 p-1.5 rounded-lg text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700" data-conn="line">
-                    <i class="fa-solid fa-minus w-4 text-center"></i> <span>Recta</span>
-                </button>
-                <button class="conn-opt flex items-center gap-2 p-1.5 rounded-lg text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700" data-conn="arrow">
-                    <i class="fa-solid fa-arrow-right w-4 text-center"></i> <span>Flecha Recta</span>
-                </button>
-                <button class="conn-opt flex items-center gap-2 p-1.5 rounded-lg text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700" data-conn="curved">
-                    <i class="fa-solid fa-route text-amber-500 w-4 text-center"></i> <span>Curva</span>
-                </button>
-                <button class="conn-opt flex items-center gap-2 p-1.5 rounded-lg text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700" data-conn="curved-arrow">
-                    <i class="fa-solid fa-arrow-trend-up text-amber-500 w-4 text-center"></i> <span>Flecha Curva</span>
-                </button>
-            </div>
-        </div>
-
-        <!-- Eraser (E) -->
-        <button id="tool-eraser" data-tool="eraser" title="Borrador (E)" class="tool-btn p-3 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-all">
-            <i class="fa-solid fa-eraser text-base"></i>
-        </button>
-
-        <div class="h-px bg-slate-200 my-0.5"></div>
-
-        <!-- Image Upload -->
-        <label title="Subir Imagen" class="tool-btn p-3 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-center cursor-pointer transition-all">
-            <i class="fa-regular fa-image text-base"></i>
-            <input id="image-upload-input" type="file" accept="image/*" class="hidden" />
-        </label>
-    </aside>
-
-    <!-- FLOATING CONTEXT TOOLBAR FOR SELECTED ELEMENTS -->
-    <div id="context-toolbar" class="fixed top-20 left-1/2 -translate-x-1/2 z-40 glass-panel px-3 py-1.5 rounded-2xl shadow-2xl border border-slate-200/90 hidden flex items-center gap-2 transition-all bg-white">
-        <!-- Edit Text Trigger -->
-        <button id="ctx-edit-text" title="Editar Texto" class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all">
-            <i class="fa-solid fa-pen-to-square"></i> Editar Texto
-        </button>
-        <div id="ctx-sep-edit" class="h-4 w-px bg-slate-300"></div>
-
-        <!-- Fill Color -->
-        <div id="ctx-group-fill" class="flex items-center gap-1">
-            <span class="text-[10px] font-bold text-slate-400 uppercase">Relleno</span>
-            <input id="ctx-fill-color" type="color" value="#ffffff" class="w-6 h-6 rounded-lg cursor-pointer border border-slate-200" />
-        </div>
-
-        <!-- Stroke Color -->
-        <div id="ctx-group-stroke" class="flex items-center gap-1">
-            <span class="text-[10px] font-bold text-slate-400 uppercase">Color</span>
-            <input id="ctx-stroke-color" type="color" value="#1e293b" class="w-6 h-6 rounded-lg cursor-pointer border border-slate-200" />
-        </div>
-
-        <!-- Stroke Width -->
-        <div id="ctx-group-width" class="flex items-center gap-1 w-20">
-            <span class="text-[10px] font-bold text-slate-400 uppercase">Grosor</span>
-            <input id="ctx-stroke-width" type="range" min="1" max="20" value="2" class="w-full accent-indigo-600" />
-        </div>
-
-        <!-- Arrow Size Control -->
-        <div id="ctx-group-arrow-size" class="hidden flex items-center gap-1 w-24">
-            <span class="text-[10px] font-bold text-slate-400 uppercase">Punta</span>
-            <input id="ctx-arrow-size" type="range" min="6" max="32" value="14" class="w-full accent-indigo-600" title="Tamaño de flecha" />
-        </div>
-
-        <!-- Connector Line Type (Straight / Curved) -->
-        <div id="ctx-group-conn-style" class="hidden flex items-center gap-1">
-            <select id="ctx-conn-line" class="text-xs bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 font-medium text-slate-700 focus:outline-none" title="Tipo de Línea">
-                <option value="line">Straight</option>
-                <option value="curved">Curva</option>
-            </select>
-        </div>
-
-        <!-- Visual Icon Buttons for Arrows -->
-        <div id="ctx-group-conn-arrows" class="hidden flex items-center gap-1">
-            <button class="arrow-btn-opt ctx-arrow-btn" data-arrow="none" title="Sin flechas"><i class="fa-solid fa-minus text-xs"></i></button>
-            <button class="arrow-btn-opt ctx-arrow-btn" data-arrow="end" title="Flecha final"><i class="fa-solid fa-arrow-right text-xs"></i></button>
-            <button class="arrow-btn-opt ctx-arrow-btn" data-arrow="start" title="Flecha inicial"><i class="fa-solid fa-arrow-left text-xs"></i></button>
-            <button class="arrow-btn-opt ctx-arrow-btn" data-arrow="both" title="Doble flecha"><i class="fa-solid fa-arrows-left-right text-xs"></i></button>
-        </div>
-
-        <!-- Stroke Style -->
-        <select id="ctx-stroke-style" class="text-xs bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 font-medium text-slate-700 focus:outline-none">
-            <option value="solid">Sólida</option>
-            <option value="dashed">Punteada</option>
-            <option value="dotted">Puntos</option>
-        </select>
-
-        <!-- Font Size -->
-        <div id="ctx-group-font" class="flex items-center gap-1">
-            <span class="text-[10px] font-bold text-slate-400 uppercase">Fuente</span>
-            <select id="ctx-font-size" class="text-xs bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 font-medium text-slate-700 focus:outline-none">
-                <option value="12">12px</option>
-                <option value="16">16px</option>
-                <option value="20" selected>20px</option>
-                <option value="28">28px</option>
-                <option value="36">36px</option>
-                <option value="48">48px</option>
-            </select>
-        </div>
-
-        <!-- Stroke Smoothing Slider -->
-        <div id="ctx-group-smoothing" class="flex items-center gap-1 w-24">
-            <span class="text-[10px] font-bold text-slate-400 uppercase">Suavizado</span>
-            <input id="ctx-smoothing" type="range" min="0" max="10" value="5" class="w-full accent-indigo-600" />
-        </div>
-
-        <!-- Opacity Slider -->
-        <div id="ctx-group-opacity" class="flex items-center gap-1 w-24">
-            <i class="fa-solid fa-circle-half-stroke text-slate-400 text-xs"></i>
-            <input id="ctx-opacity" type="range" min="0.1" max="1" step="0.05" value="1" class="w-full accent-indigo-600" />
-        </div>
-
-        <div class="h-4 w-px bg-slate-300"></div>
-
-        <!-- Layering & Actions -->
-        <div class="flex items-center gap-1">
-            <button id="ctx-bring-front" title="Traer al Frente" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600"><i class="fa-solid fa-layer-group text-xs"></i></button>
-            <button id="ctx-send-back" title="Enviar al Fondo" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600"><i class="fa-solid fa-arrow-down-short-wide text-xs"></i></button>
-            <button id="ctx-duplicate" title="Duplicar" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600"><i class="fa-regular fa-copy text-xs"></i></button>
-            <button id="ctx-delete" title="Eliminar" class="p-1.5 hover:bg-red-50 text-red-500 rounded-lg"><i class="fa-solid fa-trash-can text-xs"></i></button>
         </div>
     </div>
 
-    <!-- MAIN CANVAS CONTAINER & INLINE EDITOR -->
-    <div id="canvas-container" class="w-full h-full relative cursor-crosshair">
-        <canvas id="board-canvas" class="block w-full h-full"></canvas>
-        <textarea id="inline-text-editor" placeholder="Escribe aquí..."></textarea>
-    </div>
-
-    <!-- BOTTOM RIGHT ZOOM CONTROLS & MINIMAP -->
-    <div class="fixed bottom-4 right-4 z-30 flex items-center gap-3">
-        <div class="glass-panel px-3 py-1.5 rounded-2xl shadow-xl border border-slate-200/90 flex items-center gap-2 bg-white">
-            <button id="btn-zoom-out" title="Alejar (-)" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-700 transition-all">
-                <i class="fa-solid fa-minus text-xs"></i>
-            </button>
-            <select id="zoom-dropdown" class="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer">
-                <option value="0.1">10%</option>
-                <option value="0.25">25%</option>
-                <option value="0.5">50%</option>
-                <option value="0.75">75%</option>
-                <option value="1.0" selected>100%</option>
-                <option value="1.5">150%</option>
-                <option value="2.0">200%</option>
-                <option value="3.0">300%</option>
-                <option value="5.0">500%</option>
-            </select>
-            <button id="btn-zoom-in" title="Acercar (+)" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-700 transition-all">
-                <i class="fa-solid fa-plus text-xs"></i>
-            </button>
-            <div class="h-4 w-px bg-slate-300"></div>
-            <button id="btn-zoom-fit" title="Ajustar Pantalla" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-700 transition-all">
-                <i class="fa-solid fa-expand text-xs"></i>
-            </button>
-            <button id="btn-toggle-minimap" title="Ver Minimapa" class="p-1.5 hover:bg-slate-100 rounded-lg text-indigo-600 transition-all">
-                <i class="fa-solid fa-map text-xs"></i>
-            </button>
-        </div>
-
-        <div id="minimap-container" class="glass-panel p-1.5 rounded-2xl shadow-2xl border border-slate-200/90 overflow-hidden relative w-44 h-32 hidden bg-white">
-            <canvas id="minimap-canvas" class="w-full h-full rounded-xl bg-slate-50 cursor-pointer"></canvas>
-            <div id="minimap-viewport" class="absolute border-2 border-indigo-600 bg-indigo-500/10 rounded pointer-events-none"></div>
-        </div>
-    </div>
-
-    <!-- TEMPLATES DRAWER MODAL -->
-    <div id="templates-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden">
-        <div class="glass-panel w-full max-w-xl rounded-3xl shadow-2xl border border-slate-200 p-6 flex flex-col gap-5 bg-white">
+    <!-- MODAL GALERÍA DE PLANTILLAS -->
+    <div id="templates-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="glass-panel w-full max-w-2xl rounded-3xl shadow-2xl p-6 flex flex-col gap-5 border border-slate-200 bg-white">
             <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div class="flex items-center gap-2.5">
-                    <div class="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center font-bold">
-                        <i class="fa-solid fa-shapes"></i>
-                    </div>
-                    <h3 class="font-bold text-lg text-slate-800">Plantillas de Clase</h3>
+                <div class="flex items-center gap-2 font-bold text-slate-800 text-base">
+                    <i class="fa-solid fa-shapes text-indigo-600"></i>
+                    <h3>Plantillas Educativas</h3>
                 </div>
-                <button id="btn-close-templates" class="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100"><i class="fa-solid fa-xmark"></i></button>
+                <button id="btn-close-templates" class="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100"><i class="fa-solid fa-xmark text-base"></i></button>
             </div>
-            
-            <div class="grid grid-cols-2 gap-3.5">
-                <button class="template-card text-left p-4 rounded-2xl border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/50 transition-all group flex flex-col gap-2" data-type="kanban">
-                    <div class="flex items-center gap-2 text-indigo-600 font-bold text-sm">
-                        <i class="fa-solid fa-table-columns"></i> Tablero de Tareas
-                    </div>
-                    <p class="text-xs text-slate-500 leading-relaxed">Columnas preparadas para organizar contenidos o actividades de clase.</p>
-                </button>
 
-                <button class="template-card text-left p-4 rounded-2xl border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/50 transition-all group flex flex-col gap-2" data-type="mindmap">
-                    <div class="flex items-center gap-2 text-indigo-600 font-bold text-sm">
-                        <i class="fa-solid fa-diagram-project"></i> Mapa Concepto Central
+            <div class="grid grid-cols-2 gap-4">
+                <div class="template-card p-4 rounded-2xl border border-slate-200 hover:border-indigo-500 hover:shadow-lg cursor-pointer transition-all bg-slate-50/50 flex flex-col gap-2" data-type="kanban">
+                    <div class="flex items-center gap-2 font-bold text-xs text-indigo-600">
+                        <i class="fa-solid fa-table-columns"></i>
+                        <span>Tablero Kanban / Tareas</span>
                     </div>
-                    <p class="text-xs text-slate-500 leading-relaxed">Tema principal ramificado con líneas curvas a subtemas interactivos.</p>
-                </button>
+                    <p class="text-[11px] text-slate-500">Organiza actividades en columnas: Por Hacer, En Proceso y Hecho.</p>
+                </div>
 
-                <button class="template-card text-left p-4 rounded-2xl border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/50 transition-all group flex flex-col gap-2" data-type="retrospective">
-                    <div class="flex items-center gap-2 text-indigo-600 font-bold text-sm">
-                        <i class="fa-solid fa-comments"></i> Retrospectiva Ágil
+                <div class="template-card p-4 rounded-2xl border border-slate-200 hover:border-indigo-500 hover:shadow-lg cursor-pointer transition-all bg-slate-50/50 flex flex-col gap-2" data-type="mindmap">
+                    <div class="flex items-center gap-2 font-bold text-xs text-indigo-600">
+                        <i class="fa-solid fa-diagram-project"></i>
+                        <span>Mapa Conceptual</span>
                     </div>
-                    <p class="text-xs text-slate-500 leading-relaxed">Evalúa proyectos con secciones de retroalimentación.</p>
-                </button>
+                    <p class="text-[11px] text-slate-500">Nodo central con ramificaciones conectadas por líneas curvas.</p>
+                </div>
 
-                <button class="template-card text-left p-4 rounded-2xl border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/50 transition-all group flex flex-col gap-2" data-type="brainstorming">
-                    <div class="flex items-center gap-2 text-indigo-600 font-bold text-sm">
-                        <i class="fa-solid fa-lightbulb"></i> Lluvia de Ideas
+                <div class="template-card p-4 rounded-2xl border border-slate-200 hover:border-indigo-500 hover:shadow-lg cursor-pointer transition-all bg-slate-50/50 flex flex-col gap-2" data-type="retrospective">
+                    <div class="flex items-center gap-2 font-bold text-xs text-indigo-600">
+                        <i class="fa-solid fa-comments"></i>
+                        <span>Retrospectiva de Clase</span>
                     </div>
-                    <p class="text-xs text-slate-500 leading-relaxed">Matriz de notas adhesivas para ideación rápida.</p>
-                </button>
-            </div>
-        </div>
-    </div>
+                    <p class="text-[11px] text-slate-500">Marcos para qué funcionó, qué mejorar y compromisos.</p>
+                </div>
 
-    <!-- CLEAR BOARD CONFIRMATION MODAL -->
-    <div id="modal-confirm-clear" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden">
-        <div class="glass-panel w-full max-w-sm rounded-3xl shadow-2xl border border-slate-200 p-5 flex flex-col gap-4 bg-white text-center">
-            <div class="w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto text-xl">
-                <i class="fa-solid fa-trash-can"></i>
-            </div>
-            <h3 class="font-bold text-base text-slate-800">¿Limpiar la Pizarra?</h3>
-            <p class="text-xs text-slate-500">Se eliminarán todos los elementos del lienzo. Esta acción no se puede deshacer.</p>
-            <div class="flex gap-2 justify-center mt-2">
-                <button id="btn-cancel-clear" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold">Cancelar</button>
-                <button id="btn-confirm-clear" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold">Sí, Limpiar</button>
+                <div class="template-card p-4 rounded-2xl border border-slate-200 hover:border-indigo-500 hover:shadow-lg cursor-pointer transition-all bg-slate-50/50 flex flex-col gap-2" data-type="brainstorming">
+                    <div class="flex items-center gap-2 font-bold text-xs text-indigo-600">
+                        <i class="fa-solid fa-lightbulb"></i>
+                        <span>Lluvia de Ideas</span>
+                    </div>
+                    <p class="text-[11px] text-slate-500">Matriz de notas adhesivas multicolor para participación activa.</p>
+                </div>
             </div>
         </div>
     </div>
 
     <!-- TOAST NOTIFICATION -->
-    <div id="toast-notification" class="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 glass-panel px-4 py-2.5 rounded-2xl shadow-2xl text-xs font-semibold text-slate-800 border border-slate-200 pointer-events-none opacity-0 translate-y-2 transition-all duration-300 flex items-center gap-2 bg-white">
+    <div id="toast-notification" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 glass-panel px-4 py-2.5 rounded-2xl shadow-xl border border-slate-200 flex items-center gap-2.5 transition-all duration-300 opacity-0 translate-y-2 pointer-events-none">
         <i id="toast-icon" class="fa-solid fa-circle-check text-indigo-600"></i>
-        <span id="toast-message">Acción completada</span>
+        <span id="toast-message" class="text-xs font-semibold text-slate-700">Notificación</span>
     </div>
 
-    <!-- MAIN JAVASCRIPT MODULE ENTRYPOINT -->
+    <!-- CARGA DEL SCRIPT PRINCIPAL DE ARRANQUE -->
     <script type="module" src="js/main.js"></script>
 </body>
 </html>
