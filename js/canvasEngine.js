@@ -234,8 +234,10 @@ function drawElement(ctx, el) {
                     ctx.fill();
                 } else {
                     const hasArrows = el.arrowMode && el.arrowMode !== 'none';
-                    const arrowSize = el.arrowSize || Math.max(12, el.lineWidth * 2.5 + 6);
-                    const offset = arrowSize * 0.75;
+                    // Escalar proporcionalmente la flecha según el grosor del trazo
+                    const baseArrowSize = el.arrowSize || 14;
+                    const arrowSize = Math.max(baseArrowSize, el.lineWidth * 2.8);
+                    const offset = arrowSize * 0.85;
 
                     // Clonar la lista de puntos para recortar extremos sin alterar el historial
                     let strokePts = pts.map(p => ({ ...p }));
@@ -458,7 +460,8 @@ function drawConnector(ctx, el) {
     const startX = el.x, startY = el.y;
     const endX = el.endX !== undefined ? el.endX : el.x + 100;
     const endY = el.endY !== undefined ? el.endY : el.y + 100;
-    const arrowSize = el.arrowSize || 14;
+    const baseArrowSize = el.arrowSize || 14;
+    const arrowSize = Math.max(baseArrowSize, (el.strokeWidth || 2) * 2.8);
 
     // Determinar modo de flecha (compatibilidad con connType previo o arrowMode directo)
     let mode = el.arrowMode;
@@ -523,8 +526,8 @@ function drawArrowHead(ctx, fromX, fromY, toX, toY, color, size = 14) {
     ctx.fillStyle = color || '#1e293b';
     ctx.beginPath();
     ctx.moveTo(toX, toY);
-    ctx.lineTo(toX - size * Math.cos(angle - Math.PI / 6), toY - size * Math.sin(angle - Math.PI / 6));
-    ctx.lineTo(toX - size * Math.cos(angle + Math.PI / 6), toY - size * Math.sin(angle + Math.PI / 6));
+    ctx.lineTo(toX - size * Math.cos(angle - Math.PI / 5.5), toY - size * Math.sin(angle - Math.PI / 5.5));
+    ctx.lineTo(toX - size * Math.cos(angle + Math.PI / 5.5), toY - size * Math.sin(angle + Math.PI / 5.5));
     ctx.closePath();
     ctx.fill();
 }
