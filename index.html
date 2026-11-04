@@ -217,7 +217,7 @@
 
         <!-- Pencil / Freehand (P) -->
         <div class="relative">
-            <button id="tool-pencil" data-tool="pencil" data-flyout="menu-pencil" title="Lápiz (P)" class="tool-btn has-flyout p-3 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-between gap-1 w-full transition-all">
+            <button id="tool-pencil" data-tool="pencil" data-flyout="menu-pencil" title="Lápiz (P)" class="tool-btn has-flyout p-2.5 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-between gap-1 w-full transition-all">
                 <i class="fa-solid fa-pencil text-base text-indigo-600"></i>
                 <i class="fa-solid fa-caret-right text-[9px] opacity-40"></i>
             </button>
@@ -230,6 +230,13 @@
                     <div class="color-dot pencil-color-opt" data-color="#10b981" style="background:#10b981;"></div>
                     <div class="color-dot pencil-color-opt" data-color="#f59e0b" style="background:#f59e0b;"></div>
                     <div class="color-dot pencil-color-opt" data-color="#8b5cf6" style="background:#8b5cf6;"></div>
+                </div>
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">Flechas</span>
+                <div class="flex items-center gap-1">
+                    <button class="arrow-btn-opt pencil-arrow-opt active" data-arrow="none" title="Sin flecha"><i class="fa-solid fa-minus text-xs"></i></button>
+                    <button class="arrow-btn-opt pencil-arrow-opt" data-arrow="end" title="Flecha al final"><i class="fa-solid fa-arrow-right text-xs"></i></button>
+                    <button class="arrow-btn-opt pencil-arrow-opt" data-arrow="start" title="Flecha al inicio"><i class="fa-solid fa-arrow-left text-xs"></i></button>
+                    <button class="arrow-btn-opt pencil-arrow-opt" data-arrow="both" title="Doble flecha"><i class="fa-solid fa-arrows-left-right text-xs"></i></button>
                 </div>
                 <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">Grosor</span>
                 <input id="pencil-width" type="range" min="1" max="24" value="3" class="w-full accent-indigo-600" />
@@ -297,25 +304,22 @@
 
         <!-- Connectors / Lines -->
         <div class="relative">
-            <button id="tool-connector" data-tool="connector" data-flyout="menu-connector" title="Líneas y Conectores" class="tool-btn has-flyout p-3 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-between gap-1 w-full transition-all">
+            <button id="tool-connector" data-tool="connector" data-flyout="menu-connector" title="Líneas y Conectores" class="tool-btn has-flyout p-2.5 rounded-xl text-slate-700 hover:bg-slate-100 flex items-center justify-between gap-1 w-full transition-all">
                 <i class="fa-solid fa-arrows-alt-h text-base"></i>
                 <i class="fa-solid fa-caret-right text-[9px] opacity-40"></i>
             </button>
-            <div id="menu-connector" class="flyout-menu flyout-bottom hidden absolute left-full ml-3 glass-panel p-2 rounded-xl shadow-xl border border-slate-200 z-50 flex flex-col gap-1 w-48 bg-white">
+            <div id="menu-connector" class="flyout-menu flyout-bottom hidden absolute left-full ml-3 glass-panel p-2 rounded-xl shadow-xl border border-slate-200 z-50 flex flex-col gap-1 w-44 bg-white">
                 <button class="conn-opt flex items-center gap-2 p-1.5 rounded-lg text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700" data-conn="line">
-                    <i class="fa-solid fa-minus w-4 text-center"></i> Recta
+                    <i class="fa-solid fa-minus w-4 text-center"></i> <span>Recta</span>
                 </button>
                 <button class="conn-opt flex items-center gap-2 p-1.5 rounded-lg text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700" data-conn="arrow">
-                    <i class="fa-solid fa-arrow-right w-4 text-center"></i> Flecha Recta
+                    <i class="fa-solid fa-arrow-right w-4 text-center"></i> <span>Flecha Recta</span>
                 </button>
                 <button class="conn-opt flex items-center gap-2 p-1.5 rounded-lg text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700" data-conn="curved">
-                    <i class="fa-solid fa-route text-amber-500 w-4 text-center"></i> Curva
+                    <i class="fa-solid fa-route text-amber-500 w-4 text-center"></i> <span>Curva</span>
                 </button>
                 <button class="conn-opt flex items-center gap-2 p-1.5 rounded-lg text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700" data-conn="curved-arrow">
-                    <i class="fa-solid fa-arrow-trend-up text-amber-500 w-4 text-center"></i> Flecha Curva
-                </button>
-                <button class="conn-opt flex items-center gap-2 p-1.5 rounded-lg text-xs hover:bg-indigo-50 hover:text-indigo-600 font-medium text-slate-700" data-conn="curved-double-arrow">
-                    <i class="fa-solid fa-arrows-left-right-to-line text-amber-500 w-4 text-center"></i> Doble Flecha Curva
+                    <i class="fa-solid fa-arrow-trend-up text-amber-500 w-4 text-center"></i> <span>Flecha Curva</span>
                 </button>
             </div>
         </div>
@@ -335,7 +339,7 @@
     </aside>
 
     <!-- FLOATING CONTEXT TOOLBAR FOR SELECTED ELEMENTS -->
-    <div id="context-toolbar" class="fixed top-20 left-1/2 -translate-x-1/2 z-40 glass-panel px-3.5 py-1.5 rounded-2xl shadow-2xl border border-slate-200/90 hidden flex items-center gap-2 transition-all bg-white">
+    <div id="context-toolbar" class="fixed top-20 left-1/2 -translate-x-1/2 z-40 glass-panel px-3 py-1.5 rounded-2xl shadow-2xl border border-slate-200/90 hidden flex items-center gap-2 transition-all bg-white">
         <!-- Edit Text Trigger -->
         <button id="ctx-edit-text" title="Editar Texto" class="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all">
             <i class="fa-solid fa-pen-to-square"></i> Editar Texto
@@ -350,7 +354,7 @@
 
         <!-- Stroke Color -->
         <div id="ctx-group-stroke" class="flex items-center gap-1">
-            <span class="text-[10px] font-bold text-slate-400 uppercase">Borde</span>
+            <span class="text-[10px] font-bold text-slate-400 uppercase">Color</span>
             <input id="ctx-stroke-color" type="color" value="#1e293b" class="w-6 h-6 rounded-lg cursor-pointer border border-slate-200" />
         </div>
 
@@ -362,28 +366,30 @@
 
         <!-- Arrow Size Control -->
         <div id="ctx-group-arrow-size" class="hidden flex items-center gap-1 w-24">
-            <span class="text-[10px] font-bold text-slate-400 uppercase">Flecha</span>
-            <input id="ctx-arrow-size" type="range" min="6" max="32" value="14" class="w-full accent-indigo-600" title="Tamaño de punta de flecha" />
+            <span class="text-[10px] font-bold text-slate-400 uppercase">Punta</span>
+            <input id="ctx-arrow-size" type="range" min="6" max="32" value="14" class="w-full accent-indigo-600" title="Tamaño de flecha" />
         </div>
 
-        <!-- Connector Type Controls (Line curve & Arrow placement) -->
-        <div id="ctx-group-conn-style" class="hidden flex items-center gap-1.5">
+        <!-- Connector Line Type (Straight / Curved) -->
+        <div id="ctx-group-conn-style" class="hidden flex items-center gap-1">
             <select id="ctx-conn-line" class="text-xs bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 font-medium text-slate-700 focus:outline-none" title="Tipo de Línea">
-                <option value="line">Recta</option>
+                <option value="line">Straight</option>
                 <option value="curved">Curva</option>
             </select>
-            <select id="ctx-conn-arrow" class="text-xs bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 font-medium text-slate-700 focus:outline-none" title="Puntas de Flecha">
-                <option value="none">Sin Flechas</option>
-                <option value="end">Flecha Final</option>
-                <option value="start">Flecha Inicial</option>
-                <option value="both">Doble Flecha</option>
-            </select>
+        </div>
+
+        <!-- Visual Icon Buttons for Arrows -->
+        <div id="ctx-group-conn-arrows" class="hidden flex items-center gap-1">
+            <button class="arrow-btn-opt ctx-arrow-btn" data-arrow="none" title="Sin flechas"><i class="fa-solid fa-minus text-xs"></i></button>
+            <button class="arrow-btn-opt ctx-arrow-btn" data-arrow="end" title="Flecha final"><i class="fa-solid fa-arrow-right text-xs"></i></button>
+            <button class="arrow-btn-opt ctx-arrow-btn" data-arrow="start" title="Flecha inicial"><i class="fa-solid fa-arrow-left text-xs"></i></button>
+            <button class="arrow-btn-opt ctx-arrow-btn" data-arrow="both" title="Doble flecha"><i class="fa-solid fa-arrows-left-right text-xs"></i></button>
         </div>
 
         <!-- Stroke Style -->
         <select id="ctx-stroke-style" class="text-xs bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 font-medium text-slate-700 focus:outline-none">
-            <option value="solid">Línea Sólida</option>
-            <option value="dashed">Punteado</option>
+            <option value="solid">Sólida</option>
+            <option value="dashed">Punteada</option>
             <option value="dotted">Puntos</option>
         </select>
 
