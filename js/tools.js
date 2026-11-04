@@ -60,14 +60,13 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
         state.startPoint = worldPos;
         state.lastMousePos = { x: e.clientX, y: e.clientY };
 
-        // Herramienta mano o botón central del ratón
         if (state.activeTool === 'hand' || e.button === 1) {
             state.isPanning = true;
             canvas.style.cursor = 'grabbing';
             return;
         }
 
-        // Detección de puntos de control y redimensionamiento
+        // Detección de manipuladores de Selección / Rotación / Tamaño
         if (state.selectedIds.length === 1) {
             const selected = state.elements.find(el => el.id === state.selectedIds[0]);
             if (selected) {
@@ -95,10 +94,31 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                         state.activeHandle = 'end';
                         return;
                     }
-                } else if (selected.width !== undefined && selected.height !== undefined) {
+                } else {
                     const b = getElementBounds(selected);
+                    const cx = b.x + b.width / 2;
+                    const cy = b.y + b.height / 2;
+
+                    // Ajustar punto clicado si hay rotación existente
+                    let checkPos = worldPos;
+                    if (selected.rotation) {
+                        const cos = Math.cos(-selected.rotation);
+                        const sin = Math.sin(-selected.rotation);
+                        const dx = worldPos.x - cx;
+                        const dy = worldPos.y - cy;
+                        checkPos = { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos };
+                    }
+
+                    // Check Manipulador de Rotación
+                    const rotY = b.y - 24 / state.zoom;
+                    if (Math.hypot(checkPos.x - cx, checkPos.y - rotY) <= 14 / state.zoom) {
+                        state.isRotating = true;
+                        state.rotationCenter = { x: cx, y: cy };
+                        return;
+                    }
+
+                    // Check Manipuladores de Esquinas
                     const handleRadius = 12 / state.zoom;
-                    
                     const corners = [
                         { name: 'nw', x: b.x, y: b.y },
                         { name: 'ne', x: b.x + b.width, y: b.y },
@@ -107,7 +127,7 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                     ];
 
                     for (const c of corners) {
-                        if (Math.hypot(worldPos.x - c.x, worldPos.y - c.y) <= handleRadius) {
+                        if (Math.hypot(checkPos.x - c.x, checkPos.y - c.y) <= handleRadius) {
                             state.isResizing = true;
                             state.activeHandle = c.name;
                             state.resizeInitialBounds = { x: selected.x, y: selected.y, width: selected.width, height: selected.height };
@@ -132,7 +152,7 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
             return;
         }
 
-        // Creación de nuevos elementos según la herramienta
+        // Creación con Lápiz / Destacador
         const id = 'el_' + Date.now();
         if (state.activeTool === 'pencil' || state.activeTool === 'highlighter') {
             state.isDrawing = true;
@@ -143,6 +163,7 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                 color: isHighlighter ? state.hlColor : state.pencilColor,
                 lineWidth: isHighlighter ? state.hlWidth : state.pencilWidth,
                 smoothing: state.smoothing,
+                arrowMode: state.pencilArrowMode || 'none',
                 points: [{ x: worldPos.x, y: worldPos.y }]
             };
         } else if (state.activeTool === 'sticky') {
@@ -154,21 +175,8 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                 width: 140,
                 height: 140,
                 color: state.stickyColor,
+                rotation: 0,
                 text: 'Nueva Nota'
-            });
-            state.selectedIds = [id];
-            if (setToolCallback) setToolCallback('select');
-            saveState();
-            if (renderCallback) renderCallback();
-        } else if (state.activeTool === 'text') {
-            state.elements.push({
-                id,
-                type: 'text',
-                x: worldPos.x,
-                y: worldPos.y,
-                text: 'Texto Nuevo',
-                fontSize: 20,
-                color: '#1e293b'
             });
             state.selectedIds = [id];
             if (setToolCallback) setToolCallback('select');
@@ -184,11 +192,27 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                 y: worldPos.y,
                 width: 0,
                 height: 0,
+                rotation: 0,
                 fillColor: '#ffffff',
                 strokeColor: '#1e293b',
                 strokeWidth: 2,
                 strokeStyle: 'solid'
             };
+        } else if (state.activeTool === 'text') {
+            state.elements.push({
+                id,
+                type: 'text',
+                x: worldPos.x,
+                y: worldPos.y,
+                rotation: 0,
+                text: 'Texto Nuevo',
+                fontSize: 20,
+                color: '#1e293b'
+            });
+            state.selectedIds = [id];
+            if (setToolCallback) setToolCallback('select');
+            saveState();
+            if (renderCallback) renderCallback();
         } else if (state.activeTool === 'connector') {
             state.isDrawing = true;
             state.tempElement = {
@@ -213,7 +237,7 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
         }
     });
 
-    // EVENTO POINTERMOVE (Arrastre / Dibujo en progreso)
+    // EVENTO POINTERMOVE (Arrastre / Rotación)
     canvas.addEventListener('pointermove', (e) => {
         const worldPos = screenToWorld(e.clientX, e.clientY, canvas);
 
@@ -222,6 +246,16 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
             state.pan.y += e.clientY - state.lastMousePos.y;
             state.lastMousePos = { x: e.clientX, y: e.clientY };
             if (renderCallback) renderCallback();
+            return;
+        }
+
+        if (state.isRotating && state.selectedIds.length === 1) {
+            const el = state.elements.find(e => e.id === state.selectedIds[0]);
+            if (el && state.rotationCenter) {
+                const angle = Math.atan2(worldPos.y - state.rotationCenter.y, worldPos.x - state.rotationCenter.x);
+                el.rotation = angle + Math.PI / 2;
+                if (renderCallback) renderCallback();
+            }
             return;
         }
 
@@ -242,29 +276,17 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                         el.height = Math.max(minSize, worldPos.y - init.y);
                     } else if (h === 'sw') {
                         const newW = init.x + init.width - worldPos.x;
-                        if (newW >= minSize) {
-                            el.x = worldPos.x;
-                            el.width = newW;
-                        }
+                        if (newW >= minSize) { el.x = worldPos.x; el.width = newW; }
                         el.height = Math.max(minSize, worldPos.y - init.y);
                     } else if (h === 'ne') {
                         el.width = Math.max(minSize, worldPos.x - init.x);
                         const newH = init.y + init.height - worldPos.y;
-                        if (newH >= minSize) {
-                            el.y = worldPos.y;
-                            el.height = newH;
-                        }
+                        if (newH >= minSize) { el.y = worldPos.y; el.height = newH; }
                     } else if (h === 'nw') {
                         const newW = init.x + init.width - worldPos.x;
-                        if (newW >= minSize) {
-                            el.x = worldPos.x;
-                            el.width = newW;
-                        }
+                        if (newW >= minSize) { el.x = worldPos.x; el.width = newW; }
                         const newH = init.y + init.height - worldPos.y;
-                        if (newH >= minSize) {
-                            el.y = worldPos.y;
-                            el.height = newH;
-                        }
+                        if (newH >= minSize) { el.y = worldPos.y; el.height = newH; }
                     }
                 }
                 if (renderCallback) renderCallback();
@@ -309,16 +331,18 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
         }
     });
 
-    // EVENTO POINTERUP (Fin de interacción)
+    // EVENTO POINTERUP
     canvas.addEventListener('pointerup', () => {
         if (state.isPanning) {
             state.isPanning = false;
             canvas.style.cursor = 'crosshair';
         }
-        if (state.isDragging || state.isResizing) {
+        if (state.isDragging || state.isResizing || state.isRotating) {
             state.isDragging = false;
             state.isResizing = false;
+            state.isRotating = false;
             state.resizeInitialBounds = null;
+            state.rotationCenter = null;
             saveState();
         }
         if (state.isDrawing && state.tempElement) {
