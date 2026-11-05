@@ -51,8 +51,8 @@ export const state = {
   isDarkMode: false,
 
   // Integración Google Drive y Roles
-  gdriveClientId: '228340156976-5qlnsc03v8hhgip90f7q9l4f4ll6cqlp.apps.googleusercontent.com',
-  gdriveTeacherEmail: 'profe.diego.pizarra@gmail.com',
+// Integración Google Drive y Roles
+  gdriveClientId: '105539045721-rqso8ee1qvak0f35lm72dl0iqgaisqqe.apps.googleusercontent.com',  gdriveTeacherEmail: 'profe.diego.pizarra@gmail.com',
   gdriveScopes: 'https://www.googleapis.com/auth/drive',
   gdriveAccessToken: null,
   gdriveUser: null,
