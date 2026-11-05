@@ -29,7 +29,7 @@ export const state = {
     historyIndex: -1,
     tempElement: null,
     editingElementId: null,
-    alignmentGuides: [], // Guías visuales de alineación
+    alignmentGuides: [],
     
     // Configuración y estado de Google Drive & Explorador
     gdriveClientId: '105539045721-rqso8ee1qvak0f35lm72dl0iqgaisqqe.apps.googleusercontent.com',
@@ -43,13 +43,10 @@ export const state = {
     gdriveClipboardFile: null,
     gdriveUser: null,
     gdriveAutoSync: false,
-    gdriveActiveFileId: null,      // ID del archivo actualmente abierto en Drive
-    gdriveActiveFileName: null    // Nombre del archivo activo
+    gdriveActiveFileId: null,
+    gdriveActiveFileName: null
 };
 
-/**
- * Convierte coordenadas de la pantalla (píxeles) a coordenadas del lienzo infinito
- */
 export function screenToWorld(sx, sy, canvas) {
     const rect = canvas.getBoundingClientRect();
     return {
@@ -58,9 +55,6 @@ export function screenToWorld(sx, sy, canvas) {
     };
 }
 
-/**
- * Convierte coordenadas del lienzo a posición en pantalla
- */
 export function worldToScreen(wx, wy) {
     return {
         x: wx * state.zoom + state.pan.x,
@@ -68,9 +62,6 @@ export function worldToScreen(wx, wy) {
     };
 }
 
-/**
- * Guarda una captura del estado actual en el historial y en localStorage
- */
 export function saveState() {
     const snapshot = JSON.stringify(state.elements);
     if (state.historyIndex >= 0 && state.history[state.historyIndex] === snapshot) return;
@@ -96,39 +87,40 @@ export function saveState() {
         console.warn("No se pudo guardar en localStorage:", e);
     }
 
-    // Disparar sincronización automática en tiempo real si está configurada
     if (typeof window.triggerAutoSaveToDrive === 'function') {
         window.triggerAutoSaveToDrive();
     }
+
+    // Transmitir en tiempo real a la sala de Firebase cuando se agrega o modifica un trazo
+    if (typeof window.broadcastBoardState === 'function') {
+        window.broadcastBoardState(state.elements);
+    }
 }
 
-/**
- * Deshacer la última acción
- */
 export function undo(renderCallback, updateContextCb) {
     if (state.historyIndex > 0) {
         state.historyIndex--;
         restoreSnapshot(state.history[state.historyIndex], renderCallback);
         updateUndoRedoButtons();
         if (updateContextCb) updateContextCb();
+        if (typeof window.broadcastBoardState === 'function') {
+            window.broadcastBoardState(state.elements);
+        }
     }
 }
 
-/**
- * Rehacer la acción anteriormente deshecha
- */
 export function redo(renderCallback, updateContextCb) {
     if (state.historyIndex < state.history.length - 1) {
         state.historyIndex++;
         restoreSnapshot(state.history[state.historyIndex], renderCallback);
         updateUndoRedoButtons();
         if (updateContextCb) updateContextCb();
+        if (typeof window.broadcastBoardState === 'function') {
+            window.broadcastBoardState(state.elements);
+        }
     }
 }
 
-/**
- * Actualiza el estado visual (habilitado/deshabilitado) de los botones Deshacer/Rehacer
- */
 export function updateUndoRedoButtons() {
     const btnUndo = document.getElementById('btn-undo');
     const btnRedo = document.getElementById('btn-redo');
@@ -136,16 +128,12 @@ export function updateUndoRedoButtons() {
     if (btnRedo) btnRedo.disabled = state.historyIndex >= state.history.length - 1;
 }
 
-/**
- * Restaura los elementos desde una cadena JSON
- */
 export function restoreSnapshot(jsonStr, renderCallback) {
     try {
         const data = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
         const elementsList = Array.isArray(data) ? data : (data.elements || []);
         
         state.elements = elementsList.map(el => {
-            // Rehidratar y sanitizar trazos libres de lápiz/destacador guardados
             if (el.type === 'pencil' || el.type === 'highlighter') {
                 if (el.arrowMode === undefined) el.arrowMode = 'none';
                 if (el.arrowSize === undefined) el.arrowSize = 14;
@@ -187,9 +175,6 @@ export function restoreSnapshot(jsonStr, renderCallback) {
     }
 }
 
-/**
- * Carga el estado guardado al iniciar la aplicación
- */
 export function loadFromLocalStorage(renderCallback) {
     const savedData = localStorage.getItem('profediego_board_data');
     const savedTitle = localStorage.getItem('profediego_board_title');
@@ -198,6 +183,9 @@ export function loadFromLocalStorage(renderCallback) {
 
     if (savedActiveFileId) {
         state.gdriveActiveFileId = savedActiveFileId;
+        if (typeof window.joinRoom === 'function') {
+            window.joinRoom(savedActiveFileId, renderCallback);
+        }
     }
 
     if (savedDarkMode === 'true') {

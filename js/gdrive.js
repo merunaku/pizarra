@@ -1,6 +1,7 @@
 // GOOGLE DRIVE CLOUD SYNC & EXPLORER MODULE - PIZARRA PROFEDIEGO
 import { state, saveState, restoreSnapshot } from './state.js';
 import { showToast } from './uiController.js';
+import { joinRoom } from './firebaseSync.js';
 
 let renderCallback = null;
 let tokenClient = null;
@@ -101,7 +102,7 @@ async function checkSavedSession() {
         }
     }
     
-    // Si expiro o no existe token, intentar refresco silencioso si tokenClient está listo
+    // Si expiró o no existe token, intentar refresco silencioso si tokenClient está listo
     if (tokenClient) {
         try {
             tokenClient.requestAccessToken({ prompt: 'none' });
@@ -133,7 +134,7 @@ export function handleAuthClick() {
 export function setupGoogleDriveListeners(renderFn) {
     renderCallback = renderFn;
 
-    // Exponer la función de Auto-Sync al ámbito global para invocation desde saveState()
+    // Exponer la función de Auto-Sync al ámbito global para invocación desde saveState()
     window.triggerAutoSaveToDrive = triggerAutoSaveToDrive;
 
     window.gdriveModule = {
@@ -529,6 +530,12 @@ export async function saveWhiteboardTest(silent = false) {
             if (contentResponse.ok) {
                 updateSyncBadge('Sincronizado con Drive', 'drive');
                 if (!silent) showToast('Pizarra actualizada en Google Drive', 'fa-solid fa-cloud-arrow-up');
+                
+                // Conectar/Mantener la sala activa en Firebase Realtime Database
+                if (typeof joinRoom === 'function') {
+                    joinRoom(state.gdriveActiveFileId, renderCallback);
+                }
+
                 listFolderContents();
             }
         } else {
@@ -569,6 +576,12 @@ export async function saveWhiteboardTest(silent = false) {
                 await setPublicReadPermission(file.id);
                 updateSyncBadge('Sincronizado con Drive', 'drive');
                 if (!silent) showToast('Pizarra guardada y enlazada con Drive', 'fa-solid fa-cloud-arrow-up');
+
+                // Conectar la sala activa en Firebase Realtime Database
+                if (typeof joinRoom === 'function') {
+                    joinRoom(file.id, renderCallback);
+                }
+
                 listFolderContents();
             }
         }
@@ -694,6 +707,11 @@ export async function readWhiteboard(fileId, fileName = '') {
 
         restoreSnapshot(content, renderCallback);
         saveState();
+
+        // Conectar automáticamente a la sala correspondiente en Firebase
+        if (typeof joinRoom === 'function') {
+            joinRoom(fileId, renderCallback);
+        }
 
         updateSyncBadge('Sincronizado con Drive', 'drive');
 

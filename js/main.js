@@ -5,6 +5,7 @@ import { setupCanvasListeners } from './tools.js';
 import { setupUIListeners, setTool, updateContextToolbar } from './uiController.js';
 import { setupGoogleDriveListeners, initGIS } from './gdrive.js';
 import { setupTemplatesListeners } from './templates.js';
+import { joinRoom } from './firebaseSync.js';
 
 window.addEventListener('DOMContentLoaded', () => {
     const canvas = document.getElementById('board-canvas');
@@ -16,23 +17,18 @@ window.addEventListener('DOMContentLoaded', () => {
 
     const renderFn = () => render(canvas, ctx, minimapCanvas, minimapCtx);
 
-    // Ajustar resolución inicial y listener de ventana
     resizeCanvas(canvas, renderFn);
     window.addEventListener('resize', () => resizeCanvas(canvas, renderFn));
 
-    // Cargar estado desde localStorage
     loadFromLocalStorage(renderFn);
 
-    // Inicializar listeners de todos los módulos
     setupCanvasListeners(canvas, ctx, renderFn, setTool, updateContextToolbar);
     setupUIListeners(canvas, ctx, renderFn);
     setupGoogleDriveListeners(renderFn);
     setupTemplatesListeners(canvas, renderFn);
 
-    // Inicializar Google Identity Services Client
     initGIS(renderFn);
 
-    // Herramienta inicial por defecto y primer renderizado
     setTool('pencil');
     renderFn();
 });
