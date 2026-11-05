@@ -29,7 +29,7 @@ export const state = {
     historyIndex: -1,
     tempElement: null,
     editingElementId: null,
-    alignmentGuides: [], // Guías visuales de alineación { type: 'v'|'h', pos: number }
+    alignmentGuides: [], // Guías visuales de alineación
     
     // Configuración y estado de Google Drive & Explorador
     gdriveClientId: '105539045721-rqso8ee1qvak0f35lm72dl0iqgaisqqe.apps.googleusercontent.com',
@@ -42,7 +42,9 @@ export const state = {
     gdriveFolderHistory: [{ id: '1F9G2av-nBxT4lnOI9TeG4Do0cadbbESQ', name: 'Raíz' }],
     gdriveClipboardFile: null,
     gdriveUser: null,
-    gdriveAutoSync: false
+    gdriveAutoSync: false,
+    gdriveActiveFileId: null,      // ID del archivo actualmente abierto en Drive
+    gdriveActiveFileName: null    // Nombre del archivo activo
 };
 
 /**
@@ -87,8 +89,16 @@ export function saveState() {
         if (titleInput) {
             localStorage.setItem('profediego_board_title', titleInput.value);
         }
+        if (state.gdriveActiveFileId) {
+            localStorage.setItem('profediego_active_file_id', state.gdriveActiveFileId);
+        }
     } catch (e) {
         console.warn("No se pudo guardar en localStorage:", e);
+    }
+
+    // Disparar sincronización automática en tiempo real si está configurada
+    if (typeof window.triggerAutoSaveToDrive === 'function') {
+        window.triggerAutoSaveToDrive();
     }
 }
 
@@ -184,6 +194,11 @@ export function loadFromLocalStorage(renderCallback) {
     const savedData = localStorage.getItem('profediego_board_data');
     const savedTitle = localStorage.getItem('profediego_board_title');
     const savedDarkMode = localStorage.getItem('profediego_dark_mode');
+    const savedActiveFileId = localStorage.getItem('profediego_active_file_id');
+
+    if (savedActiveFileId) {
+        state.gdriveActiveFileId = savedActiveFileId;
+    }
 
     if (savedDarkMode === 'true') {
         state.darkMode = true;
@@ -194,7 +209,9 @@ export function loadFromLocalStorage(renderCallback) {
 
     if (savedTitle) {
         const titleInput = document.getElementById('board-title');
+        const modalTitleInput = document.getElementById('boardTitle');
         if (titleInput) titleInput.value = savedTitle;
+        if (modalTitleInput) modalTitleInput.value = savedTitle;
     }
     
     if (savedData) {

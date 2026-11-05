@@ -2,7 +2,7 @@
 import { state, saveState, undo, redo, restoreSnapshot } from './state.js';
 import { openInlineEditor, closeInlineEditor, addConnectorIntermediatePoint, removeConnectorIntermediatePoint, joinSelectedLines } from './tools.js';
 import { getConnectorPoints, getLuminance } from './canvasEngine.js';
-import { saveWhiteboardTest } from './gdrive.js';
+import { saveWhiteboardTest, syncBoardTitle } from './gdrive.js';
 
 let renderCallback = null;
 
@@ -216,6 +216,17 @@ export function updateContextToolbar() {
  */
 export function setupUIListeners(canvas, ctx, renderFn) {
     renderCallback = renderFn;
+
+    // Vincular inputs de título de pizarra entre la barra superior y el modal
+    const topBoardTitle = document.getElementById('board-title');
+    if (topBoardTitle) {
+        topBoardTitle.addEventListener('input', (e) => syncBoardTitle(e.target.value));
+    }
+
+    const modalBoardTitle = document.getElementById('boardTitle');
+    if (modalBoardTitle) {
+        modalBoardTitle.addEventListener('input', (e) => syncBoardTitle(e.target.value));
+    }
 
     // Conmutador de Modo Oscuro / Claro
     const btnDarkMode = document.getElementById('btn-toggle-darkmode');
