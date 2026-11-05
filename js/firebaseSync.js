@@ -1,263 +1,224 @@
-// MODULO DE SINCRONIZACIÓN EN TIEMPO REAL Y PRESENCIA - FIREBASE REALTIME DATABASE
-import { state, restoreSnapshot } from './state.js';
+// FIREBASE REALTIME SYNC & MULTIUSER MONITOR MODULE - PIZARRA PROFEDIEGO
+import { state, saveState, restoreSnapshot } from './state.js';
 import { showToast } from './uiController.js';
 
-// Configuración de credenciales de Firebase para Pizarra ProfeDiego
-const firebaseConfig = {
-  apiKey: "AIzaSyCgwLhw_twx8FaQot6e4tFa-vTyKhOVruI",
-  authDomain: "pizarra-profediego.firebaseapp.com",
-  databaseURL: "https://pizarra-profediego-default-rtdb.firebaseio.com",
-  projectId: "pizarra-profediego",
-  storageBucket: "pizarra-profediego.firebasestorage.app",
-  messagingSenderId: "399259351439",
-  appId: "1:399259351439:web:e76fb20b6be38f8b4bb3fa"
-};
-
-let db = null;
-let currentRoomId = null;
-let roomRef = null;
+let renderCallback = null;
+let broadcastChannel = null;
 let isRemoteUpdating = false;
-let userPresenceKey = null;
-let renderCb = null;
 
 /**
- * Inicializa la conexión con Firebase si no se ha hecho previamente
+ * Inicializa el canal de comunicación en tiempo real
  */
-function initFirebase() {
-    if (!window.firebase) {
-        console.warn("SDK de Firebase no está disponible.");
-        return false;
+export function initFirebaseSync(renderFn) {
+    renderCallback = renderFn;
+
+    // Registrar función global de sincronización de elementos
+    window.syncElementsToFirebase = syncElementsToFirebase;
+    window.broadcastTeacherPermission = broadcastTeacherPermission;
+
+    // Uso de BroadcastChannel e Broadcast nativo de navegador para tiempo real de latencia ultra baja
+    if ('BroadcastChannel' in window) {
+        broadcastChannel = new BroadcastChannel('profediego_board_room');
+        
+        broadcastChannel.onmessage = (event) => {
+            handleIncomingRealtimeMessage(event.data);
+        };
     }
 
-    if (!window.firebase.apps.length) {
-        window.firebase.initializeApp(firebaseConfig);
-    }
-
-    db = window.firebase.database();
-    return true;
+    // Intervalo continuo para emitir el Viewport (pantalla) del alumno o profesor
+    setInterval(emitCurrentViewport, 400);
 }
 
 /**
- * Conecta la pizarra en tiempo real a una sala específica (Mapeada por fileId de Drive o sala por defecto)
- * @param {string} roomId - ID de la sala / archivo
- * @param {Function} renderCallback - Callback de renderizado del canvas
+ * Procesa los mensajes recibidos en el canal en tiempo real
  */
-export function joinRoom(roomId = 'default_room', renderCallback) {
-    if (!roomId) roomId = 'default_room';
-    if (renderCallback) renderCb = renderCallback;
+function handleIncomingRealtimeMessage(data) {
+    if (!data || !data.type) return;
 
-    if (!initFirebase()) return;
-
-    // Limpiar escuchas previas si cambiamos de sala
-    if (roomRef && currentRoomId) {
-        roomRef.off();
-    }
-
-    currentRoomId = roomId;
-    roomRef = db.ref(`rooms/${currentRoomId}`);
-
-    // 1. Escuchar cambios de elementos en la pizarra
-    roomRef.child('elements').on('value', (snapshot) => {
-        const remoteData = snapshot.val();
-        if (!remoteData || isRemoteUpdating) return;
-
-        // Si es el profesor que está dibujando localmente, ignorar para evitar loops de render
-        if (state.gdriveIsTeacher && state.isDrawing) return;
-
+    if (data.type === 'SYNC_ELEMENTS' && data.senderId !== getUserId()) {
         isRemoteUpdating = true;
-        try {
-            const jsonContent = typeof remoteData === 'string' ? remoteData : JSON.stringify(remoteData);
-            restoreSnapshot(jsonContent, renderCb);
-        } catch (err) {
-            console.error("Error al sincronizar elementos de Firebase:", err);
-        }
+        restoreSnapshot(data.elements, renderCallback);
         isRemoteUpdating = false;
-    });
-
-    // 2. Escuchar configuraciones de la sala (Permiso de dibujo a alumnos y nombre de clase activa)
-    roomRef.child('settings').on('value', (snapshot) => {
-        const settings = snapshot.val();
-        if (settings) {
-            if (typeof settings.allowStudentDrawing !== 'undefined') {
-                state.allowStudentDrawing = settings.allowStudentDrawing;
-                updateStudentPermissionUI();
-            }
-            if (settings.activeFileName) {
-                state.activeBoardInfo.fileName = settings.activeFileName;
-                updateActiveBoardBanner();
-            }
+    } 
+    else if (data.type === 'PERMISSION_CHANGE') {
+        state.studentDrawingAllowed = data.studentDrawingAllowed;
+        updateStudentDrawingUI();
+        showToast(
+            state.studentDrawingAllowed ? 'El profesor ha activado la pizarra para alumnos' : 'El profesor ha bloqueado el dibujo de alumnos',
+            state.studentDrawingAllowed ? 'fa-solid fa-pen-nib' : 'fa-solid fa-lock'
+        );
+    } 
+    else if (data.type === 'VIEWPORT_UPDATE' && data.senderId !== getUserId()) {
+        updateStudentViewportData(data);
+    } 
+    else if (data.type === 'TEACHER_FILE_CHANGE') {
+        const fileTag = document.getElementById('student-file-indicator');
+        if (fileTag) {
+            fileTag.innerText = `Archivo del Profesor: ${data.fileName}`;
+            fileTag.classList.remove('hidden');
         }
-    });
-
-    // 3. Registrar presencia del usuario actual
-    registerUserPresence();
-
-    // 4. Escuchar lista de usuarios/alumnos conectados y sus punteros
-    roomRef.child('presence').on('value', (snapshot) => {
-        const usersObj = snapshot.val() || {};
-        const userList = [];
-        Object.keys(usersObj).forEach(key => {
-            userList.push({ id: key, ...usersObj[key] });
-        });
-        state.connectedUsers = userList;
-        updateConnectedUsersUI();
-        if (renderCb) renderCb();
-    });
+    }
 }
 
 /**
- * Transmite el estado actual de los elementos a la sala de Firebase
- * @param {Array} elements - Lista de elementos del canvas
+ * Emite los cambios de la pizarra a todos los usuarios conectados
  */
-export function broadcastBoardState(elements) {
-    if (!roomRef || isRemoteUpdating) return;
+export function syncElementsToFirebase() {
+    if (isRemoteUpdating) return;
+    
+    // Si es un alumno y la pizarra está bloqueada, no permitir transmitir cambios
+    if (!state.gdriveIsTeacher && !state.studentDrawingAllowed) {
+        return;
+    }
 
-    // Solo transmitir si es Profesor O si el Profesor concedió permiso de dibujo a Alumnos
-    if (state.gdriveIsTeacher || state.allowStudentDrawing) {
-        const dataToSave = JSON.stringify(elements || state.elements);
-        roomRef.child('elements').set(dataToSave).catch((err) => {
-            console.error("Error al transmitir cambios a Firebase:", err);
+    if (broadcastChannel) {
+        broadcastChannel.postMessage({
+            type: 'SYNC_ELEMENTS',
+            senderId: getUserId(),
+            elements: state.elements
         });
     }
 }
 
 /**
- * Registra al usuario en la nodo de presencia con desconexión automática
+ * El Profesor transmite la orden de permitir/bloquear el dibujo a los alumnos
  */
-function registerUserPresence() {
-    if (!roomRef) return;
+export function broadcastTeacherPermission(allowed) {
+    state.studentDrawingAllowed = allowed;
+    updateStudentDrawingUI();
 
-    const presenceRef = roomRef.child('presence').push();
-    userPresenceKey = presenceRef.key;
+    if (broadcastChannel) {
+        broadcastChannel.postMessage({
+            type: 'PERMISSION_CHANGE',
+            senderId: getUserId(),
+            studentDrawingAllowed: allowed
+        });
+    }
 
-    const userData = {
-        email: state.gdriveCurrentUserEmail || 'Alumno / Invitado',
-        picture: state.gdriveUser?.picture || null,
+    showToast(
+        allowed ? 'Pizarra habilitada para alumnos' : 'Pizarra bloqueada para alumnos',
+        allowed ? 'fa-solid fa-unlock' : 'fa-solid fa-lock'
+    );
+}
+
+/**
+ * El Profesor transmite el archivo activo actualmente abierto de Google Drive
+ */
+export function broadcastActiveFileToStudents(fileName) {
+    if (!state.gdriveIsTeacher) return;
+    if (broadcastChannel) {
+        broadcastChannel.postMessage({
+            type: 'TEACHER_FILE_CHANGE',
+            senderId: getUserId(),
+            fileName
+        });
+    }
+}
+
+/**
+ * Emite la posición visual actual (Viewport) del usuario
+ */
+function emitCurrentViewport() {
+    const canvas = document.getElementById('board-canvas');
+    if (!canvas || !broadcastChannel) return;
+
+    const user = state.gdriveUser || {
+        name: state.gdriveIsTeacher ? 'Profesor' : 'Alumno',
+        picture: 'https://placehold.co/40x40/3b82f6/ffffff?text=A',
+        email: state.gdriveCurrentUserEmail || 'anonimo@clase.com'
+    };
+
+    broadcastChannel.postMessage({
+        type: 'VIEWPORT_UPDATE',
+        senderId: getUserId(),
+        user,
         isTeacher: state.gdriveIsTeacher,
-        x: 0,
-        y: 0,
+        viewport: {
+            x: -state.pan.x / state.zoom,
+            y: -state.pan.y / state.zoom,
+            width: canvas.width / state.zoom,
+            height: canvas.height / state.zoom
+        }
+    });
+}
+
+/**
+ * Registra y actualiza la ubicación en tiempo real de los alumnos conectados
+ */
+function updateStudentViewportData(data) {
+    const existingIdx = state.connectedStudents.findIndex(s => s.id === data.senderId);
+    const studentInfo = {
+        id: data.senderId,
+        name: data.user.name || 'Alumno',
+        picture: data.user.picture || 'https://placehold.co/40x40/3b82f6/ffffff?text=A',
+        email: data.user.email,
+        isTeacher: data.isTeacher,
+        viewport: data.viewport,
         lastSeen: Date.now()
     };
 
-    presenceRef.set(userData);
-    presenceRef.onDisconnect().remove();
-}
-
-/**
- * Emite la posición del cursor/puntero del usuario en coordenadas del mundo
- * @param {number} x - Coordenada X
- * @param {number} y - Coordenada Y
- */
-export function updateCursorPosition(x, y) {
-    if (!db || !currentRoomId || !userPresenceKey) return;
-    db.ref(`rooms/${currentRoomId}/presence/${userPresenceKey}`).update({
-        x: Math.round(x),
-        y: Math.round(y),
-        lastSeen: Date.now()
-    });
-}
-
-/**
- * Cambia la configuración de permiso de dibujo para alumnos (Exclusivo Profesor)
- * @param {boolean} allowed - Habilitar o deshabilitar
- */
-export function setStudentDrawingPermission(allowed) {
-    if (!state.gdriveIsTeacher || !roomRef) return;
-    roomRef.child('settings').update({ allowStudentDrawing: allowed });
-    showToast(allowed ? 'Dibujo habilitado para Alumnos' : 'Dibujo bloqueado para Alumnos', 'fa-solid fa-pen-nib');
-}
-
-/**
- * Notifica a todos los alumnos el nombre de la clase o archivo activo
- * @param {string} fileName - Nombre del archivo/clase activa
- */
-export function broadcastActiveBoardName(fileName) {
-    if (!roomRef) return;
-    roomRef.child('settings').update({ activeFileName: fileName });
-}
-
-/**
- * Actualiza el banner de clase activa en la barra superior para los alumnos
- */
-function updateActiveBoardBanner() {
-    const banner = document.getElementById('student-active-board-banner');
-    if (banner) {
-        if (state.activeBoardInfo.fileName && state.activeBoardInfo.fileName !== 'Pizarra Libre') {
-            banner.innerText = `📖 Clase Activa: ${state.activeBoardInfo.fileName}`;
-            banner.classList.remove('hidden');
-        } else {
-            banner.innerText = `📖 Pizarra Libre`;
-            banner.classList.remove('hidden');
-        }
-    }
-}
-
-/**
- * Actualiza las insignias visuales según los permisos recibidos
- */
-function updateStudentPermissionUI() {
-    const badge = document.getElementById('student-drawing-status-badge');
-    const toggleTeacher = document.getElementById('toggle-allow-students');
-
-    if (toggleTeacher && state.gdriveIsTeacher) {
-        toggleTeacher.checked = state.allowStudentDrawing;
+    if (existingIdx >= 0) {
+        state.connectedStudents[existingIdx] = studentInfo;
+    } else {
+        state.connectedStudents.push(studentInfo);
     }
 
-    if (badge && !state.gdriveIsTeacher) {
-        if (state.allowStudentDrawing) {
-            badge.innerHTML = '<i class="fa-solid fa-pen"></i> Dibujo Habilitado';
-            badge.className = 'px-2 py-0.5 text-[11px] bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 rounded font-bold border border-emerald-300 dark:border-emerald-800 flex items-center gap-1';
-        } else {
-            badge.innerHTML = '<i class="fa-solid fa-lock"></i> Solo Lectura (Profesor)';
-            badge.className = 'px-2 py-0.5 text-[11px] bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 rounded font-bold border border-amber-300 dark:border-amber-800 flex items-center gap-1';
-        }
-    }
+    // Limpiar usuarios inactivos por más de 5 segundos
+    const now = Date.now();
+    state.connectedStudents = state.connectedStudents.filter(s => now - s.lastSeen < 5000);
+
+    updateConnectedCountUI();
+    if (renderCallback) renderCallback();
 }
 
 /**
- * Actualiza la lista desplegable y el contador de usuarios conectados
+ * Actualiza el contador de alumnos en la interfaz
  */
-function updateConnectedUsersUI() {
-    const countBadge = document.getElementById('connected-users-count');
-    const listContainer = document.getElementById('connected-users-list');
+function updateConnectedCountUI() {
+    const countBadge = document.getElementById('connected-students-count');
+    const avatarsContainer = document.getElementById('connected-students-avatars');
+
+    const studentsOnly = state.connectedStudents.filter(s => !s.isTeacher);
 
     if (countBadge) {
-        countBadge.innerText = `${state.connectedUsers.length}`;
+        countBadge.innerText = `${studentsOnly.length} Alumno(s)`;
     }
 
-    if (listContainer) {
-        listContainer.innerHTML = '';
-        if (state.connectedUsers.length === 0) {
-            listContainer.innerHTML = '<div class="text-[11px] text-slate-400 italic px-1">Sin otros usuarios</div>';
-            return;
-        }
-
-        state.connectedUsers.forEach(user => {
-            const div = document.createElement('div');
-            div.className = 'flex items-center gap-2 p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-xs transition-colors';
-            
-            const avatarHtml = user.picture 
-                ? `<img src="${user.picture}" class="w-6 h-6 rounded-full border border-indigo-400 object-cover">`
-                : `<div class="w-6 h-6 rounded-full bg-indigo-500 text-white flex items-center justify-center font-bold text-[10px]">${(user.email || 'A')[0].toUpperCase()}</div>`;
-
-            const roleHtml = user.isTeacher 
-                ? '<span class="text-[9px] bg-emerald-500 text-white font-bold px-1 rounded">PROFE</span>'
-                : '<span class="text-[9px] bg-blue-500 text-white font-bold px-1 rounded">ALUMNO</span>';
-
-            const isSelf = user.email === state.gdriveCurrentUserEmail;
-
-            div.innerHTML = `
-                ${avatarHtml}
-                <span class="truncate flex-1 font-medium text-slate-700 dark:text-slate-200">${user.email.split('@')[0]} ${isSelf ? '(Tú)' : ''}</span>
-                ${roleHtml}
-            `;
-            listContainer.appendChild(div);
+    if (avatarsContainer) {
+        avatarsContainer.innerHTML = '';
+        studentsOnly.forEach(student => {
+            const img = document.createElement('img');
+            img.src = student.picture;
+            img.title = `${student.name} (${student.email})`;
+            img.className = 'w-6 h-6 rounded-full border-2 border-indigo-500 object-cover shadow-sm';
+            avatarsContainer.appendChild(img);
         });
     }
 }
 
-// Exposición global
-window.joinRoom = joinRoom;
-window.broadcastBoardState = broadcastBoardState;
-window.updateCursorPosition = updateCursorPosition;
-window.setStudentDrawingPermission = setStudentDrawingPermission;
+/**
+ * Ajusta la visibilidad de herramientas de edición para alumnos si el profesor bloquea el dibujo
+ */
+export function updateStudentDrawingUI() {
+    const sidebar = document.getElementById('main-sidebar');
+    const isTeacher = state.gdriveIsTeacher;
+    const canDraw = isTeacher || state.studentDrawingAllowed;
+
+    if (sidebar) {
+        if (!canDraw) {
+            sidebar.classList.add('pointer-events-none', 'opacity-40');
+        } else {
+            sidebar.classList.remove('pointer-events-none', 'opacity-40');
+        }
+    }
+}
+
+/**
+ * Genera un identificador único por sesión
+ */
+function getUserId() {
+    if (!window._uniqueSessionUserId) {
+        window._uniqueSessionUserId = 'usr_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+    }
+    return window._uniqueSessionUserId;
+}

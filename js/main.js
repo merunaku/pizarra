@@ -1,116 +1,46 @@
-// PUNTO DE ENTRADA Y ORQUESTRACIÓN DE LA APLICACIÓN (MAIN ENTRY POINT)
+// MAIN BOOTSTRAPPER & ENTRYPOINT - PIZARRA PROFEDIEGO
 import { loadFromLocalStorage } from './state.js';
-import { initCanvasEngine, render } from './canvasEngine.js';
-import { setupToolEvents } from './tools.js';
-import { setupUIController, showToast } from './uiController.js';
-import { initGIS, setupGoogleDriveListeners } from './gdrive.js';
-import { joinRoom } from './firebaseSync.js';
+import { resizeCanvas, render } from './canvasEngine.js';
+import { setupCanvasListeners } from './tools.js';
+import { setupUIListeners, setTool, updateContextToolbar, applyRoleUIRestrictions } from './uiController.js';
+import { setupGoogleDriveListeners, initGIS } from './gdrive.js';
+import { setupTemplatesListeners } from './templates.js';
+import { initFirebaseSync, updateStudentDrawingUI } from './firebaseSync.js';
 
-/**
- * Evento principal de arranque al cargar el DOM de la página
- */
 window.addEventListener('DOMContentLoaded', () => {
-  // 1. Obtener referencia del elemento canvas principal
-  const canvasElement = document.getElementById('board-canvas');
-  if (!canvasElement) {
-    console.error("No se encontró el elemento canvas #board-canvas en el DOM.");
-    return;
-  }
+    const canvas = document.getElementById('board-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
 
-  // 2. Inicializar el motor gráfico del lienzo (Canvas Engine)
-  initCanvasEngine(canvasElement);
+    const minimapCanvas = document.getElementById('minimap-canvas');
+    const minimapCtx = minimapCanvas ? minimapCanvas.getContext('2d') : null;
 
-  // 3. Vincular controladores de eventos del puntero, gestos multitáctiles y herramientas
-  setupToolEvents(canvasElement);
+    const renderFn = () => render(canvas, ctx, minimapCanvas, minimapCtx);
 
-  // 4. Inicializar controladores de la interfaz gráfica y eventos de modales/paneles
-  setupUIController(render);
+    // Ajustar resolución inicial y listener de ventana
+    resizeCanvas(canvas, renderFn);
+    window.addEventListener('resize', () => resizeCanvas(canvas, renderFn));
 
-  // 5. Configurar escuchadores y modal del explorador de Google Drive
-  setupGoogleDriveListeners(render);
+    // Cargar estado desde localStorage
+    loadFromLocalStorage(renderFn);
 
-  // 6. Cargar estado previo de la pizarra desde LocalStorage si existe
-  loadFromLocalStorage(render);
+    // Inicializar listeners de todos los módulos
+    setupCanvasListeners(canvas, ctx, renderFn, setTool, updateContextToolbar);
+    setupUIListeners(canvas, ctx, renderFn);
+    setupGoogleDriveListeners(renderFn);
+    setupTemplatesListeners(canvas, renderFn);
 
-  // 7. Inicializar Google Identity Services (GIS) para verificar sesión OAuth2 guardada
-  initGIS(render);
+    // Inicializar sincronización en tiempo real (Profesor / Alumnos)
+    initFirebaseSync(renderFn);
 
-  // 8. Conectar automáticamente a la sala por defecto o al archivo activo en Firebase Realtime DB
-  const activeFileId = localStorage.getItem('profediego_active_file_id') || 'default_room';
-  if (typeof joinRoom === 'function') {
-    joinRoom(activeFileId, render);
-  }
+    // Inicializar Google Identity Services Client
+    initGIS(renderFn);
 
-  // 9. Configurar cargador de imágenes desde el selector de archivos local
-  setupImageUploadInput();
+    // Aplicar restricciones visuales iniciales según rol y estado de dibujo
+    applyRoleUIRestrictions();
+    updateStudentDrawingUI();
 
-  // 10. Renderizado inicial del lienzo
-  render();
-
-  console.log("Pizarra ProfeDiego inicializada con éxito.");
+    // Herramienta inicial por defecto y primer renderizado
+    setTool('pencil');
+    renderFn();
 });
-
-/**
- * Configura la inserción de imágenes desde el disco local sobre el canvas
- */
-function setupImageUploadInput() {
-  const imageInput = document.getElementById('image-upload-input');
-  if (!imageInput) return;
-
-  imageInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      showToast('Por favor, selecciona un archivo de imagen válido', 'fa-solid fa-triangle-exclamation');
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target.result;
-      img.onload = () => {
-        // Calcular dimensiones proporcionales para el canvas
-        const maxWidth = 320;
-        const scale = img.width > maxWidth ? maxWidth / img.width : 1;
-        const width = img.width * scale;
-        const height = img.height * scale;
-
-        // Insertar en el centro de la vista actual
-        const centerX = (window.innerWidth / 2 - width / 2);
-        const centerY = (window.innerHeight / 2 - height / 2);
-
-        const newImageElement = {
-          id: 'el_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
-          type: 'image',
-          src: event.target.result,
-          imgElement: img,
-          x: centerX,
-          y: centerY,
-          width: width,
-          height: height,
-          opacity: 1
-        };
-
-        import('./state.js').then(({ state, saveState }) => {
-          state.elements.push(newImageElement);
-          state.selectedIds = [newImageElement.id];
-          saveState();
-
-          import('./firebaseSync.js').then(({ broadcastBoardState }) => {
-            broadcastBoardState(state.elements);
-          });
-
-          render();
-          showToast('Imagen insertada en la pizarra', 'fa-regular fa-image');
-        });
-      };
-    };
-
-    reader.readAsDataURL(file);
-
-    // Limpiar el input para permitir volver a subir la misma imagen si se desea
-    imageInput.value = '';
-  });
-}
