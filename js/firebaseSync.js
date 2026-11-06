@@ -10,7 +10,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
 import { state, restoreSnapshot } from './state.js';
-import { showToast } from './uiController.js';
+import { showToast, updateSyncBadge } from './uiController.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyCgwLhw_twx8FaQot6e4tFa-vTyKhOVruI",
@@ -70,7 +70,7 @@ export function initFirebaseSync(renderFn) {
         }
     });
 
-    // 3. Escuchar el archivo/pizarra activo enviado por el profesor (Sincronización de título)
+    // 3. Escuchar el nombre de la pizarra activa (Sincronización de título)
     const activeFileRef = ref(db, `rooms/${roomId}/activeFile`);
     onValue(activeFileRef, (snapshot) => {
         const fileName = snapshot.val();
@@ -82,10 +82,12 @@ export function initFirebaseSync(renderFn) {
             const modalTitleInput = document.getElementById('boardTitle');
             if (topTitleInput) topTitleInput.value = cleanName;
             if (modalTitleInput) modalTitleInput.value = cleanName;
+            
+            updateSyncBadge(`Sincronizado: ${cleanName}`, 'drive');
         }
     });
 
-    // 4. Escuchar ubicaciones en pantalla (Viewports) de alumnos
+    // 4. Escuchar lista de alumnos conectados
     const usersRef = ref(db, `rooms/${roomId}/users`);
     onValue(usersRef, (snapshot) => {
         const usersData = snapshot.val() || {};
@@ -175,11 +177,17 @@ function emitCurrentViewport() {
 function updateConnectedCountUI() {
     const countBadge = document.getElementById('connected-students-count');
     const avatarsContainer = document.getElementById('connected-students-avatars');
+    const flyoutList = document.getElementById('connected-students-list');
+    const flyoutCount = document.getElementById('flyout-students-count');
 
     const studentsOnly = state.connectedStudents.filter(s => !s.isTeacher);
 
     if (countBadge) {
         countBadge.innerText = `${studentsOnly.length} Alumno(s)`;
+    }
+
+    if (flyoutCount) {
+        flyoutCount.innerText = studentsOnly.length;
     }
 
     if (avatarsContainer) {
@@ -191,6 +199,28 @@ function updateConnectedCountUI() {
             img.className = 'w-6 h-6 rounded-full border-2 border-indigo-500 object-cover shadow-sm';
             avatarsContainer.appendChild(img);
         });
+    }
+
+    // Actualizar menú desplegable de alumnos conectados
+    if (flyoutList) {
+        flyoutList.innerHTML = '';
+        if (studentsOnly.length === 0) {
+            flyoutList.innerHTML = '<li class="text-slate-400 italic text-[11px] text-center py-2">No hay alumnos en la sala</li>';
+        } else {
+            studentsOnly.forEach(st => {
+                const li = document.createElement('li');
+                li.className = 'flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 border border-slate-100';
+                li.innerHTML = `
+                    <img src="${st.picture || 'https://placehold.co/40x40/3b82f6/ffffff?text=A'}" class="w-6 h-6 rounded-full border border-indigo-300 object-cover" />
+                    <div class="flex flex-col min-w-0 flex-1">
+                        <span class="font-bold text-slate-700 text-xs truncate">${st.name || 'Alumno'}</span>
+                        <span class="text-[9px] text-slate-400 truncate">${st.email || 'Conectado'}</span>
+                    </div>
+                    <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                `;
+                flyoutList.appendChild(li);
+            });
+        }
     }
 }
 

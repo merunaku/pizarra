@@ -111,7 +111,12 @@ export function getLuminance(colorStr) {
     return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
 }
 
-export function getEffectiveColor(colorStr, role = 'stroke') {
+export function getEffectiveColor(colorStr, role = 'stroke', elType = null) {
+    // Los resaltadores neón translúcidos nunca invierten su tono
+    if (elType === 'highlighter' || (colorStr && colorStr.startsWith('rgba') && colorStr.includes('0.45'))) {
+        return colorStr;
+    }
+
     if (!colorStr) {
         if (state.darkMode) {
             return role === 'fill' ? '#1e293b' : '#f8fafc';
@@ -121,18 +126,6 @@ export function getEffectiveColor(colorStr, role = 'stroke') {
     }
 
     if (colorStr.startsWith('rgba')) {
-        const match = colorStr.match(/rgba?\(([^)]+)\)/);
-        if (match) {
-            const parts = match[1].split(',').map(s => s.trim());
-            const r = parseInt(parts[0]), g = parseInt(parts[1]), b = parseInt(parts[2]), a = parts[3] || '1';
-            const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-            if (state.darkMode && lum < 0.35 && role !== 'fill') {
-                return `rgba(248, 250, 252, ${a})`;
-            }
-            if (!state.darkMode && lum > 0.75 && role !== 'fill') {
-                return `rgba(30, 41, 59, ${a})`;
-            }
-        }
         return colorStr;
     }
 
@@ -305,23 +298,26 @@ export function isPointInElement(pt, el) {
         checkPt = rotatePoint(pt, -el.rotation, { x: cx, y: cy });
     }
 
+    // Tolerancia ampliada de clic de selección según nivel de Zoom
+    const hitMargin = Math.max(12, 16 / state.zoom);
+
     if (el.type === 'pencil' || el.type === 'highlighter') {
         const pts = el.points || [];
-        const threshold = Math.max(10, (el.lineWidth || el.strokeWidth || 3) / 2 + 5);
+        const threshold = Math.max(hitMargin, (el.lineWidth || el.strokeWidth || 3) / 2 + hitMargin / 2);
         return distToPath(checkPt, pts) <= threshold;
     }
 
     if (el.type === 'connector') {
         const pts = getConnectorPoints(el);
-        const threshold = Math.max(10, (el.strokeWidth || el.lineWidth || 2) + 6);
+        const threshold = Math.max(hitMargin, (el.strokeWidth || el.lineWidth || 2) + hitMargin / 2);
         return distToPath(checkPt, pts) <= threshold;
     }
 
     return (
-        checkPt.x >= bounds.x &&
-        checkPt.x <= bounds.x + bounds.width &&
-        checkPt.y >= bounds.y &&
-        checkPt.y <= bounds.y + bounds.height
+        checkPt.x >= bounds.x - hitMargin &&
+        checkPt.x <= bounds.x + bounds.width + hitMargin &&
+        checkPt.y >= bounds.y - hitMargin &&
+        checkPt.y <= bounds.y + bounds.height + hitMargin
     );
 }
 
@@ -416,7 +412,7 @@ function drawArrowHead(ctx, fromX, fromY, toX, toY, color, size = 14) {
 }
 
 function drawConnector(ctx, el) {
-    const strokeColor = getEffectiveColor(el.strokeColor || el.color || '#1e293b', 'stroke');
+    const strokeColor = getEffectiveColor(el.strokeColor || el.color || '#1e293b', 'stroke', el.type);
     ctx.strokeStyle = strokeColor;
     const strokeWidth = el.strokeWidth || el.lineWidth || 2;
     ctx.lineWidth = strokeWidth;
@@ -488,7 +484,7 @@ function drawConnector(ctx, el) {
 
 function drawPencil(ctx, el) {
     if (!el.points || el.points.length === 0) return;
-    const strokeColor = getEffectiveColor(el.strokeColor || el.color || '#1e293b', 'stroke');
+    const strokeColor = getEffectiveColor(el.strokeColor || el.color || '#1e293b', 'stroke', el.type);
     ctx.strokeStyle = strokeColor;
     const strokeWidth = el.strokeWidth || el.lineWidth || 3;
     ctx.lineWidth = strokeWidth;
@@ -535,8 +531,8 @@ function drawPencil(ctx, el) {
 }
 
 function drawShape(ctx, el) {
-    const strokeColor = getEffectiveColor(el.strokeColor || '#1e293b', 'stroke');
-    const fillColor = getEffectiveColor(el.fillColor || '#ffffff', 'fill');
+    const strokeColor = getEffectiveColor(el.strokeColor || '#1e293b', 'stroke', el.type);
+    const fillColor = getEffectiveColor(el.fillColor || '#ffffff', 'fill', el.type);
 
     ctx.fillStyle = fillColor;
     ctx.strokeStyle = strokeColor;
@@ -677,7 +673,7 @@ function drawText(ctx, el) {
     ctx.font = `${fSize}px Inter, system-ui, sans-serif`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillStyle = getEffectiveColor(el.color || '#1e293b', 'text');
+    ctx.fillStyle = getEffectiveColor(el.color || '#1e293b', 'text', el.type);
 
     const rawText = el.text || 'Haz doble clic para editar';
     const maxWidth = el.width ? Math.max(40, el.width - 8) : 350;

@@ -135,12 +135,12 @@ export function openInlineEditor(el) {
         const bgLum = getLuminance(bgColor);
         textColor = bgLum < 0.4 ? '#f8fafc' : '#1e293b';
     } else if (el.type === 'shape') {
-        bgColor = getEffectiveColor(el.fillColor || (state.darkMode ? '#1e293b' : '#ffffff'), 'fill');
+        bgColor = getEffectiveColor(el.fillColor || (state.darkMode ? '#1e293b' : '#ffffff'), 'fill', el.type);
         const fillLum = getLuminance(bgColor);
         textColor = fillLum < 0.45 ? '#f8fafc' : '#0f172a';
     } else if (el.type === 'text') {
         bgColor = state.darkMode ? '#1e293b' : '#ffffff';
-        textColor = getEffectiveColor(el.color || '#1e293b', 'text');
+        textColor = getEffectiveColor(el.color || '#1e293b', 'text', el.type);
     }
 
     inlineEditor.style.left = `${screenPos.x}px`;
@@ -604,6 +604,8 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
             state.isPanning = false;
             canvas.style.cursor = 'crosshair';
         }
+        
+        // Mantener la selección activa al finalizar arrastre, cambio de tamaño o rotación
         if (state.isDragging || state.isResizing || state.isRotating) {
             state.isDragging = false;
             state.isResizing = false;
@@ -612,7 +614,11 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
             state.resizeInitialPoints = null;
             state.rotationCenter = null;
             saveState();
+            if (updateContextToolbarCallback) updateContextToolbarCallback();
+            scheduleRender();
+            return;
         }
+
         if (state.isDrawing && state.tempElement) {
             if (state.tempElement.type === 'shape' || state.tempElement.type === 'connector') {
                 if (Math.abs(state.tempElement.width || state.tempElement.endX - state.tempElement.x) < 5) {
@@ -621,8 +627,13 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                 }
             }
             state.elements.push(state.tempElement);
-            // No seleccionar automáticamente al soltar para evitar el cuadro de límites incómodo
-            state.selectedIds = [];
+            
+            // Si dibujó con lápiz/resaltador no fuerza recuadro molesto
+            if (state.tempElement.type === 'pencil' || state.tempElement.type === 'highlighter') {
+                state.selectedIds = [];
+            } else {
+                state.selectedIds = [state.tempElement.id];
+            }
             state.tempElement = null;
             state.isDrawing = false;
             saveState();
