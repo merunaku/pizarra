@@ -2,14 +2,11 @@
 import { state, saveState, undo, redo } from './state.js';
 import { openInlineEditor, closeInlineEditor, addConnectorIntermediatePoint, removeConnectorIntermediatePoint, joinSelectedLines } from './tools.js';
 import { getConnectorPoints, getLuminance } from './canvasEngine.js';
-import { syncBoardTitle, handleAuthClick } from './gdrive.js';
-import { broadcastTeacherPermission } from './firebaseSync.js';
+import { syncBoardTitle } from './gdrive.js';
+import { broadcastTeacherPermission, updateStudentDrawingUI } from './firebaseSync.js';
 
 let renderCallback = null;
 
-/**
- * Actualiza la paleta de opciones del menú del lápiz según el tema activo
- */
 export function updateColorPalettesForMode() {
     const isDark = state.darkMode;
 
@@ -32,9 +29,6 @@ export function updateColorPalettesForMode() {
     }
 }
 
-/**
- * Muestra una notificación emergente estilo Toast
- */
 export function showToast(msg, iconClass = 'fa-solid fa-circle-check') {
     const toast = document.getElementById('toast-notification');
     const icon = document.getElementById('toast-icon');
@@ -46,16 +40,10 @@ export function showToast(msg, iconClass = 'fa-solid fa-circle-check') {
     setTimeout(() => toast.classList.add('opacity-0', 'translate-y-2'), 2500);
 }
 
-/**
- * Cierra todos los submenús flotantes (Flyouts)
- */
 export function closeAllFlyouts() {
     document.querySelectorAll('.flyout-menu').forEach(m => m.classList.add('hidden'));
 }
 
-/**
- * Selecciona la herramienta activa y actualiza la interfaz
- */
 export function setTool(toolName) {
     state.activeTool = toolName;
     document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
@@ -67,9 +55,6 @@ export function setTool(toolName) {
     if (renderCallback) renderCallback();
 }
 
-/**
- * Sincroniza el estado de los botones de modo de flecha
- */
 function syncArrowModeButtons(arrowMode) {
     document.querySelectorAll('.ctx-arrow-btn').forEach(btn => {
         if (btn.getAttribute('data-arrow') === arrowMode) {
@@ -80,15 +65,11 @@ function syncArrowModeButtons(arrowMode) {
     });
 }
 
-/**
- * Actualiza la visibilidad de opciones restringidas para Alumnos vs Profesor
- */
+// CORRECCIÓN INICIALIZACIÓN DE ROL Y TÍTULOS
 export function applyRoleUIRestrictions() {
     const isTeacher = state.gdriveIsTeacher;
 
-    // Elementos solo para Profesor
     const teacherOnlyElements = [
-        document.getElementById('board-title'),
         document.getElementById('saveBtn'),
         document.getElementById('newFolderBtn'),
         document.getElementById('btn-clear-board'),
@@ -105,21 +86,15 @@ export function applyRoleUIRestrictions() {
         }
     });
 
-    // Indicador visual de archivo en uso para Alumnos
-    const studentIndicator = document.getElementById('student-file-indicator');
-    if (studentIndicator) {
-        if (!isTeacher && state.gdriveActiveFileName) {
-            studentIndicator.innerText = `Archivo Activo: ${state.gdriveActiveFileName}`;
-            studentIndicator.classList.remove('hidden');
-        } else if (isTeacher) {
-            studentIndicator.classList.add('hidden');
-        }
+    const boardTitleInput = document.getElementById('board-title');
+    if (boardTitleInput) {
+        boardTitleInput.disabled = !isTeacher;
     }
+
+    // Asegurar que la barra lateral del profesor inicie habilitada de inmediato
+    updateStudentDrawingUI();
 }
 
-/**
- * Cierra la sesión activa de Google Identity
- */
 export function handleLogout() {
     localStorage.removeItem('profediego_gdrive_token');
     localStorage.removeItem('profediego_gdrive_exp');
@@ -135,9 +110,7 @@ export function handleLogout() {
     showToast('Sesión cerrada correctamente', 'fa-solid fa-right-from-bracket');
 }
 
-/**
- * Actualiza la visibilidad y campos de la barra flotante según la selección actual
- */
+// CORRECCIÓN DE LA BARRA DE HERRAMIENTAS CONTEXTUAL
 export function updateContextToolbar() {
     const ctxToolbar = document.getElementById('context-toolbar');
     if (!ctxToolbar) return;
@@ -175,23 +148,23 @@ export function updateContextToolbar() {
     if (selected.type === 'text') {
         [groupStroke, groupFont, btnEditText].forEach(g => g && g.classList.remove('hidden'));
         const strokeInput = document.getElementById('ctx-stroke-color');
-        if (strokeInput) strokeInput.value = selected.color || '#1e293b';
+        if (strokeInput) strokeInput.value = selected.strokeColor || selected.color || '#1e293b';
         const fontInput = document.getElementById('ctx-font-size');
         if (fontInput) fontInput.value = selected.fontSize || 20;
     } else if (selected.type === 'sticky') {
         [groupFill, groupFont, btnEditText].forEach(g => g && g.classList.remove('hidden'));
         const fillInput = document.getElementById('ctx-fill-color');
-        if (fillInput) fillInput.value = selected.color || '#fef08a';
+        if (fillInput) fillInput.value = selected.fillColor || selected.color || '#fef08a';
         const fontInput = document.getElementById('ctx-font-size');
         if (fontInput) fontInput.value = selected.fontSize || 16;
     } else if (selected.type === 'pencil' || selected.type === 'highlighter') {
         [groupStroke, groupWidth, groupConnArrows, groupSmoothing].forEach(g => g && g.classList.remove('hidden'));
 
         const strokeInput = document.getElementById('ctx-stroke-color');
-        if (strokeInput) strokeInput.value = selected.color || '#1e293b';
+        if (strokeInput) strokeInput.value = selected.strokeColor || selected.color || '#1e293b';
 
         const strokeWidthInput = document.getElementById('ctx-stroke-width');
-        if (strokeWidthInput) strokeWidthInput.value = selected.lineWidth || 3;
+        if (strokeWidthInput) strokeWidthInput.value = selected.strokeWidth || selected.lineWidth || 3;
 
         if (selected.arrowMode && selected.arrowMode !== 'none') {
             if (groupArrowSize) groupArrowSize.classList.remove('hidden');
@@ -228,10 +201,10 @@ export function updateContextToolbar() {
         }
 
         const strokeInput = document.getElementById('ctx-stroke-color');
-        if (strokeInput) strokeInput.value = selected.strokeColor || '#1e293b';
+        if (strokeInput) strokeInput.value = selected.strokeColor || selected.color || '#1e293b';
 
         const strokeWidthInput = document.getElementById('ctx-stroke-width');
-        if (strokeWidthInput) strokeWidthInput.value = selected.strokeWidth || 2;
+        if (strokeWidthInput) strokeWidthInput.value = selected.strokeWidth || selected.lineWidth || 2;
 
         const connLineSelect = document.getElementById('ctx-conn-line');
         if (connLineSelect) {
@@ -251,10 +224,10 @@ export function updateContextToolbar() {
         if (fillInput) fillInput.value = selected.fillColor || '#ffffff';
 
         const strokeInput = document.getElementById('ctx-stroke-color');
-        if (strokeInput) strokeInput.value = selected.strokeColor || '#1e293b';
+        if (strokeInput) strokeInput.value = selected.strokeColor || selected.color || '#1e293b';
 
         const strokeWidthInput = document.getElementById('ctx-stroke-width');
-        if (strokeWidthInput) strokeWidthInput.value = selected.strokeWidth || 2;
+        if (strokeWidthInput) strokeWidthInput.value = selected.strokeWidth || selected.lineWidth || 2;
 
         const styleSelect = document.getElementById('ctx-stroke-style');
         if (styleSelect) styleSelect.value = selected.strokeStyle || 'solid';
@@ -267,19 +240,14 @@ export function updateContextToolbar() {
     if (opacityInput) opacityInput.value = selected.opacity !== undefined ? selected.opacity : 1.0;
 }
 
-/**
- * Inicializa los controladores de eventos de la interfaz
- */
 export function setupUIListeners(canvas, ctx, renderFn) {
     renderCallback = renderFn;
 
-    // Botón de Cerrar Sesión
     const btnLogout = document.getElementById('btn-logout');
     if (btnLogout) {
         btnLogout.addEventListener('click', handleLogout);
     }
 
-    // Toggle Permiso Dibujo Alumnos (Profesor)
     const toggleStudentDraw = document.getElementById('toggle-student-drawing');
     if (toggleStudentDraw) {
         toggleStudentDraw.addEventListener('change', (e) => {
@@ -287,7 +255,6 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         });
     }
 
-    // Toggle Ubicación Pantalla Alumnos en Canvas
     const toggleStudentViewports = document.getElementById('toggle-student-viewports');
     if (toggleStudentViewports) {
         toggleStudentViewports.addEventListener('change', (e) => {
@@ -300,7 +267,6 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         });
     }
 
-    // Toggles en Menú de Configuración / Maximizar Área
     const toggleSnapGuides = document.getElementById('toggle-snap-guides');
     if (toggleSnapGuides) {
         toggleSnapGuides.addEventListener('change', (e) => {
@@ -317,7 +283,6 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         });
     }
 
-    // Títulos sincrónicos
     const topBoardTitle = document.getElementById('board-title');
     if (topBoardTitle) {
         topBoardTitle.addEventListener('input', (e) => syncBoardTitle(e.target.value));
@@ -328,7 +293,6 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         modalBoardTitle.addEventListener('input', (e) => syncBoardTitle(e.target.value));
     }
 
-    // Conmutador de Modo Oscuro / Claro
     const btnDarkMode = document.getElementById('btn-toggle-darkmode');
     if (btnDarkMode) {
         btnDarkMode.addEventListener('click', () => {
@@ -351,7 +315,6 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         });
     }
 
-    // Seleccionar Herramientas
     document.querySelectorAll('.tool-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -373,7 +336,6 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         });
     });
 
-    // Cierre de Flyouts al hacer clic fuera
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.has-flyout') && !e.target.closest('.flyout-menu')) {
             closeAllFlyouts();
@@ -384,7 +346,7 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         }
     });
 
-    // Acciones de la Barra Flotante
+    // EVENTOS DE LA BARRA FLOTANTE (CON UNIFICACIÓN DE PROPIEDADES)
     document.querySelectorAll('.ctx-arrow-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const mode = btn.getAttribute('data-arrow');
@@ -393,10 +355,50 @@ export function setupUIListeners(canvas, ctx, renderFn) {
                 if (el) el.arrowMode = mode;
             });
             syncArrowModeButtons(mode);
+            updateContextToolbar();
             saveState();
             if (renderCallback) renderCallback();
         });
     });
+
+    const ctxStroke = document.getElementById('ctx-stroke-color');
+    if (ctxStroke) {
+        ctxStroke.addEventListener('input', (e) => {
+            const val = e.target.value;
+            state.selectedIds.forEach(id => {
+                const el = state.elements.find(m => m.id === id);
+                if (el) { el.strokeColor = val; el.color = val; }
+            });
+            saveState();
+            if (renderCallback) renderCallback();
+        });
+    }
+
+    const ctxWidth = document.getElementById('ctx-stroke-width');
+    if (ctxWidth) {
+        ctxWidth.addEventListener('input', (e) => {
+            const val = parseInt(e.target.value);
+            state.selectedIds.forEach(id => {
+                const el = state.elements.find(m => m.id === id);
+                if (el) { el.strokeWidth = val; el.lineWidth = val; }
+            });
+            saveState();
+            if (renderCallback) renderCallback();
+        });
+    }
+
+    const ctxArrowSize = document.getElementById('ctx-arrow-size');
+    if (ctxArrowSize) {
+        ctxArrowSize.addEventListener('input', (e) => {
+            const size = parseInt(e.target.value);
+            state.selectedIds.forEach(id => {
+                const el = state.elements.find(m => m.id === id);
+                if (el) el.arrowSize = size;
+            });
+            saveState();
+            if (renderCallback) renderCallback();
+        });
+    }
 
     const btnAddPoint = document.getElementById('ctx-add-point');
     if (btnAddPoint) {
@@ -410,7 +412,7 @@ export function setupUIListeners(canvas, ctx, renderFn) {
                     addConnectorIntermediatePoint(el, { x: midX, y: midY });
                     saveState();
                     if (renderCallback) renderCallback();
-                    showToast('Punto intermedio / Codo añadido', 'fa-solid fa-circle-plus');
+                    showToast('Codo / Punto añadido', 'fa-solid fa-circle-plus');
                 }
             }
         });
@@ -425,7 +427,7 @@ export function setupUIListeners(canvas, ctx, renderFn) {
                     removeConnectorIntermediatePoint(el, el.points.length - 2);
                     saveState();
                     if (renderCallback) renderCallback();
-                    showToast('Punto intermedio eliminado', 'fa-solid fa-circle-minus');
+                    showToast('Codo eliminado', 'fa-solid fa-circle-minus');
                 }
             }
         });
@@ -479,7 +481,6 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         });
     }
 
-    // Botones Undo / Redo
     const btnUndo = document.getElementById('btn-undo');
     if (btnUndo) btnUndo.addEventListener('click', () => undo(renderCallback, updateContextToolbar));
 

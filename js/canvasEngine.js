@@ -1,9 +1,6 @@
 // CANVAS ENGINE & RENDERER - PIZARRA PROFEDIEGO
 import { state } from './state.js';
 
-/**
- * Ajusta la dimensión del canvas según el tamaño del contenedor o ventana
- */
 export function resizeCanvas(canvas, renderCallback) {
     if (!canvas) return;
     const parent = canvas.parentElement;
@@ -12,9 +9,6 @@ export function resizeCanvas(canvas, renderCallback) {
     if (renderCallback) renderCallback();
 }
 
-/**
- * Rotación geométrica de un punto respecto a un centro
- */
 export function rotatePoint(pt, angle, center) {
     const cos = Math.cos(angle);
     const sin = Math.sin(angle);
@@ -26,9 +20,6 @@ export function rotatePoint(pt, angle, center) {
     };
 }
 
-/**
- * Divide un texto en líneas ajustadas al ancho máximo especificado (maxWidth)
- */
 export function getWrappedLines(ctx, text, maxWidth) {
     if (!text) return [];
     const paragraphs = text.split('\n');
@@ -74,9 +65,6 @@ export function getWrappedLines(ctx, text, maxWidth) {
     return lines;
 }
 
-/**
- * Algoritmo de suavizado para trazos libres (Chaikin's Corner Cutting)
- */
 export function getSmoothedPoints(points, iterations = 3) {
     if (!points || points.length <= 2) return points || [];
     let current = points.map(p => ({ x: p.x, y: p.y }));
@@ -98,9 +86,6 @@ export function getSmoothedPoints(points, iterations = 3) {
     return current;
 }
 
-/**
- * Calcula la luminancia percibida de una cadena de color (Hex, RGB, RGBA)
- */
 export function getLuminance(colorStr) {
     if (!colorStr) return 0;
     let r = 0, g = 0, b = 0;
@@ -126,9 +111,6 @@ export function getLuminance(colorStr) {
     return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
 }
 
-/**
- * Retorna el color adaptado visualmente para el lienzo según Modo Oscuro / Claro
- */
 export function getEffectiveColor(colorStr, role = 'stroke') {
     if (!colorStr) {
         if (state.darkMode) {
@@ -181,9 +163,6 @@ export function getEffectiveColor(colorStr, role = 'stroke') {
     }
 }
 
-/**
- * Obtiene los límites rectangulares exactos (bounding box) de cualquier elemento
- */
 export function getElementBounds(el) {
     if (el.type === 'pencil' || el.type === 'highlighter') {
         if (!el.points || el.points.length === 0) return { x: el.x || 0, y: el.y || 0, width: 20, height: 20 };
@@ -194,7 +173,7 @@ export function getElementBounds(el) {
             if (p.x > maxX) maxX = p.x;
             if (p.y > maxY) maxY = p.y;
         });
-        const padding = Math.max(8, (el.lineWidth || 3) / 2);
+        const padding = Math.max(8, (el.lineWidth || el.strokeWidth || 3) / 2);
         return {
             x: minX - padding,
             y: minY - padding,
@@ -253,7 +232,7 @@ export function getElementBounds(el) {
             if (p.x > maxX) maxX = p.x;
             if (p.y > maxY) maxY = p.y;
         });
-        const pad = Math.max(10, (el.strokeWidth || 2) * 2);
+        const pad = Math.max(10, (el.strokeWidth || el.lineWidth || 2) * 2);
         return {
             x: minX - pad,
             y: minY - pad,
@@ -270,9 +249,6 @@ export function getElementBounds(el) {
     };
 }
 
-/**
- * Retorna los puntos de control de un conector (Ortogonal AutoCAD, Curvo o Recto)
- */
 export function getConnectorPoints(el) {
     if (el.points && el.points.length >= 2) {
         return el.points;
@@ -283,7 +259,6 @@ export function getConnectorPoints(el) {
     const isOrthogonal = el.isOrthogonal !== undefined ? el.isOrthogonal : (el.connType === 'orthogonal');
 
     if (isOrthogonal) {
-        // Enrutamiento Ortogonal tipo AutoCAD (codo directo X/Y)
         const dx = Math.abs(end.x - start.x);
         const dy = Math.abs(end.y - start.y);
         
@@ -301,9 +276,6 @@ export function getConnectorPoints(el) {
     return [start, end];
 }
 
-/**
- * Calcula la distancia de un punto a un segmento rectilíneo
- */
 export function distToSegment(p, p1, p2) {
     const l2 = (p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2;
     if (l2 === 0) return Math.hypot(p.x - p1.x, p.y - p1.y);
@@ -312,9 +284,6 @@ export function distToSegment(p, p1, p2) {
     return Math.hypot(p.x - (p1.x + t * (p2.x - p1.x)), p.y - (p1.y + t * (p2.y - p1.y)));
 }
 
-/**
- * Calcula la distancia mínima de un punto a una polilínea
- */
 export function distToPath(pt, points) {
     if (!points || points.length === 0) return Infinity;
     if (points.length === 1) return Math.hypot(pt.x - points[0].x, pt.y - points[0].y);
@@ -326,19 +295,16 @@ export function distToPath(pt, points) {
     return minD;
 }
 
-/**
- * Evalúa si un punto está contenido o muy cercano a un elemento
- */
 export function isPointInElement(pt, el) {
     if (el.type === 'pencil' || el.type === 'highlighter') {
         const pts = el.points || [];
-        const threshold = Math.max(10, (el.lineWidth || 3) / 2 + 5);
+        const threshold = Math.max(10, (el.lineWidth || el.strokeWidth || 3) / 2 + 5);
         return distToPath(pt, pts) <= threshold;
     }
 
     if (el.type === 'connector') {
         const pts = getConnectorPoints(el);
-        const threshold = Math.max(10, (el.strokeWidth || 2) + 6);
+        const threshold = Math.max(10, (el.strokeWidth || el.lineWidth || 2) + 6);
         return distToPath(pt, pts) <= threshold;
     }
 
@@ -450,9 +416,9 @@ function drawArrowHead(ctx, fromX, fromY, toX, toY, color, size = 14) {
 }
 
 function drawConnector(ctx, el) {
-    const strokeColor = getEffectiveColor(el.strokeColor || '#1e293b', 'stroke');
+    const strokeColor = getEffectiveColor(el.strokeColor || el.color || '#1e293b', 'stroke');
     ctx.strokeStyle = strokeColor;
-    const strokeWidth = el.strokeWidth || 2;
+    const strokeWidth = el.strokeWidth || el.lineWidth || 2;
     ctx.lineWidth = strokeWidth;
     setLineDashStyle(ctx, el.strokeStyle);
 
@@ -522,9 +488,10 @@ function drawConnector(ctx, el) {
 
 function drawPencil(ctx, el) {
     if (!el.points || el.points.length === 0) return;
-    const strokeColor = getEffectiveColor(el.color || '#1e293b', 'stroke');
+    const strokeColor = getEffectiveColor(el.strokeColor || el.color || '#1e293b', 'stroke');
     ctx.strokeStyle = strokeColor;
-    ctx.lineWidth = el.lineWidth || 3;
+    const strokeWidth = el.strokeWidth || el.lineWidth || 3;
+    ctx.lineWidth = strokeWidth;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
@@ -536,7 +503,7 @@ function drawPencil(ctx, el) {
 
     if (pts.length === 1) {
         ctx.beginPath();
-        ctx.arc(pts[0].x, pts[0].y, (el.lineWidth || 3) / 2, 0, Math.PI * 2);
+        ctx.arc(pts[0].x, pts[0].y, strokeWidth / 2, 0, Math.PI * 2);
         ctx.fillStyle = strokeColor;
         ctx.fill();
     } else {
@@ -573,7 +540,7 @@ function drawShape(ctx, el) {
 
     ctx.fillStyle = fillColor;
     ctx.strokeStyle = strokeColor;
-    ctx.lineWidth = el.strokeWidth || 2;
+    ctx.lineWidth = el.strokeWidth || el.lineWidth || 2;
     setLineDashStyle(ctx, el.strokeStyle);
 
     const x = el.x;
@@ -774,9 +741,6 @@ export function drawGrid(ctx, canvas) {
     ctx.restore();
 }
 
-/**
- * Dibuja los indicadores rectangulares de pantalla y nombre de cada Alumno conectado
- */
 function drawStudentViewports(ctx) {
     if (!state.showStudentViewports || !state.connectedStudents) return;
 
@@ -790,7 +754,6 @@ function drawStudentViewports(ctx) {
         ctx.setLineDash([8, 8]);
         ctx.strokeRect(vp.x, vp.y, vp.width, vp.height);
 
-        // Etiqueta superior con nombre del Alumno
         ctx.fillStyle = '#2563eb';
         ctx.font = `bold ${Math.max(12, 14 / state.zoom)}px Inter, system-ui, sans-serif`;
         const tagText = ` 🎓 ${student.name} `;

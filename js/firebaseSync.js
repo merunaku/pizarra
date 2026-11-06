@@ -12,7 +12,6 @@ import {
 import { state, restoreSnapshot } from './state.js';
 import { showToast } from './uiController.js';
 
-// Configuración oficial de tu proyecto Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyCgwLhw_twx8FaQot6e4tFa-vTyKhOVruI",
   authDomain: "pizarra-profediego.firebaseapp.com",
@@ -23,7 +22,6 @@ const firebaseConfig = {
   appId: "1:399259351439:web:e76fb20b6be38f8b4bb3fa"
 };
 
-// Inicializar Firebase App y Realtime Database
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
@@ -41,16 +39,13 @@ function getUserId() {
 const roomId = state.currentRoomId || 'clase_general';
 const userId = getUserId();
 
-/**
- * Inicializa la sincronización multiusuario con Firebase Realtime Database
- */
 export function initFirebaseSync(renderFn) {
     renderCallback = renderFn;
 
     window.syncElementsToFirebase = syncElementsToFirebase;
     window.broadcastTeacherPermission = broadcastTeacherPermission;
 
-    // 1. Escuchar cambios en los trazos/elementos en tiempo real
+    // 1. Escuchar cambios de trazos en tiempo real
     const elementsRef = ref(db, `rooms/${roomId}/elements`);
     onValue(elementsRef, (snapshot) => {
         const data = snapshot.val();
@@ -75,21 +70,22 @@ export function initFirebaseSync(renderFn) {
         }
     });
 
-    // 3. Escuchar el nombre de la pizarra/archivo activo proyectado por el profesor
+    // 3. Escuchar el archivo/pizarra activo enviado por el profesor (Sincronización de título)
     const activeFileRef = ref(db, `rooms/${roomId}/activeFile`);
     onValue(activeFileRef, (snapshot) => {
         const fileName = snapshot.val();
         if (fileName) {
             state.gdriveActiveFileName = fileName;
-            const fileTag = document.getElementById('student-file-indicator');
-            if (fileTag) {
-                fileTag.innerText = `Archivo del Profesor: ${fileName}`;
-                fileTag.classList.remove('hidden');
-            }
+            const cleanName = fileName.replace(/^PIZARRA_/, '').replace(/\.json$/, '');
+            
+            const topTitleInput = document.getElementById('board-title');
+            const modalTitleInput = document.getElementById('boardTitle');
+            if (topTitleInput) topTitleInput.value = cleanName;
+            if (modalTitleInput) modalTitleInput.value = cleanName;
         }
     });
 
-    // 4. Escuchar la ubicación en pantalla (Viewports) de todos los alumnos
+    // 4. Escuchar ubicaciones en pantalla (Viewports) de alumnos
     const usersRef = ref(db, `rooms/${roomId}/users`);
     onValue(usersRef, (snapshot) => {
         const usersData = snapshot.val() || {};
@@ -109,18 +105,13 @@ export function initFirebaseSync(renderFn) {
         if (renderCallback) renderCallback();
     });
 
-    // Configurar presencia y transmisión de posición
     setupPresence();
     setInterval(emitCurrentViewport, 500);
 }
 
-/**
- * Transmite los trazos a Firebase en tiempo real
- */
 export function syncElementsToFirebase() {
     if (isRemoteUpdating) return;
     
-    // Si es un alumno y la pizarra está bloqueada, no enviar
     if (!state.gdriveIsTeacher && !state.studentDrawingAllowed) {
         return;
     }
@@ -131,9 +122,6 @@ export function syncElementsToFirebase() {
     }, 100);
 }
 
-/**
- * Transmite el estado del permiso de dibujo (Solo Profesor)
- */
 export function broadcastTeacherPermission(allowed) {
     if (!state.gdriveIsTeacher) return;
     state.studentDrawingAllowed = allowed;
@@ -147,26 +135,17 @@ export function broadcastTeacherPermission(allowed) {
     );
 }
 
-/**
- * Transmite el nombre de la pizarra activa (Solo Profesor)
- */
 export function broadcastActiveFileToStudents(fileName) {
     if (!state.gdriveIsTeacher) return;
     set(ref(db, `rooms/${roomId}/activeFile`), fileName);
 }
 
-/**
- * Presencia: Elimina al alumno de la lista cuando cierra la pestaña
- */
 function setupPresence() {
     const userRef = ref(db, `rooms/${roomId}/users/${userId}`);
     onDisconnect(userRef).remove();
     emitCurrentViewport();
 }
 
-/**
- * Envía las coordenadas de la pantalla del alumno/profesor a Firebase
- */
 function emitCurrentViewport() {
     const canvas = document.getElementById('board-canvas');
     if (!canvas) return;
@@ -193,9 +172,6 @@ function emitCurrentViewport() {
     });
 }
 
-/**
- * Actualiza el contador y fotos de alumnos conectados en el Navbar
- */
 function updateConnectedCountUI() {
     const countBadge = document.getElementById('connected-students-count');
     const avatarsContainer = document.getElementById('connected-students-avatars');
@@ -218,9 +194,6 @@ function updateConnectedCountUI() {
     }
 }
 
-/**
- * Habilita o bloquea la barra lateral para alumnos
- */
 export function updateStudentDrawingUI() {
     const sidebar = document.getElementById('main-sidebar');
     const isTeacher = state.gdriveIsTeacher;

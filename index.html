@@ -17,7 +17,7 @@
 
     <!-- TOP HEADER NAVBAR -->
     <header class="fixed top-3 left-3 right-3 h-14 z-30 flex items-center justify-between px-4 glass-panel rounded-2xl shadow-lg border border-slate-200/90">
-        <!-- Left: Logo, Board Title & Student Active File Indicator -->
+        <!-- Left: Logo & Board Title -->
         <div class="flex items-center gap-3">
             <div class="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-md shadow-indigo-200 font-bold text-lg">
                 <i class="fa-solid fa-chalkboard-user"></i>
@@ -27,7 +27,6 @@
                 <span id="sync-status-badge" class="text-[10px] text-slate-500 font-medium -mt-1 ml-0.5 flex items-center gap-1">
                     <i class="fa-solid fa-circle text-[6px] text-emerald-500"></i> Local (Guardado Automático)
                 </span>
-                <span id="student-file-indicator" class="hidden text-[10px] text-indigo-600 font-bold -mt-0.5 ml-0.5"></span>
             </div>
         </div>
 
@@ -41,7 +40,6 @@
             </button>
             <div class="h-4 w-px bg-slate-300 mx-1"></div>
             
-            <!-- Templates Button -->
             <button id="btn-templates-toggle" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-white rounded-lg transition-all">
                 <i class="fa-solid fa-shapes text-indigo-600"></i>
                 <span>Plantillas</span>
@@ -49,7 +47,6 @@
             
             <div class="h-4 w-px bg-slate-300 mx-1"></div>
 
-            <!-- Flyout Configuración de Asistencias (Maximizar Área) -->
             <div class="relative has-flyout">
                 <button title="Opciones de Asistencia" class="tool-btn p-2 hover:bg-white rounded-lg text-slate-600 hover:text-indigo-600 transition-all">
                     <i class="fa-solid fa-sliders text-sm"></i>
@@ -67,12 +64,11 @@
                 </div>
             </div>
 
-            <!-- Dark Mode Toggle Button -->
             <button id="btn-toggle-darkmode" title="Cambiar Modo Oscuro / Claro" class="p-2 hover:bg-white rounded-lg text-slate-600 hover:text-amber-500 transition-all">
                 <i id="darkmode-icon" class="fa-solid fa-moon text-sm"></i>
             </button>
 
-            <!-- Panel Profesor: Control de Dibujo y Visores de Alumno -->
+            <!-- Panel Profesor -->
             <div id="teacher-control-panel" class="hidden flex items-center gap-2 border-l border-slate-300 pl-2 ml-1">
                 <label class="flex items-center gap-1.5 text-xs text-slate-700 font-semibold cursor-pointer bg-white px-2 py-1 rounded-lg border border-slate-200">
                     <input id="toggle-student-drawing" type="checkbox" class="w-3.5 h-3.5 text-emerald-600 rounded accent-emerald-600" />
@@ -85,9 +81,8 @@
             </div>
         </div>
 
-        <!-- Right: Alumnos Conectados, Google Drive, Cerrar Sesión & Exportar -->
+        <!-- Right: Alumnos Conectados & Perfil -->
         <div class="flex items-center gap-2">
-            <!-- Indicador de Alumnos Conectados -->
             <div id="connected-students-badge" class="flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-xl">
                 <i class="fa-solid fa-users text-indigo-600 text-xs"></i>
                 <span id="connected-students-count" class="text-xs font-bold text-indigo-900">0 Alumnos</span>
@@ -137,7 +132,7 @@
         </div>
     </header>
 
-    <!-- CONTEXTUAL FLOATING TOOLBAR (CON FIX MODO OSCURO) -->
+    <!-- CONTEXTUAL FLOATING TOOLBAR -->
     <div id="context-toolbar" class="fixed top-20 left-1/2 -translate-x-1/2 z-30 hidden glass-panel px-3 py-1.5 rounded-2xl shadow-xl border border-slate-200 flex items-center gap-2 text-xs">
         <div id="ctx-group-fill" class="flex items-center gap-1.5">
             <span class="text-slate-400 text-[10px]">Relleno</span>
@@ -158,7 +153,7 @@
                 <option value="curved">Curva</option>
                 <option value="orthogonal">Ortogonal AutoCAD</option>
             </select>
-            <button id="ctx-add-point" title="Añadir Codo / Punto Intermedio" class="px-2 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 border border-slate-200 rounded text-slate-700 text-xs font-semibold flex items-center gap-1">
+            <button id="ctx-add-point" title="Añadir Codo" class="px-2 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 border border-slate-200 rounded text-slate-700 text-xs font-semibold flex items-center gap-1">
                 <i class="fa-solid fa-circle-plus text-indigo-500"></i> + Codo
             </button>
             <button id="ctx-remove-point" title="Eliminar Último Codo" class="px-2 py-1 bg-slate-100 hover:bg-red-50 hover:text-red-600 border border-slate-200 rounded text-slate-700 text-xs font-semibold flex items-center gap-1">
@@ -368,13 +363,11 @@
         </label>
     </aside>
 
-    <!-- CANVAS PRINCIPAL Y TEXTAREA OVERLAY -->
     <main class="relative w-full h-full overflow-hidden flex-1">
         <canvas id="board-canvas" class="absolute inset-0 w-full h-full cursor-crosshair z-0"></canvas>
         <textarea id="inline-text-editor" placeholder="Escribe aquí..."></textarea>
     </main>
 
-    <!-- CONTROLES DE ZOOM Y MINIMAPA -->
     <div class="fixed bottom-4 right-4 z-30 flex items-center gap-2">
         <div class="glass-panel px-2 py-1 rounded-2xl shadow-lg border border-slate-200 flex items-center gap-1 text-xs">
             <button id="btn-zoom-out" title="Alejar (-)" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600"><i class="fa-solid fa-minus"></i></button>
@@ -395,7 +388,7 @@
         </div>
     </div>
 
-    <!-- MODAL GESTOR DE PIZARRAS Y GOOGLE DRIVE EXPLORER -->
+    <!-- MODAL GESTOR DE PIZARRAS -->
     <div id="modal-gdrive" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
         <div class="glass-panel w-full max-w-2xl rounded-3xl shadow-2xl p-6 flex flex-col gap-4 border border-slate-200 bg-white max-h-[90vh] overflow-y-auto">
             <div class="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -404,7 +397,7 @@
                         <i class="fa-brands fa-google-drive"></i>
                     </div>
                     <div>
-                        <h3 class="leading-tight">Gestor de Pizarras y Google Drive</h3>
+                        <h3 class="leading-tight">Gestor de PizARRAS y Google Drive</h3>
                         <p class="text-[11px] font-normal text-slate-500">Explora clases, organiza carpetas y respalda pizarras en la nube</p>
                     </div>
                 </div>
@@ -540,7 +533,6 @@
         <span id="toast-message" class="text-xs font-semibold text-slate-700">Notificación</span>
     </div>
 
-    <!-- SCRIPT PRINCIPAL DE ARRANQUE -->
     <script type="module" src="js/main.js"></script>
 </body>
 </html>
