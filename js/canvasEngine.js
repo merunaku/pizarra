@@ -296,18 +296,6 @@ export function distToPath(pt, points) {
 }
 
 export function isPointInElement(pt, el) {
-    if (el.type === 'pencil' || el.type === 'highlighter') {
-        const pts = el.points || [];
-        const threshold = Math.max(10, (el.lineWidth || el.strokeWidth || 3) / 2 + 5);
-        return distToPath(pt, pts) <= threshold;
-    }
-
-    if (el.type === 'connector') {
-        const pts = getConnectorPoints(el);
-        const threshold = Math.max(10, (el.strokeWidth || el.lineWidth || 2) + 6);
-        return distToPath(pt, pts) <= threshold;
-    }
-
     const bounds = getElementBounds(el);
     let checkPt = pt;
 
@@ -315,6 +303,18 @@ export function isPointInElement(pt, el) {
         const cx = bounds.x + bounds.width / 2;
         const cy = bounds.y + bounds.height / 2;
         checkPt = rotatePoint(pt, -el.rotation, { x: cx, y: cy });
+    }
+
+    if (el.type === 'pencil' || el.type === 'highlighter') {
+        const pts = el.points || [];
+        const threshold = Math.max(10, (el.lineWidth || el.strokeWidth || 3) / 2 + 5);
+        return distToPath(checkPt, pts) <= threshold;
+    }
+
+    if (el.type === 'connector') {
+        const pts = getConnectorPoints(el);
+        const threshold = Math.max(10, (el.strokeWidth || el.lineWidth || 2) + 6);
+        return distToPath(checkPt, pts) <= threshold;
     }
 
     return (
@@ -777,7 +777,7 @@ export function drawElement(ctx, el) {
         ctx.globalAlpha = el.opacity;
     }
 
-    if (el.rotation && el.type !== 'pencil' && el.type !== 'highlighter' && el.type !== 'connector') {
+    if (el.rotation && el.type !== 'connector') {
         const bounds = getElementBounds(el);
         const cx = bounds.x + bounds.width / 2;
         const cy = bounds.y + bounds.height / 2;

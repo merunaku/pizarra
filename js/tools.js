@@ -450,7 +450,6 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
             return;
         }
 
-        // CORRECCIÓN DE ESCALADO Y ROTACIÓN DE FIGURAS / TRAZOS
         if (state.isResizing && state.selectedIds.length === 1) {
             const el = state.elements.find(e => e.id === state.selectedIds[0]);
             if (el) {
@@ -622,7 +621,8 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                 }
             }
             state.elements.push(state.tempElement);
-            state.selectedIds = [state.tempElement.id];
+            // No seleccionar automáticamente al soltar para evitar el cuadro de límites incómodo
+            state.selectedIds = [];
             state.tempElement = null;
             state.isDrawing = false;
             saveState();

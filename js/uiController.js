@@ -65,7 +65,6 @@ function syncArrowModeButtons(arrowMode) {
     });
 }
 
-// CORRECCIÓN INICIALIZACIÓN DE ROL Y TÍTULOS
 export function applyRoleUIRestrictions() {
     const isTeacher = state.gdriveIsTeacher;
 
@@ -91,7 +90,6 @@ export function applyRoleUIRestrictions() {
         boardTitleInput.disabled = !isTeacher;
     }
 
-    // Asegurar que la barra lateral del profesor inicie habilitada de inmediato
     updateStudentDrawingUI();
 }
 
@@ -110,7 +108,6 @@ export function handleLogout() {
     showToast('Sesión cerrada correctamente', 'fa-solid fa-right-from-bracket');
 }
 
-// CORRECCIÓN DE LA BARRA DE HERRAMIENTAS CONTEXTUAL
 export function updateContextToolbar() {
     const ctxToolbar = document.getElementById('context-toolbar');
     if (!ctxToolbar) return;
@@ -315,6 +312,7 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         });
     }
 
+    // LISTENER HERRAMIENTAS MENÚ LATERAL Y SUBMENÚS FLYOUT
     document.querySelectorAll('.tool-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -346,7 +344,75 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         }
     });
 
-    // EVENTOS DE LA BARRA FLOTANTE (CON UNIFICACIÓN DE PROPIEDADES)
+    // CONFIGURACIÓN DE PANELES DESPLEGABLES (FLYOUTS)
+    document.querySelectorAll('.pencil-color-opt').forEach(opt => {
+        opt.addEventListener('click', () => {
+            const color = opt.getAttribute('data-color');
+            state.pencilColor = color;
+            document.querySelectorAll('.pencil-color-opt').forEach(o => o.classList.remove('active'));
+            opt.classList.add('active');
+        });
+    });
+
+    const pencilWidthSlider = document.getElementById('pencil-width-slider');
+    const pencilWidthVal = document.getElementById('pencil-width-val');
+    if (pencilWidthSlider) {
+        pencilWidthSlider.addEventListener('input', (e) => {
+            state.pencilWidth = parseInt(e.target.value);
+            if (pencilWidthVal) pencilWidthVal.innerText = `${state.pencilWidth}px`;
+        });
+    }
+
+    document.querySelectorAll('.pencil-arrow-opt').forEach(opt => {
+        opt.addEventListener('click', () => {
+            const mode = opt.getAttribute('data-arrow');
+            state.pencilArrowMode = mode;
+            document.querySelectorAll('.pencil-arrow-opt').forEach(o => o.classList.remove('active'));
+            opt.classList.add('active');
+        });
+    });
+
+    document.querySelectorAll('.hl-color-opt').forEach(opt => {
+        opt.addEventListener('click', () => {
+            state.hlColor = opt.getAttribute('data-color');
+            document.querySelectorAll('.hl-color-opt').forEach(o => o.classList.remove('active'));
+            opt.classList.add('active');
+        });
+    });
+
+    const hlWidthSlider = document.getElementById('hl-width-slider');
+    const hlWidthVal = document.getElementById('hl-width-val');
+    if (hlWidthSlider) {
+        hlWidthSlider.addEventListener('input', (e) => {
+            state.hlWidth = parseInt(e.target.value);
+            if (hlWidthVal) hlWidthVal.innerText = `${state.hlWidth}px`;
+        });
+    }
+
+    document.querySelectorAll('.sticky-color-opt').forEach(opt => {
+        opt.addEventListener('click', () => {
+            state.stickyColor = opt.getAttribute('data-color');
+            closeAllFlyouts();
+        });
+    });
+
+    document.querySelectorAll('.shape-opt').forEach(opt => {
+        opt.addEventListener('click', () => {
+            state.activeShape = opt.getAttribute('data-shape');
+            closeAllFlyouts();
+            setTool('shape');
+        });
+    });
+
+    document.querySelectorAll('.conn-opt').forEach(opt => {
+        opt.addEventListener('click', () => {
+            state.activeConnector = opt.getAttribute('data-conn');
+            closeAllFlyouts();
+            setTool('connector');
+        });
+    });
+
+    // LISTENERS DE LA BARRA FLOTANTE CONTEXTUAL
     document.querySelectorAll('.ctx-arrow-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const mode = btn.getAttribute('data-arrow');
@@ -360,6 +426,19 @@ export function setupUIListeners(canvas, ctx, renderFn) {
             if (renderCallback) renderCallback();
         });
     });
+
+    const ctxFill = document.getElementById('ctx-fill-color');
+    if (ctxFill) {
+        ctxFill.addEventListener('input', (e) => {
+            const val = e.target.value;
+            state.selectedIds.forEach(id => {
+                const el = state.elements.find(m => m.id === id);
+                if (el) { el.fillColor = val; el.color = val; }
+            });
+            saveState();
+            if (renderCallback) renderCallback();
+        });
+    }
 
     const ctxStroke = document.getElementById('ctx-stroke-color');
     if (ctxStroke) {
@@ -394,6 +473,60 @@ export function setupUIListeners(canvas, ctx, renderFn) {
             state.selectedIds.forEach(id => {
                 const el = state.elements.find(m => m.id === id);
                 if (el) el.arrowSize = size;
+            });
+            saveState();
+            if (renderCallback) renderCallback();
+        });
+    }
+
+    const ctxOpacity = document.getElementById('ctx-opacity');
+    if (ctxOpacity) {
+        ctxOpacity.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            state.selectedIds.forEach(id => {
+                const el = state.elements.find(m => m.id === id);
+                if (el) el.opacity = val;
+            });
+            saveState();
+            if (renderCallback) renderCallback();
+        });
+    }
+
+    const ctxStyle = document.getElementById('ctx-stroke-style');
+    if (ctxStyle) {
+        ctxStyle.addEventListener('change', (e) => {
+            const val = e.target.value;
+            state.selectedIds.forEach(id => {
+                const el = state.elements.find(m => m.id === id);
+                if (el) el.strokeStyle = val;
+            });
+            saveState();
+            if (renderCallback) renderCallback();
+        });
+    }
+
+    const ctxFont = document.getElementById('ctx-font-size');
+    if (ctxFont) {
+        ctxFont.addEventListener('change', (e) => {
+            const val = parseInt(e.target.value);
+            state.selectedIds.forEach(id => {
+                const el = state.elements.find(m => m.id === id);
+                if (el) el.fontSize = val;
+            });
+            saveState();
+            if (renderCallback) renderCallback();
+        });
+    }
+
+    const ctxSmoothing = document.getElementById('ctx-smoothing');
+    if (ctxSmoothing) {
+        ctxSmoothing.addEventListener('input', (e) => {
+            const val = parseInt(e.target.value);
+            state.selectedIds.forEach(id => {
+                const el = state.elements.find(m => m.id === id);
+                if (el && (el.type === 'pencil' || el.type === 'highlighter')) {
+                    el.smoothing = val;
+                }
             });
             saveState();
             if (renderCallback) renderCallback();
@@ -463,6 +596,61 @@ export function setupUIListeners(canvas, ctx, renderFn) {
                         el.isCurved = false;
                         el.isOrthogonal = false;
                     }
+                }
+            });
+            saveState();
+            if (renderCallback) renderCallback();
+        });
+    }
+
+    const ctxDuplicate = document.getElementById('ctx-duplicate');
+    if (ctxDuplicate) {
+        ctxDuplicate.addEventListener('click', () => {
+            const newSelected = [];
+            state.selectedIds.forEach(id => {
+                const el = state.elements.find(m => m.id === id);
+                if (el) {
+                    const copy = JSON.parse(JSON.stringify(el));
+                    copy.id = 'el_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+                    if (copy.x !== undefined) copy.x += 20;
+                    if (copy.y !== undefined) copy.y += 20;
+                    if (copy.endX !== undefined) copy.endX += 20;
+                    if (copy.endY !== undefined) copy.endY += 20;
+                    if (copy.points) copy.points.forEach(p => { p.x += 20; p.y += 20; });
+                    state.elements.push(copy);
+                    newSelected.push(copy.id);
+                }
+            });
+            state.selectedIds = newSelected;
+            updateContextToolbar();
+            saveState();
+            if (renderCallback) renderCallback();
+        });
+    }
+
+    const ctxBringFront = document.getElementById('ctx-bring-front');
+    if (ctxBringFront) {
+        ctxBringFront.addEventListener('click', () => {
+            state.selectedIds.forEach(id => {
+                const idx = state.elements.findIndex(m => m.id === id);
+                if (idx !== -1) {
+                    const [el] = state.elements.splice(idx, 1);
+                    state.elements.push(el);
+                }
+            });
+            saveState();
+            if (renderCallback) renderCallback();
+        });
+    }
+
+    const ctxSendBack = document.getElementById('ctx-send-back');
+    if (ctxSendBack) {
+        ctxSendBack.addEventListener('click', () => {
+            state.selectedIds.forEach(id => {
+                const idx = state.elements.findIndex(m => m.id === id);
+                if (idx !== -1) {
+                    const [el] = state.elements.splice(idx, 1);
+                    state.elements.unshift(el);
                 }
             });
             saveState();
