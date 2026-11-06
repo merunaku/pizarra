@@ -575,7 +575,7 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                     if (el.points) el.points.forEach(p => { p.x += snapDx; p.y += snapDy; });
                 }
             });
-            state.startPoint = { x: worldPos.x, y: worldPos.y };
+            state.startPoint = { x: state.startPoint.x + snapDx, y: state.startPoint.y + snapDy };
             scheduleRender();
             return;
         }
@@ -605,7 +605,6 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
             canvas.style.cursor = 'crosshair';
         }
         
-        // Mantener la selección activa al finalizar arrastre, cambio de tamaño o rotación
         if (state.isDragging || state.isResizing || state.isRotating) {
             state.isDragging = false;
             state.isResizing = false;
@@ -628,7 +627,6 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
             }
             state.elements.push(state.tempElement);
             
-            // Si dibujó con lápiz/resaltador no fuerza recuadro molesto
             if (state.tempElement.type === 'pencil' || state.tempElement.type === 'highlighter') {
                 state.selectedIds = [];
             } else {

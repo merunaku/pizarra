@@ -65,11 +65,12 @@ export function getWrappedLines(ctx, text, maxWidth) {
     return lines;
 }
 
-export function getSmoothedPoints(points, iterations = 3) {
+export function getSmoothedPoints(points, iterations = 2) {
     if (!points || points.length <= 2) return points || [];
+    const maxIter = Math.min(iterations, 2); // Límite para evitar saturación de memoria
     let current = points.map(p => ({ x: p.x, y: p.y }));
 
-    for (let i = 0; i < iterations; i++) {
+    for (let i = 0; i < maxIter; i++) {
         const next = [];
         next.push(current[0]);
         for (let j = 0; j < current.length - 1; j++) {
@@ -112,7 +113,6 @@ export function getLuminance(colorStr) {
 }
 
 export function getEffectiveColor(colorStr, role = 'stroke', elType = null) {
-    // Los resaltadores neón translúcidos nunca invierten su tono
     if (elType === 'highlighter' || (colorStr && colorStr.startsWith('rgba') && colorStr.includes('0.45'))) {
         return colorStr;
     }
@@ -133,24 +133,16 @@ export function getEffectiveColor(colorStr, role = 'stroke', elType = null) {
 
     if (state.darkMode) {
         if (role === 'stroke' || role === 'text') {
-            if (lum < 0.35) {
-                return '#f8fafc';
-            }
+            if (lum < 0.35) return '#f8fafc';
         } else if (role === 'fill') {
-            if (lum > 0.85) {
-                return '#1e293b';
-            }
+            if (lum > 0.85) return '#1e293b';
         }
         return colorStr;
     } else {
         if (role === 'stroke' || role === 'text') {
-            if (lum > 0.75) {
-                return '#1e293b';
-            }
+            if (lum > 0.75) return '#1e293b';
         } else if (role === 'fill') {
-            if (lum < 0.15) {
-                return '#ffffff';
-            }
+            if (lum < 0.15) return '#ffffff';
         }
         return colorStr;
     }
@@ -187,10 +179,7 @@ export function getElementBounds(el) {
         let maxLineW = 0;
 
         paragraphs.forEach(p => {
-            if (!p) {
-                lineCount++;
-                return;
-            }
+            if (!p) { lineCount++; return; }
             const words = p.split(' ');
             let curLen = 0;
             words.forEach(w => {
@@ -208,12 +197,7 @@ export function getElementBounds(el) {
 
         const calculatedWidth = el.width ? el.width : Math.max(120, maxLineW + 16);
         const calculatedHeight = Math.max(fSize * 1.4, lineCount * (fSize * 1.35) + 12);
-        return {
-            x: el.x,
-            y: el.y,
-            width: calculatedWidth,
-            height: calculatedHeight
-        };
+        return { x: el.x, y: el.y, width: calculatedWidth, height: calculatedHeight };
     }
 
     if (el.type === 'connector') {
@@ -254,12 +238,7 @@ export function getConnectorPoints(el) {
     if (isOrthogonal) {
         const dx = Math.abs(end.x - start.x);
         const dy = Math.abs(end.y - start.y);
-        
-        if (dx > dy) {
-            return [start, { x: end.x, y: start.y }, end];
-        } else {
-            return [start, { x: start.x, y: end.y }, end];
-        }
+        return dx > dy ? [start, { x: end.x, y: start.y }, end] : [start, { x: start.x, y: end.y }, end];
     }
 
     if (isCurved) {
@@ -272,8 +251,7 @@ export function getConnectorPoints(el) {
 export function distToSegment(p, p1, p2) {
     const l2 = (p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2;
     if (l2 === 0) return Math.hypot(p.x - p1.x, p.y - p1.y);
-    let t = ((p.x - p1.x) * (p2.x - p1.x) + (p.y - p1.y) * (p2.y - p1.y)) / l2;
-    t = Math.max(0, Math.min(1, t));
+    let t = Math.max(0, Math.min(1, ((p.x - p1.x) * (p2.x - p1.x) + (p.y - p1.y) * (p2.y - p1.y)) / l2));
     return Math.hypot(p.x - (p1.x + t * (p2.x - p1.x)), p.y - (p1.y + t * (p2.y - p1.y)));
 }
 
@@ -298,8 +276,16 @@ export function isPointInElement(pt, el) {
         checkPt = rotatePoint(pt, -el.rotation, { x: cx, y: cy });
     }
 
-    // Tolerancia ampliada de clic de selección según nivel de Zoom
     const hitMargin = Math.max(12, 16 / state.zoom);
+
+    // Filtro previo de Bounding Box ultra veloz para evitar congelamiento
+    const inBox = (
+        checkPt.x >= bounds.x - hitMargin &&
+        checkPt.x <= bounds.x + bounds.width + hitMargin &&
+        checkPt.y >= bounds.y - hitMargin &&
+        checkPt.y <= bounds.y + bounds.height + hitMargin
+    );
+    if (!inBox) return false;
 
     if (el.type === 'pencil' || el.type === 'highlighter') {
         const pts = el.points || [];
@@ -313,12 +299,7 @@ export function isPointInElement(pt, el) {
         return distToPath(checkPt, pts) <= threshold;
     }
 
-    return (
-        checkPt.x >= bounds.x - hitMargin &&
-        checkPt.x <= bounds.x + bounds.width + hitMargin &&
-        checkPt.y >= bounds.y - hitMargin &&
-        checkPt.y <= bounds.y + bounds.height + hitMargin
-    );
+    return true;
 }
 
 function setLineDashStyle(ctx, style) {
@@ -495,7 +476,7 @@ function drawPencil(ctx, el) {
         ctx.globalCompositeOperation = state.darkMode ? 'screen' : 'multiply';
     }
 
-    const pts = el.smoothing ? getSmoothedPoints(el.points, Math.min(5, el.smoothing)) : el.points;
+    const pts = el.smoothing ? getSmoothedPoints(el.points, Math.min(2, el.smoothing)) : el.points;
 
     if (pts.length === 1) {
         ctx.beginPath();
