@@ -7,6 +7,76 @@ import { toggleStudentDrawingPermission } from './firebaseSync.js';
 
 let renderCallback = null;
 
+/**
+ * Controla la visibilidad de elementos según el rol activo (Profesor vs Alumno)
+ */
+export function applyRolePermissions(userRole) {
+    state.userRole = userRole;
+    document.body.classList.remove('role-teacher', 'role-student');
+    document.body.classList.add(`role-${userRole}`);
+
+    const teacherElements = document.querySelectorAll('.teacher-only, [data-requires-role="teacher"]');
+    teacherElements.forEach(el => {
+        if (userRole === 'teacher') {
+            el.style.display = '';
+        } else {
+            el.style.display = 'none';
+        }
+    });
+}
+
+/**
+ * Abre la ventana modal para seleccionar pizarras con vista previa de imágenes medianas
+ */
+export function openBoardSelectionModal(boardsList, onSelectBoard) {
+    const existing = document.querySelector('.board-modal-overlay');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.className = 'board-modal-overlay';
+
+    const boardsHtml = boardsList && boardsList.length > 0 ? boardsList.map(board => `
+        <div class="board-card" data-id="${board.id}">
+            <div class="board-thumb-container">
+                <img src="${board.thumbnailUrl || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=400&q=80'}" alt="${board.name}" />
+            </div>
+            <div class="board-card-info">
+                <span class="board-card-title">${board.name}</span>
+                <span class="board-card-meta">${board.updatedAt ? new Date(board.updatedAt).toLocaleDateString() : 'Pizarra interactiva'}</span>
+            </div>
+        </div>
+    `).join('') : '<p style="grid-column: 1/-1; text-align: center; color: #64748b; padding: 2rem;">No hay pizarras disponibles.</p>';
+
+    modal.innerHTML = `
+        <div class="board-modal-content">
+            <div class="board-modal-header">
+                <h3>Seleccionar Pizarra</h3>
+                <button class="board-modal-close" id="closeBoardModal">&times;</button>
+            </div>
+            <div class="board-grid">
+                ${boardsHtml}
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const btnClose = modal.querySelector('#closeBoardModal');
+    if (btnClose) btnClose.addEventListener('click', () => modal.remove());
+    
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+    });
+
+    modal.querySelectorAll('.board-card').forEach(card => {
+        card.addEventListener('click', () => {
+            const selectedId = card.dataset.id;
+            if (onSelectBoard) onSelectBoard(selectedId);
+            modal.remove();
+        });
+    });
+}
+
 export function updateColorPalettesForMode() {
     const isDark = state.darkMode;
 

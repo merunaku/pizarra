@@ -992,18 +992,26 @@ function drawParticipantViewports(ctx, canvas) {
     Object.keys(state.presenceUsers).forEach(uid => {
         if (uid === state.userId) return;
         const user = state.presenceUsers[uid];
-        if (!user || !user.viewBounds) return;
+        if (!user || (!user.viewBounds && !user.bounds)) return;
 
-        const b = user.viewBounds;
-        ctx.strokeStyle = user.color || '#06b6d4';
+        const b = user.viewBounds || user.bounds;
+        const bx = b.x !== undefined ? b.x : 0;
+        const by = b.y !== undefined ? b.y : 0;
+        const bw = b.w !== undefined ? b.w : (b.width || 200);
+        const bh = b.h !== undefined ? b.h : (b.height || 150);
+
+        const color = user.color || '#06b6d4';
+        const displayName = user.userName || user.name || user.email || user.userEmail || 'Usuario';
+
+        ctx.strokeStyle = color;
         ctx.lineWidth = 2 / state.zoom;
         ctx.setLineDash([6, 6]);
-        ctx.strokeRect(b.x, b.y, b.w, b.h);
+        ctx.strokeRect(bx, by, bw, bh);
         ctx.setLineDash([]);
 
-        ctx.fillStyle = user.color || '#06b6d4';
+        ctx.fillStyle = color;
         ctx.font = `bold ${Math.max(12, 14 / state.zoom)}px Inter, sans-serif`;
-        ctx.fillText(`👤 ${user.name || 'Participante'}`, b.x + 6, b.y + 18 / state.zoom);
+        ctx.fillText(`👤 ${displayName}`, bx + 6, by + 18 / state.zoom);
     });
     ctx.restore();
 }

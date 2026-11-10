@@ -375,6 +375,40 @@ export function refreshCurrentFolder() {
 }
 
 /**
+ * Obtiene la lista de pizarras disponibles en Google Drive para el menú de selección
+ */
+export async function fetchDriveBoards() {
+    if (!state.gdriveAccessToken) return [];
+    try {
+        const query = encodeURIComponent("mimeType = 'application/json' and trashed = false");
+        const response = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name,thumbnailLink,modifiedTime)&orderBy=modifiedTime desc`, {
+            headers: { Authorization: `Bearer ${state.gdriveAccessToken}` }
+        });
+        const data = await response.json();
+        if (data.files) {
+            return data.files.map(f => ({
+                id: f.id,
+                name: f.name.replace(/^PIZARRA_/, '').replace(/\.json$/, ''),
+                thumbnailUrl: f.thumbnailLink,
+                updatedAt: f.modifiedTime
+            }));
+        }
+        return [];
+    } catch (err) {
+        console.error("Error al obtener pizarras de Drive:", err);
+        return [];
+    }
+}
+
+/**
+ * Carga una pizarra seleccionada desde Drive
+ */
+export async function loadBoardFromDrive(boardId, renderFn) {
+    if (renderFn) renderCallback = renderFn;
+    await readWhiteboard(boardId);
+}
+
+/**
  * Lista carpetas y archivos guardados en Google Drive
  */
 export async function listFolderContents() {

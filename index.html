@@ -2,7 +2,7 @@
 <html lang="es" class="h-full bg-slate-900 select-none overflow-hidden">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Pizarra ProfeDiego - Pizarra Online Interactiva</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
@@ -40,12 +40,12 @@
             <button id="btn-toggle-osnap" title="Referencia a Objetos (OSNAP)" class="toggle-mode-btn active px-2.5 py-1 text-xs font-bold border border-slate-300 rounded-lg text-slate-700 hover:bg-white transition-all">
                 <i class="fa-solid fa-magnet"></i> OSNAP
             </button>
-            <button id="btn-toggle-student-draw" title="Permitir Dibujo a Alumnos (Docente)" class="toggle-mode-btn active px-2.5 py-1 text-xs font-bold border border-slate-300 rounded-lg text-slate-700 hover:bg-white transition-all">
+            <button id="btn-toggle-student-draw" title="Permitir Dibujo a Alumnos (Docente)" class="teacher-only toggle-mode-btn active px-2.5 py-1 text-xs font-bold border border-slate-300 rounded-lg text-slate-700 hover:bg-white transition-all">
                 <i class="fa-solid fa-users"></i> Dibujo Alumnos
             </button>
 
-            <div class="h-4 w-px bg-slate-300 mx-1"></div>
-            <button id="btn-templates-toggle" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-white rounded-lg transition-all">
+            <div class="h-4 w-px bg-slate-300 mx-1 teacher-only"></div>
+            <button id="btn-templates-toggle" class="teacher-only flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-white rounded-lg transition-all">
                 <i class="fa-solid fa-shapes text-indigo-600"></i>
                 <span>Plantillas</span>
             </button>
@@ -66,7 +66,12 @@
                 <span id="gdrive-user-label">Google Drive</span>
             </button>
 
-            <button id="btn-clear-board" title="Limpiar Pizarra" class="p-2 hover:bg-red-50 text-slate-500 hover:text-red-600 rounded-xl transition-all">
+            <button id="btn-open-boards-menu" title="Seleccionar Pizarra" class="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-xl font-semibold text-xs transition-all">
+                <i class="fa-solid fa-images"></i>
+                <span>Pizarras</span>
+            </button>
+
+            <button id="btn-clear-board" title="Limpiar Pizarra" class="teacher-only p-2 hover:bg-red-50 text-slate-500 hover:text-red-600 rounded-xl transition-all">
                 <i class="fa-solid fa-trash-can text-sm"></i>
             </button>
             
@@ -84,10 +89,10 @@
                     <button id="btn-gdrive-open-modal" class="text-left px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-50 rounded-lg flex items-center gap-2">
                         <i class="fa-brands fa-google-drive text-emerald-600 w-4"></i> Explorador Google Drive
                     </button>
-                    <button id="export-json" class="text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg flex items-center gap-2">
+                    <button id="export-json" class="teacher-only text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg flex items-center gap-2">
                         <i class="fa-solid fa-file-code text-slate-400 w-4"></i> Respaldar Local (JSON)
                     </button>
-                    <label class="text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg flex items-center gap-2 cursor-pointer">
+                    <label class="teacher-only text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg flex items-center gap-2 cursor-pointer">
                         <i class="fa-solid fa-file-import text-slate-400 w-4"></i> Cargar Local (JSON)
                         <input id="input-import-json" type="file" accept=".json" class="hidden" />
                     </label>
@@ -390,7 +395,7 @@
                 </div>
             </div>
 
-            <div class="p-3.5 bg-indigo-50/60 border border-indigo-100 rounded-2xl flex flex-col gap-2">
+            <div class="teacher-only p-3.5 bg-indigo-50/60 border border-indigo-100 rounded-2xl flex flex-col gap-2">
                 <span class="text-xs font-bold text-indigo-900">Crear / Guardar Pizarra Activa</span>
                 <div class="flex items-center gap-2">
                     <input type="text" id="boardTitle" placeholder="Nombre de la clase o pizarra" disabled class="flex-1 text-xs px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white" />
@@ -412,10 +417,10 @@
                 <div class="breadcrumbs" id="breadcrumbsView">Ruta: Raíz</div>
 
                 <div class="toolbar flex items-center gap-2">
-                    <button id="newFolderBtn" disabled class="bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1">
+                    <button id="newFolderBtn" disabled class="teacher-only bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1">
                         <i class="fa-solid fa-folder-plus"></i> + Nueva Carpeta
                     </button>
-                    <button id="pasteBtn" disabled class="bg-slate-600 hover:bg-slate-700 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1">
+                    <button id="pasteBtn" disabled class="teacher-only bg-slate-600 hover:bg-slate-700 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1">
                         📋 Pegar aquí
                     </button>
                     <button id="refreshBtn" disabled class="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1">

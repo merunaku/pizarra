@@ -36,6 +36,9 @@ export const state = {
     osnapEnabled: true,
     osnapPoint: null,
 
+    // Rol de usuario ('student' | 'teacher')
+    userRole: 'student',
+
     // Firebase Realtime Sync & Presencia
     userId: 'user_' + Math.random().toString(36).substr(2, 9),
     userName: 'Usuario',
@@ -88,6 +91,7 @@ export function saveState() {
     try {
         localStorage.setItem('profediego_board_data', snapshot);
         localStorage.setItem('profediego_dark_mode', state.darkMode ? 'true' : 'false');
+        localStorage.setItem('profediego_user_role', state.userRole);
         const titleInput = document.getElementById('board-title');
         if (titleInput) {
             localStorage.setItem('profediego_board_title', titleInput.value);
@@ -181,6 +185,11 @@ export function loadFromLocalStorage(renderCallback) {
     const savedTitle = localStorage.getItem('profediego_board_title');
     const savedDarkMode = localStorage.getItem('profediego_dark_mode');
     const savedActiveFileId = localStorage.getItem('profediego_active_file_id');
+    const savedRole = localStorage.getItem('profediego_user_role');
+
+    if (savedRole) {
+        state.userRole = savedRole;
+    }
 
     if (savedActiveFileId) {
         state.gdriveActiveFileId = savedActiveFileId;

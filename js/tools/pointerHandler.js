@@ -69,7 +69,8 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
     });
 
     canvas.addEventListener('pointerdown', (e) => {
-        if (!state.gdriveIsTeacher && !state.studentDrawingAllowed) return;
+        // Restricción de dibujo para alumnos sin permiso activo
+        if ((state.userRole === 'student' || !state.gdriveIsTeacher) && !state.studentDrawingAllowed) return;
 
         if (state.editingElementId) {
             closeInlineEditor();

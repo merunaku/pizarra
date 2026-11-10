@@ -43,7 +43,7 @@ export function initFirebaseSync(renderFn) {
 
 export function syncFirebaseElements(elements) {
     if (!db || isRemoteUpdating) return;
-    if (!state.gdriveIsTeacher && !state.studentDrawingAllowed) return;
+    if (state.userRole === 'student' && !state.studentDrawingAllowed) return;
 
     const elementsRef = ref(db, `boards/${currentRoomId}/elements`);
     set(elementsRef, elements).catch(err => console.error("Error en realtime sync:", err));
@@ -89,13 +89,39 @@ function listenToSettings(roomId) {
     });
 }
 
+/**
+ * Escucha cambios en la pizarra seleccionada por el profesor para sincronizar alumnos
+ */
+export function listenTeacherBoardChange(callback) {
+    if (!db) return;
+    const teacherBoardRef = ref(db, `boards/${currentRoomId}/activeBoardId`);
+    onValue(teacherBoardRef, (snapshot) => {
+        const boardId = snapshot.val();
+        if (boardId && callback) {
+            callback(boardId);
+        }
+    });
+}
+
+/**
+ * Actualiza la pizarra activa enviada por el profesor
+ */
+export function setTeacherActiveBoard(boardId) {
+    if (!db) return;
+    if (state.userRole !== 'teacher' && !state.gdriveIsTeacher) return;
+    const teacherBoardRef = ref(db, `boards/${currentRoomId}/activeBoardId`);
+    set(teacherBoardRef, boardId);
+}
+
 export function updateUserPresence() {
     if (!db) return;
     const canvas = document.getElementById('board-canvas');
     if (!canvas) return;
 
     const userRef = ref(db, `boards/${currentRoomId}/presence/${state.userId}`);
-    const userColor = state.gdriveIsTeacher ? '#059669' : '#2563eb';
+    const isTeacher = state.userRole === 'teacher' || state.gdriveIsTeacher;
+    const userColor = isTeacher ? '#059669' : '#2563eb';
+    const userName = state.gdriveCurrentUserEmail ? state.gdriveCurrentUserEmail.split('@')[0] : (isTeacher ? 'Profesor' : 'Alumno');
 
     const viewBounds = {
         x: -state.pan.x / state.zoom,
@@ -105,15 +131,17 @@ export function updateUserPresence() {
     };
 
     set(userRef, {
-        name: state.gdriveCurrentUserEmail ? state.gdriveCurrentUserEmail.split('@')[0] : 'Participante',
-        isTeacher: state.gdriveIsTeacher,
+        name: userName,
+        userName: userName,
+        isTeacher: isTeacher,
         color: userColor,
         viewBounds
     });
 }
 
 export function toggleStudentDrawingPermission(allowed) {
-    if (!db || !state.gdriveIsTeacher) return;
+    if (!db) return;
+    if (state.userRole !== 'teacher' && !state.gdriveIsTeacher) return;
     state.studentDrawingAllowed = allowed;
     const settingsRef = ref(db, `boards/${currentRoomId}/settings`);
     update(settingsRef, { studentDrawingAllowed: allowed });
