@@ -1,9 +1,6 @@
 // CANVAS ENGINE & RENDERER - PIZARRA PROFEDIEGO
 import { state } from './state.js';
 
-/**
- * Ajusta la dimensión del canvas según el tamaño del contenedor o ventana
- */
 export function resizeCanvas(canvas, renderCallback) {
     if (!canvas) return;
     const parent = canvas.parentElement;
@@ -12,9 +9,6 @@ export function resizeCanvas(canvas, renderCallback) {
     if (renderCallback) renderCallback();
 }
 
-/**
- * Rotación geométrica de un punto respecto a un centro
- */
 export function rotatePoint(pt, angle, center) {
     const cos = Math.cos(angle);
     const sin = Math.sin(angle);
@@ -26,10 +20,6 @@ export function rotatePoint(pt, angle, center) {
     };
 }
 
-/**
- * Divide un texto en líneas ajustadas al ancho máximo especificado (maxWidth),
- * contemplando saltos de línea explícitos (\n), ajuste por palabras y palabras largas.
- */
 export function getWrappedLines(ctx, text, maxWidth) {
     if (!text) return [];
     const paragraphs = text.split('\n');
@@ -75,9 +65,6 @@ export function getWrappedLines(ctx, text, maxWidth) {
     return lines;
 }
 
-/**
- * Algoritmo de suavizado para trazos libres (Chaikin's Corner Cutting)
- */
 export function getSmoothedPoints(points, iterations = 3) {
     if (!points || points.length <= 2) return points || [];
     let current = points.map(p => ({ x: p.x, y: p.y }));
@@ -99,9 +86,6 @@ export function getSmoothedPoints(points, iterations = 3) {
     return current;
 }
 
-/**
- * Calcula la luminancia percibida de una cadena de color (Hex, RGB, RGBA)
- */
 export function getLuminance(colorStr) {
     if (!colorStr) return 0;
     let r = 0, g = 0, b = 0;
@@ -127,9 +111,6 @@ export function getLuminance(colorStr) {
     return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
 }
 
-/**
- * Retorna el color adaptado visualmente para el lienzo según Modo Oscuro / Claro
- */
 export function getEffectiveColor(colorStr, role = 'stroke') {
     if (!colorStr) {
         if (state.darkMode) {
@@ -159,32 +140,21 @@ export function getEffectiveColor(colorStr, role = 'stroke') {
 
     if (state.darkMode) {
         if (role === 'stroke' || role === 'text') {
-            if (lum < 0.35) {
-                return '#f8fafc';
-            }
+            if (lum < 0.35) return '#f8fafc';
         } else if (role === 'fill') {
-            if (lum > 0.85) {
-                return '#1e293b';
-            }
+            if (lum > 0.85) return '#1e293b';
         }
         return colorStr;
     } else {
         if (role === 'stroke' || role === 'text') {
-            if (lum > 0.75) {
-                return '#1e293b';
-            }
+            if (lum > 0.75) return '#1e293b';
         } else if (role === 'fill') {
-            if (lum < 0.15) {
-                return '#ffffff';
-            }
+            if (lum < 0.15) return '#ffffff';
         }
         return colorStr;
     }
 }
 
-/**
- * Obtiene los límites rectangulares exactos (bounding box) de cualquier elemento
- */
 export function getElementBounds(el) {
     if (el.type === 'pencil' || el.type === 'highlighter') {
         if (!el.points || el.points.length === 0) return { x: el.x || 0, y: el.y || 0, width: 20, height: 20 };
@@ -199,8 +169,8 @@ export function getElementBounds(el) {
         return {
             x: minX - padding,
             y: minY - padding,
-            width: Math.max(10, maxX - minX + padding * 2),
-            height: Math.max(10, maxY - minY + padding * 2)
+            width: Math.max(12, maxX - minX + padding * 2),
+            height: Math.max(12, maxY - minY + padding * 2)
         };
     }
 
@@ -271,9 +241,6 @@ export function getElementBounds(el) {
     };
 }
 
-/**
- * Retorna los puntos de control de un conector
- */
 export function getConnectorPoints(el) {
     if (el.points && el.points.length >= 2) {
         return el.points;
@@ -300,9 +267,6 @@ export function getConnectorPoints(el) {
     return [start, end];
 }
 
-/**
- * Calcula la distancia de un punto a un segmento rectilíneo
- */
 export function distToSegment(p, p1, p2) {
     const l2 = (p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2;
     if (l2 === 0) return Math.hypot(p.x - p1.x, p.y - p1.y);
@@ -311,9 +275,6 @@ export function distToSegment(p, p1, p2) {
     return Math.hypot(p.x - (p1.x + t * (p2.x - p1.x)), p.y - (p1.y + t * (p2.y - p1.y)));
 }
 
-/**
- * Calcula la distancia mínima de un punto a una secuencia de puntos (polilínea)
- */
 export function distToPath(pt, points) {
     if (!points || points.length === 0) return Infinity;
     if (points.length === 1) return Math.hypot(pt.x - points[0].x, pt.y - points[0].y);
@@ -325,22 +286,7 @@ export function distToPath(pt, points) {
     return minD;
 }
 
-/**
- * Evalúa si un punto está contenido o muy cercano a un elemento
- */
 export function isPointInElement(pt, el) {
-    if (el.type === 'pencil' || el.type === 'highlighter') {
-        const pts = el.points || [];
-        const threshold = Math.max(10, (el.lineWidth || 3) / 2 + 5);
-        return distToPath(pt, pts) <= threshold;
-    }
-
-    if (el.type === 'connector') {
-        const pts = getConnectorPoints(el);
-        const threshold = Math.max(10, (el.strokeWidth || 2) + 6);
-        return distToPath(pt, pts) <= threshold;
-    }
-
     const bounds = getElementBounds(el);
     let checkPt = pt;
 
@@ -348,6 +294,18 @@ export function isPointInElement(pt, el) {
         const cx = bounds.x + bounds.width / 2;
         const cy = bounds.y + bounds.height / 2;
         checkPt = rotatePoint(pt, -el.rotation, { x: cx, y: cy });
+    }
+
+    if (el.type === 'pencil' || el.type === 'highlighter') {
+        const pts = el.points || [];
+        const threshold = Math.max(10, (el.lineWidth || 3) / 2 + 5);
+        return distToPath(checkPt, pts) <= threshold;
+    }
+
+    if (el.type === 'connector') {
+        const pts = getConnectorPoints(el);
+        const threshold = Math.max(10, (el.strokeWidth || 2) + 6);
+        return distToPath(checkPt, pts) <= threshold;
     }
 
     return (
@@ -588,25 +546,37 @@ function drawPencil(ctx, el) {
     const strokeColor = getEffectiveColor(el.color || '#1e293b', 'stroke');
     ctx.strokeStyle = strokeColor;
     ctx.lineWidth = el.lineWidth || 3;
-    ctx.lineCap = 'round';
+
+    const arrowSize = el.arrowSize || 14;
+    const mode = el.arrowMode || 'none';
+    const hasArrows = mode !== 'none';
+
+    ctx.lineCap = hasArrows ? 'butt' : 'round';
     ctx.lineJoin = 'round';
 
     if (el.type === 'highlighter') {
         ctx.globalCompositeOperation = state.darkMode ? 'screen' : 'multiply';
     }
 
-    const pts = el.smoothing ? getSmoothedPoints(el.points, Math.min(5, el.smoothing)) : el.points;
+    let pts = el.smoothing ? getSmoothedPoints(el.points, Math.min(5, el.smoothing)) : el.points;
+    let strokePts = pts.map(p => ({ ...p }));
 
-    if (pts.length === 1) {
+    if (hasArrows && strokePts.length >= 2) {
+        const offset = arrowSize * 0.8;
+        if (mode === 'end' || mode === 'both') strokePts = trimPointsFromEnd(strokePts, offset);
+        if (mode === 'start' || mode === 'both') strokePts = trimPointsFromStart(strokePts, offset);
+    }
+
+    if (strokePts.length === 1) {
         ctx.beginPath();
-        ctx.arc(pts[0].x, pts[0].y, (el.lineWidth || 3) / 2, 0, Math.PI * 2);
+        ctx.arc(strokePts[0].x, strokePts[0].y, (el.lineWidth || 3) / 2, 0, Math.PI * 2);
         ctx.fillStyle = strokeColor;
         ctx.fill();
-    } else {
+    } else if (strokePts.length > 1) {
         ctx.beginPath();
-        ctx.moveTo(pts[0].x, pts[0].y);
-        for (let i = 1; i < pts.length; i++) {
-            ctx.lineTo(pts[i].x, pts[i].y);
+        ctx.moveTo(strokePts[0].x, strokePts[0].y);
+        for (let i = 1; i < strokePts.length; i++) {
+            ctx.lineTo(strokePts[i].x, strokePts[i].y);
         }
         ctx.stroke();
     }
@@ -615,16 +585,16 @@ function drawPencil(ctx, el) {
         ctx.globalCompositeOperation = 'source-over';
     }
 
-    if (el.arrowMode && el.arrowMode !== 'none' && pts.length >= 2) {
-        const arrowSize = el.arrowSize || 14;
-        if (el.arrowMode === 'end' || el.arrowMode === 'both') {
+    if (hasArrows && pts.length >= 2) {
+        const refDist = Math.max(15, arrowSize);
+        if (mode === 'end' || mode === 'both') {
             const pEnd = pts[pts.length - 1];
-            const pRef = pts[Math.max(0, pts.length - 4)];
+            const pRef = getPointAtDistanceBack(pts, true, refDist);
             drawArrowHead(ctx, pRef.x, pRef.y, pEnd.x, pEnd.y, strokeColor, arrowSize);
         }
-        if (el.arrowMode === 'start' || el.arrowMode === 'both') {
+        if (mode === 'start' || mode === 'both') {
             const pStart = pts[0];
-            const pRef = pts[Math.min(pts.length - 1, 3)];
+            const pRef = getPointAtDistanceBack(pts, false, refDist);
             drawArrowHead(ctx, pRef.x, pRef.y, pStart.x, pStart.y, strokeColor, arrowSize);
         }
     }
@@ -859,7 +829,8 @@ export function drawElement(ctx, el) {
         ctx.globalAlpha = el.opacity;
     }
 
-    if (el.rotation && el.type !== 'pencil' && el.type !== 'highlighter' && el.type !== 'connector') {
+    /* APLICACIÓN DE ROTACIÓN PARA TODOS LOS ELEMENTOS */
+    if (el.rotation) {
         const bounds = getElementBounds(el);
         const cx = bounds.x + bounds.width / 2;
         const cy = bounds.y + bounds.height / 2;
@@ -897,6 +868,18 @@ export function drawElement(ctx, el) {
 }
 
 function drawSelectionOverlay(ctx) {
+    if (state.osnapPoint) {
+        ctx.save();
+        ctx.strokeStyle = '#22c55e';
+        ctx.fillStyle = 'rgba(34, 197, 94, 0.25)';
+        ctx.lineWidth = 2 / state.zoom;
+        ctx.beginPath();
+        ctx.arc(state.osnapPoint.x, state.osnapPoint.y, 7 / state.zoom, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+    }
+
     if (state.alignmentGuides && state.alignmentGuides.length > 0) {
         ctx.save();
         ctx.strokeStyle = '#ec4899';
@@ -1002,6 +985,29 @@ function drawHandleRect(ctx, x, y) {
     ctx.strokeRect(x - size / 2, y - size / 2, size, size);
 }
 
+function drawParticipantViewports(ctx, canvas) {
+    if (!state.showParticipantViewports || !state.presenceUsers) return;
+
+    ctx.save();
+    Object.keys(state.presenceUsers).forEach(uid => {
+        if (uid === state.userId) return;
+        const user = state.presenceUsers[uid];
+        if (!user || !user.viewBounds) return;
+
+        const b = user.viewBounds;
+        ctx.strokeStyle = user.color || '#06b6d4';
+        ctx.lineWidth = 2 / state.zoom;
+        ctx.setLineDash([6, 6]);
+        ctx.strokeRect(b.x, b.y, b.w, b.h);
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = user.color || '#06b6d4';
+        ctx.font = `bold ${Math.max(12, 14 / state.zoom)}px Inter, sans-serif`;
+        ctx.fillText(`👤 ${user.name || 'Participante'}`, b.x + 6, b.y + 18 / state.zoom);
+    });
+    ctx.restore();
+}
+
 export function render(canvas, ctx, minimapCanvas, minimapCtx) {
     if (!ctx || !canvas) return;
 
@@ -1022,6 +1028,7 @@ export function render(canvas, ctx, minimapCanvas, minimapCtx) {
         drawElement(ctx, state.tempElement);
     }
 
+    drawParticipantViewports(ctx, canvas);
     drawSelectionOverlay(ctx);
 
     ctx.restore();

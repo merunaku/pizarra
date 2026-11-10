@@ -4,10 +4,42 @@ import { isPointInElement, getElementBounds, rotatePoint, getConnectorPoints } f
 import { openInlineEditor, closeInlineEditor, initTextEditor } from './textEditor.js';
 import { addConnectorIntermediatePoint, removeConnectorIntermediatePoint } from './connectorTool.js';
 import { setupImagePasteListener } from './imageTool.js';
+import { closeAllFlyouts } from '../uiController.js';
 
 let renderCallback = null;
 let setToolCallback = null;
 let updateContextToolbarCallback = null;
+
+function getSnapPoint(worldPos) {
+    if (!state.osnapEnabled) return worldPos;
+    const snapThreshold = 12 / state.zoom;
+    let closestSnap = null;
+    let minDist = snapThreshold;
+
+    state.elements.forEach(el => {
+        const bounds = getElementBounds(el);
+        const pointsToTest = [
+            { x: bounds.x, y: bounds.y },
+            { x: bounds.x + bounds.width, y: bounds.y },
+            { x: bounds.x, y: bounds.y + bounds.height },
+            { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
+            { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+        ];
+
+        if (el.points) pointsToTest.push(...el.points);
+
+        pointsToTest.forEach(pt => {
+            const d = Math.hypot(worldPos.x - pt.x, worldPos.y - pt.y);
+            if (d < minDist) {
+                minDist = d;
+                closestSnap = { x: pt.x, y: pt.y };
+            }
+        });
+    });
+
+    state.osnapPoint = closestSnap;
+    return closestSnap || worldPos;
+}
 
 export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateContextToolbarFn) {
     renderCallback = renderFn;
@@ -17,13 +49,35 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
     initTextEditor(renderCallback);
     setupImagePasteListener(canvas, renderCallback);
 
-    // POINTERDOWN
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'F8') {
+            e.preventDefault();
+            state.orthoMode = !state.orthoMode;
+            const orthoBtn = document.getElementById('btn-toggle-ortho');
+            if (orthoBtn) orthoBtn.classList.toggle('active', state.orthoMode);
+            return;
+        }
+
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            closeInlineEditor();
+            closeAllFlyouts();
+            state.selectedIds = [];
+            if (setToolCallback) setToolCallback('select');
+            if (renderCallback) renderCallback();
+        }
+    });
+
     canvas.addEventListener('pointerdown', (e) => {
+        if (!state.gdriveIsTeacher && !state.studentDrawingAllowed) return;
+
         if (state.editingElementId) {
             closeInlineEditor();
         }
 
-        const worldPos = screenToWorld(e.clientX, e.clientY, canvas);
+        let worldPos = screenToWorld(e.clientX, e.clientY, canvas);
+        worldPos = getSnapPoint(worldPos);
+
         state.startPoint = worldPos;
         state.lastMousePos = { x: e.clientX, y: e.clientY };
 
@@ -58,11 +112,7 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
 
                     let checkPos = worldPos;
                     if (selected.rotation) {
-                        const cos = Math.cos(-selected.rotation);
-                        const sin = Math.sin(-selected.rotation);
-                        const dx = worldPos.x - cx;
-                        const dy = worldPos.y - cy;
-                        checkPos = { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos };
+                        checkPos = rotatePoint(worldPos, -selected.rotation, { x: cx, y: cy });
                     }
 
                     const rotY = b.y - 24 / state.zoom;
@@ -144,6 +194,7 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                 arrowMode: state.pencilArrowMode,
                 arrowSize: 14,
                 smoothing: state.smoothing,
+                rotation: 0,
                 points: [{ x: worldPos.x, y: worldPos.y }]
             };
         } else if (state.activeTool === 'highlighter') {
@@ -152,6 +203,7 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                 type: 'highlighter',
                 color: state.hlColor,
                 lineWidth: state.hlWidth,
+                rotation: 0,
                 points: [{ x: worldPos.x, y: worldPos.y }]
             };
         } else if (state.activeTool === 'sticky') {
@@ -229,9 +281,16 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
         if (renderCallback) renderCallback();
     });
 
-    // POINTERMOVE
     canvas.addEventListener('pointermove', (e) => {
-        const worldPos = screenToWorld(e.clientX, e.clientY, canvas);
+        let worldPos = screenToWorld(e.clientX, e.clientY, canvas);
+        worldPos = getSnapPoint(worldPos);
+
+        if ((state.orthoMode || e.shiftKey) && state.isDrawing && state.startPoint) {
+            const dx = Math.abs(worldPos.x - state.startPoint.x);
+            const dy = Math.abs(worldPos.y - state.startPoint.y);
+            if (dx > dy) worldPos.y = state.startPoint.y;
+            else worldPos.x = state.startPoint.x;
+        }
 
         if (state.isPanning) {
             state.pan.x += e.clientX - state.lastMousePos.x;
@@ -398,8 +457,8 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
         }
     });
 
-    // POINTERUP
     canvas.addEventListener('pointerup', () => {
+        state.osnapPoint = null;
         state.alignmentGuides = [];
         if (state.isPanning) {
             state.isPanning = false;
@@ -422,7 +481,13 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                 }
             }
             state.elements.push(state.tempElement);
-            state.selectedIds = [state.tempElement.id];
+
+            if (state.tempElement.type === 'pencil' || state.tempElement.type === 'highlighter') {
+                state.selectedIds = [];
+            } else {
+                state.selectedIds = [state.tempElement.id];
+            }
+
             state.tempElement = null;
             state.isDrawing = false;
             saveState();
@@ -431,7 +496,6 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
         }
     });
 
-    // DBLCLICK
     canvas.addEventListener('dblclick', (e) => {
         const worldPos = screenToWorld(e.clientX, e.clientY, canvas);
         const clicked = [...state.elements].reverse().find(el => isPointInElement(worldPos, el));
@@ -446,7 +510,6 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
         }
     });
 
-    // WHEEL
     canvas.addEventListener('wheel', (e) => {
         e.preventDefault();
         const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;

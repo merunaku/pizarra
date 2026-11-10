@@ -29,9 +29,21 @@ export const state = {
     historyIndex: -1,
     tempElement: null,
     editingElementId: null,
-    alignmentGuides: [], // Guías visuales de alineación
+    alignmentGuides: [],
     
-    // Configuración y estado de Google Drive & Explorador
+    // Dibujo Técnico: Ortogonal (F8) y Referencia a Objetos (OSNAP)
+    orthoMode: false,
+    osnapEnabled: true,
+    osnapPoint: null,
+
+    // Firebase Realtime Sync & Presencia
+    userId: 'user_' + Math.random().toString(36).substr(2, 9),
+    userName: 'Usuario',
+    studentDrawingAllowed: true,
+    showParticipantViewports: true,
+    presenceUsers: {},
+
+    // Google Drive & Explorador
     gdriveClientId: '105539045721-rqso8ee1qvak0f35lm72dl0iqgaisqqe.apps.googleusercontent.com',
     gdriveTeacherEmail: 'ingeniero.diego.bustamante@gmail.com',
     gdriveRootFolderId: '1F9G2av-nBxT4lnOI9TeG4Do0cadbbESQ',
@@ -43,13 +55,10 @@ export const state = {
     gdriveClipboardFile: null,
     gdriveUser: null,
     gdriveAutoSync: false,
-    gdriveActiveFileId: null,      // ID del archivo actualmente abierto en Drive
-    gdriveActiveFileName: null    // Nombre del archivo activo
+    gdriveActiveFileId: null,
+    gdriveActiveFileName: null
 };
 
-/**
- * Convierte coordenadas de la pantalla (píxeles) a coordenadas del lienzo infinito
- */
 export function screenToWorld(sx, sy, canvas) {
     const rect = canvas.getBoundingClientRect();
     return {
@@ -58,9 +67,6 @@ export function screenToWorld(sx, sy, canvas) {
     };
 }
 
-/**
- * Convierte coordenadas del lienzo a posición en pantalla
- */
 export function worldToScreen(wx, wy) {
     return {
         x: wx * state.zoom + state.pan.x,
@@ -68,9 +74,6 @@ export function worldToScreen(wx, wy) {
     };
 }
 
-/**
- * Guarda una captura del estado actual en el historial y en localStorage
- */
 export function saveState() {
     const snapshot = JSON.stringify(state.elements);
     if (state.historyIndex >= 0 && state.history[state.historyIndex] === snapshot) return;
@@ -96,15 +99,15 @@ export function saveState() {
         console.warn("No se pudo guardar en localStorage:", e);
     }
 
-    // Disparar sincronización automática en tiempo real si está configurada
+    if (typeof window.syncFirebaseElements === 'function') {
+        window.syncFirebaseElements(state.elements);
+    }
+
     if (typeof window.triggerAutoSaveToDrive === 'function') {
         window.triggerAutoSaveToDrive();
     }
 }
 
-/**
- * Deshacer la última acción
- */
 export function undo(renderCallback, updateContextCb) {
     if (state.historyIndex > 0) {
         state.historyIndex--;
@@ -114,9 +117,6 @@ export function undo(renderCallback, updateContextCb) {
     }
 }
 
-/**
- * Rehacer la acción anteriormente deshecha
- */
 export function redo(renderCallback, updateContextCb) {
     if (state.historyIndex < state.history.length - 1) {
         state.historyIndex++;
@@ -126,9 +126,6 @@ export function redo(renderCallback, updateContextCb) {
     }
 }
 
-/**
- * Actualiza el estado visual (habilitado/deshabilitado) de los botones Deshacer/Rehacer
- */
 export function updateUndoRedoButtons() {
     const btnUndo = document.getElementById('btn-undo');
     const btnRedo = document.getElementById('btn-redo');
@@ -136,26 +133,18 @@ export function updateUndoRedoButtons() {
     if (btnRedo) btnRedo.disabled = state.historyIndex >= state.history.length - 1;
 }
 
-/**
- * Restaura los elementos desde una cadena JSON
- */
 export function restoreSnapshot(jsonStr, renderCallback) {
     try {
         const data = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
         const elementsList = Array.isArray(data) ? data : (data.elements || []);
         
         state.elements = elementsList.map(el => {
-            // Rehidratar y sanitizar trazos libres de lápiz/destacador guardados
             if (el.type === 'pencil' || el.type === 'highlighter') {
                 if (el.arrowMode === undefined) el.arrowMode = 'none';
                 if (el.arrowSize === undefined) el.arrowSize = 14;
                 if (el.smoothing === undefined) el.smoothing = 5;
                 if (el.lineWidth === undefined) el.lineWidth = el.type === 'highlighter' ? 20 : 3;
                 if (el.rotation === undefined) el.rotation = 0;
-                delete el.x;
-                delete el.y;
-                delete el.width;
-                delete el.height;
             }
             if (el.type === 'connector') {
                 if (el.arrowMode === undefined) {
@@ -187,9 +176,6 @@ export function restoreSnapshot(jsonStr, renderCallback) {
     }
 }
 
-/**
- * Carga el estado guardado al iniciar la aplicación
- */
 export function loadFromLocalStorage(renderCallback) {
     const savedData = localStorage.getItem('profediego_board_data');
     const savedTitle = localStorage.getItem('profediego_board_title');

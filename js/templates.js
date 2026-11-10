@@ -4,9 +4,6 @@ import { showToast } from './uiController.js';
 
 let renderCallback = null;
 
-/**
- * Configura los eventos del modal de plantillas
- */
 export function setupTemplatesListeners(canvas, renderFn) {
     renderCallback = renderFn;
 
@@ -38,9 +35,6 @@ export function setupTemplatesListeners(canvas, renderFn) {
     });
 }
 
-/**
- * Inserta los elementos de la plantilla seleccionada en el centro de la vista
- */
 export function insertTemplate(type, canvas) {
     const center = screenToWorld(window.innerWidth / 2, window.innerHeight / 2, canvas);
     const cx = center.x;

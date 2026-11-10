@@ -1,10 +1,7 @@
-// OPERACIONES DE CONECTORES Y LÍNEAS
+// CONECTOR Y UNIÓN DE LÍNEAS
 import { state, saveState } from '../state.js';
 import { getConnectorPoints, distToSegment } from '../canvasEngine.js';
 
-/**
- * Inserta un nuevo punto intermedio en la posición indicada sobre el conector
- */
 export function addConnectorIntermediatePoint(el, pt) {
     if (!el.points) {
         el.points = getConnectorPoints(el);
@@ -25,9 +22,6 @@ export function addConnectorIntermediatePoint(el, pt) {
     el.endY = el.points[el.points.length - 1].y;
 }
 
-/**
- * Elimina un punto intermedio específico de un conector
- */
 export function removeConnectorIntermediatePoint(el, index) {
     if (!el || !el.points || el.points.length <= 2) return;
     if (index > 0 && index < el.points.length - 1) {
@@ -39,9 +33,6 @@ export function removeConnectorIntermediatePoint(el, index) {
     }
 }
 
-/**
- * Une múltiples líneas/trazos o conectores seleccionados en un único trazo continuo
- */
 export function joinSelectedLines() {
     if (state.selectedIds.length < 2) return;
 
@@ -58,15 +49,7 @@ export function joinSelectedLines() {
         if (combinedPoints.length === 0) {
             combinedPoints = [...pts];
         } else {
-            const lastPt = combinedPoints[combinedPoints.length - 1];
-            const startPt = pts[0];
-            const endPt = pts[pts.length - 1];
-
-            if (Math.hypot(lastPt.x - endPt.x, lastPt.y - endPt.y) < Math.hypot(lastPt.x - startPt.x, lastPt.y - startPt.y)) {
-                combinedPoints.push(...[...pts].reverse());
-            } else {
-                combinedPoints.push(...pts);
-            }
+            combinedPoints.push(...pts);
         }
     });
 
@@ -75,16 +58,10 @@ export function joinSelectedLines() {
 
     const joinedElement = {
         id: newId,
-        type: first.type === 'connector' ? 'connector' : 'pencil',
+        type: 'pencil',
         color: first.color || first.strokeColor || '#1e293b',
-        lineWidth: first.lineWidth || first.strokeWidth || 3,
-        strokeWidth: first.strokeWidth || first.lineWidth || 3,
-        strokeColor: first.strokeColor || first.color || '#1e293b',
-        points: combinedPoints,
-        x: combinedPoints[0].x,
-        y: combinedPoints[0].y,
-        endX: combinedPoints[combinedPoints.length - 1].x,
-        endY: combinedPoints[combinedPoints.length - 1].y
+        lineWidth: first.lineWidth || 3,
+        points: combinedPoints
     };
 
     state.elements = state.elements.filter(e => !state.selectedIds.includes(e.id));

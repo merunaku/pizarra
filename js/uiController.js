@@ -3,12 +3,10 @@ import { state, saveState, undo, redo, restoreSnapshot } from './state.js';
 import { openInlineEditor, closeInlineEditor, addConnectorIntermediatePoint, removeConnectorIntermediatePoint, joinSelectedLines } from './tools.js';
 import { getConnectorPoints, getLuminance } from './canvasEngine.js';
 import { saveWhiteboardTest, syncBoardTitle } from './gdrive.js';
+import { toggleStudentDrawingPermission } from './firebaseSync.js';
 
 let renderCallback = null;
 
-/**
- * Actualiza la paleta de opciones del menú del lápiz según el tema activo
- */
 export function updateColorPalettesForMode() {
     const isDark = state.darkMode;
 
@@ -31,9 +29,6 @@ export function updateColorPalettesForMode() {
     }
 }
 
-/**
- * Muestra una notificación emergente estilo Toast
- */
 export function showToast(msg, iconClass = 'fa-solid fa-circle-check') {
     const toast = document.getElementById('toast-notification');
     const icon = document.getElementById('toast-icon');
@@ -45,16 +40,10 @@ export function showToast(msg, iconClass = 'fa-solid fa-circle-check') {
     setTimeout(() => toast.classList.add('opacity-0', 'translate-y-2'), 2500);
 }
 
-/**
- * Cierra todos los submenús flotantes (Flyouts)
- */
 export function closeAllFlyouts() {
     document.querySelectorAll('.flyout-menu').forEach(m => m.classList.add('hidden'));
 }
 
-/**
- * Selecciona la herramienta activa y actualiza la interfaz
- */
 export function setTool(toolName) {
     state.activeTool = toolName;
     document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
@@ -66,9 +55,6 @@ export function setTool(toolName) {
     if (renderCallback) renderCallback();
 }
 
-/**
- * Sincroniza el estado de los botones de modo de flecha
- */
 function syncArrowModeButtons(arrowMode) {
     document.querySelectorAll('.ctx-arrow-btn').forEach(btn => {
         if (btn.getAttribute('data-arrow') === arrowMode) {
@@ -79,9 +65,6 @@ function syncArrowModeButtons(arrowMode) {
     });
 }
 
-/**
- * Actualiza la visibilidad y campos de la barra flotante según la selección actual
- */
 export function updateContextToolbar() {
     const ctxToolbar = document.getElementById('context-toolbar');
     if (!ctxToolbar) return;
@@ -129,7 +112,7 @@ export function updateContextToolbar() {
         const fontInput = document.getElementById('ctx-font-size');
         if (fontInput) fontInput.value = selected.fontSize || 16;
     } else if (selected.type === 'pencil' || selected.type === 'highlighter') {
-        [groupStroke, groupWidth, groupConnArrows, groupSmoothing].forEach(g => g && g.classList.remove('hidden'));
+        [groupStroke, groupWidth, groupConnArrows, groupSmoothing, groupArrowSize].forEach(g => g && g.classList.remove('hidden'));
 
         const strokeInput = document.getElementById('ctx-stroke-color');
         if (strokeInput) strokeInput.value = selected.color || '#1e293b';
@@ -137,14 +120,8 @@ export function updateContextToolbar() {
         const strokeWidthInput = document.getElementById('ctx-stroke-width');
         if (strokeWidthInput) strokeWidthInput.value = selected.lineWidth || 3;
 
-        if (selected.arrowMode && selected.arrowMode !== 'none') {
-            if (groupArrowSize) groupArrowSize.classList.remove('hidden');
-        }
-
-        if (groupArrowSize) {
-            const arrowInput = document.getElementById('ctx-arrow-size');
-            if (arrowInput) arrowInput.value = selected.arrowSize !== undefined ? selected.arrowSize : 14;
-        }
+        const arrowInput = document.getElementById('ctx-arrow-size');
+        if (arrowInput) arrowInput.value = selected.arrowSize !== undefined ? selected.arrowSize : 14;
 
         if (groupSmoothing) {
             const smInput = document.getElementById('ctx-smoothing');
@@ -153,7 +130,7 @@ export function updateContextToolbar() {
 
         syncArrowModeButtons(selected.arrowMode || 'none');
     } else if (selected.type === 'connector') {
-        [groupStroke, groupWidth, groupConnStyle, groupConnArrows, groupStyle].forEach(g => g && g.classList.remove('hidden'));
+        [groupStroke, groupWidth, groupConnStyle, groupConnArrows, groupStyle, groupArrowSize].forEach(g => g && g.classList.remove('hidden'));
 
         let currentArrowMode = selected.arrowMode;
         if (!currentArrowMode && selected.connType) {
@@ -162,14 +139,8 @@ export function updateContextToolbar() {
             else currentArrowMode = 'none';
         }
 
-        if (currentArrowMode && currentArrowMode !== 'none') {
-            if (groupArrowSize) groupArrowSize.classList.remove('hidden');
-        }
-
-        if (groupArrowSize) {
-            const arrowInput = document.getElementById('ctx-arrow-size');
-            if (arrowInput) arrowInput.value = selected.arrowSize || 14;
-        }
+        const arrowInput = document.getElementById('ctx-arrow-size');
+        if (arrowInput) arrowInput.value = selected.arrowSize || 14;
 
         const strokeInput = document.getElementById('ctx-stroke-color');
         if (strokeInput) strokeInput.value = selected.strokeColor || '#1e293b';
@@ -211,13 +182,9 @@ export function updateContextToolbar() {
     if (opacityInput) opacityInput.value = selected.opacity !== undefined ? selected.opacity : 1.0;
 }
 
-/**
- * Inicializa los controladores de eventos de toda la interfaz
- */
 export function setupUIListeners(canvas, ctx, renderFn) {
     renderCallback = renderFn;
 
-    // Vincular inputs de título de pizarra entre la barra superior y el modal
     const topBoardTitle = document.getElementById('board-title');
     if (topBoardTitle) {
         topBoardTitle.addEventListener('input', (e) => syncBoardTitle(e.target.value));
@@ -228,7 +195,31 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         modalBoardTitle.addEventListener('input', (e) => syncBoardTitle(e.target.value));
     }
 
-    // Conmutador de Modo Oscuro / Claro
+    const btnOrtho = document.getElementById('btn-toggle-ortho');
+    if (btnOrtho) {
+        btnOrtho.addEventListener('click', () => {
+            state.orthoMode = !state.orthoMode;
+            btnOrtho.classList.toggle('active', state.orthoMode);
+            showToast(state.orthoMode ? 'Modo Ortogonal ACTIVADO (F8)' : 'Modo Ortogonal DESACTIVADO', 'fa-solid fa-compass');
+        });
+    }
+
+    const btnOsnap = document.getElementById('btn-toggle-osnap');
+    if (btnOsnap) {
+        btnOsnap.addEventListener('click', () => {
+            state.osnapEnabled = !state.osnapEnabled;
+            btnOsnap.classList.toggle('active', state.osnapEnabled);
+            showToast(state.osnapEnabled ? 'Referencia a Objetos ACTIVADA' : 'Referencia DESACTIVADA', 'fa-solid fa-magnet');
+        });
+    }
+
+    const btnStudentDraw = document.getElementById('btn-toggle-student-draw');
+    if (btnStudentDraw) {
+        btnStudentDraw.addEventListener('click', () => {
+            toggleStudentDrawingPermission(!state.studentDrawingAllowed);
+        });
+    }
+
     const btnDarkMode = document.getElementById('btn-toggle-darkmode');
     if (btnDarkMode) {
         btnDarkMode.addEventListener('click', () => {
@@ -251,7 +242,6 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         });
     }
 
-    // Botones de Selección de Herramientas
     document.querySelectorAll('.tool-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -273,7 +263,6 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         });
     });
 
-    // Cierre de Flyouts al hacer clic fuera
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.has-flyout') && !e.target.closest('.flyout-menu')) {
             closeAllFlyouts();
@@ -284,7 +273,6 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         }
     });
 
-    // Opciones de Notas Adhesivas
     document.querySelectorAll('.sticky-color-opt').forEach(opt => {
         opt.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -294,7 +282,6 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         });
     });
 
-    // Opciones del Lápiz
     document.querySelectorAll('.pencil-color-opt').forEach(dot => {
         dot.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -323,7 +310,6 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         });
     });
 
-    // Opciones del Destacador
     document.querySelectorAll('.hl-color-opt').forEach(dot => {
         dot.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -343,7 +329,6 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         });
     }
 
-    // Selector de Formas
     document.querySelectorAll('.shape-opt').forEach(opt => {
         opt.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -353,7 +338,6 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         });
     });
 
-    // Selector de Conectores
     document.querySelectorAll('.conn-opt').forEach(opt => {
         opt.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -363,7 +347,6 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         });
     });
 
-    // Acciones de la Barra Flotante (Contextual)
     document.querySelectorAll('.ctx-arrow-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const mode = btn.getAttribute('data-arrow');
@@ -643,14 +626,12 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         });
     }
 
-    // Botones Header
     const btnUndo = document.getElementById('btn-undo');
     if (btnUndo) btnUndo.addEventListener('click', () => undo(renderCallback, updateContextToolbar));
 
     const btnRedo = document.getElementById('btn-redo');
     if (btnRedo) btnRedo.addEventListener('click', () => redo(renderCallback, updateContextToolbar));
 
-    // Botones Zoom
     const btnZoomIn = document.getElementById('btn-zoom-in');
     if (btnZoomIn) {
         btnZoomIn.addEventListener('click', () => {
@@ -699,7 +680,6 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         });
     }
 
-    // Modal Limpiar Pizarra
     const btnClearBoard = document.getElementById('btn-clear-board');
     if (btnClearBoard) {
         btnClearBoard.addEventListener('click', () => {
@@ -729,7 +709,6 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         });
     }
 
-    // Exportación
     const btnExportToggle = document.getElementById('btn-export-toggle');
     if (btnExportToggle) {
         btnExportToggle.addEventListener('click', (e) => {
@@ -780,7 +759,6 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         });
     }
 
-    // Subir imagen desde botón
     const imageUploadInput = document.getElementById('image-upload-input');
     if (imageUploadInput) {
         imageUploadInput.addEventListener('change', (e) => {
@@ -812,7 +790,6 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         });
     }
 
-    // Atajos de Teclado
     window.addEventListener('keydown', (e) => {
         if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
             return;

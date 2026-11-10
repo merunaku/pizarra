@@ -4,20 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pizarra ProfeDiego - Pizarra Online Interactiva</title>
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome 6 Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
-    <!-- Google Identity Services (GIS) -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <!-- Custom CSS -->
     <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body class="h-full w-full overflow-hidden text-slate-800 bg-slate-100 flex flex-col relative">
 
     <!-- TOP HEADER NAVBAR -->
     <header class="fixed top-3 left-3 right-3 h-14 z-30 flex items-center justify-between px-4 glass-panel rounded-2xl shadow-lg border border-slate-200/90">
-        <!-- Left: Logo & Board Title -->
         <div class="flex items-center gap-3">
             <div class="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-md shadow-indigo-200 font-bold text-lg">
                 <i class="fa-solid fa-chalkboard-user"></i>
@@ -25,12 +20,11 @@
             <div class="flex flex-col">
                 <input id="board-title" type="text" value="Pizarra ProfeDiego" class="font-bold text-sm text-slate-800 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-indigo-400 rounded px-1 -ml-1 transition-all hover:bg-slate-100/80" />
                 <span id="sync-status-badge" class="text-[10px] text-slate-500 font-medium -mt-1 ml-0.5 flex items-center gap-1">
-                    <i class="fa-solid fa-circle text-[6px] text-emerald-500"></i> Local (Guardado Automático)
+                    <i class="fa-solid fa-circle text-[6px] text-emerald-500"></i> Directo Firebase
                 </span>
             </div>
         </div>
 
-        <!-- Center: Undo/Redo & Templates -->
         <div class="flex items-center gap-1.5 bg-slate-100/80 p-1 rounded-xl border border-slate-200">
             <button id="btn-undo" title="Deshacer (Ctrl+Z)" class="p-2 hover:bg-white rounded-lg text-slate-600 hover:text-slate-900 disabled:opacity-40 transition-all">
                 <i class="fa-solid fa-rotate-left text-sm"></i>
@@ -39,19 +33,28 @@
                 <i class="fa-solid fa-rotate-right text-sm"></i>
             </button>
             <div class="h-4 w-px bg-slate-300 mx-1"></div>
-            <!-- Templates Modal Button -->
+            
+            <button id="btn-toggle-ortho" title="Modo Ortogonal (F8)" class="toggle-mode-btn px-2.5 py-1 text-xs font-bold border border-slate-300 rounded-lg text-slate-700 hover:bg-white transition-all">
+                <i class="fa-solid fa-compass"></i> ORTHO
+            </button>
+            <button id="btn-toggle-osnap" title="Referencia a Objetos (OSNAP)" class="toggle-mode-btn active px-2.5 py-1 text-xs font-bold border border-slate-300 rounded-lg text-slate-700 hover:bg-white transition-all">
+                <i class="fa-solid fa-magnet"></i> OSNAP
+            </button>
+            <button id="btn-toggle-student-draw" title="Permitir Dibujo a Alumnos (Docente)" class="toggle-mode-btn active px-2.5 py-1 text-xs font-bold border border-slate-300 rounded-lg text-slate-700 hover:bg-white transition-all">
+                <i class="fa-solid fa-users"></i> Dibujo Alumnos
+            </button>
+
+            <div class="h-4 w-px bg-slate-300 mx-1"></div>
             <button id="btn-templates-toggle" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-white rounded-lg transition-all">
                 <i class="fa-solid fa-shapes text-indigo-600"></i>
                 <span>Plantillas</span>
             </button>
             <div class="h-4 w-px bg-slate-300 mx-1"></div>
-            <!-- Dark Mode Toggle Button -->
             <button id="btn-toggle-darkmode" title="Cambiar Modo Oscuro / Claro" class="p-2 hover:bg-white rounded-lg text-slate-600 hover:text-amber-500 transition-all">
                 <i id="darkmode-icon" class="fa-solid fa-moon text-sm"></i>
             </button>
         </div>
 
-        <!-- Right: Google Drive Account, Clear & Export -->
         <div class="flex items-center gap-2">
             <div id="header-user-profile" class="hidden flex items-center gap-2 bg-emerald-50/80 border border-emerald-200 px-2.5 py-1 rounded-xl">
                 <img id="header-user-avatar" src="" alt="Avatar" class="w-5 h-5 rounded-full border border-emerald-500 object-cover" />
@@ -76,9 +79,6 @@
                 <div id="menu-export" class="flyout-menu hidden absolute top-full right-0 mt-2 w-56 glass-panel rounded-xl shadow-xl border border-slate-200 p-1.5 z-50 flex flex-col gap-1">
                     <button id="export-png" class="text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg flex items-center gap-2">
                         <i class="fa-regular fa-file-image text-slate-400 w-4"></i> Imagen PNG
-                    </button>
-                    <button id="export-svg" class="text-left px-3 py-2 text-xs font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg flex items-center gap-2">
-                        <i class="fa-solid fa-bezier-curve text-slate-400 w-4"></i> Archivo SVG
                     </button>
                     <div class="h-px bg-slate-200 my-0.5"></div>
                     <button id="btn-gdrive-open-modal" class="text-left px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-50 rounded-lg flex items-center gap-2">
@@ -183,17 +183,14 @@
 
     <!-- MAIN SIDEBAR TOOLBAR -->
     <aside id="main-sidebar" class="fixed top-20 left-3 z-30 glass-panel rounded-2xl shadow-xl border border-slate-200/90 p-1.5 flex flex-col gap-1 items-center">
-        <!-- Selector -->
         <button data-tool="select" title="Seleccionar / Mover (V)" class="tool-btn active w-9 h-9 rounded-xl flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-all">
             <i class="fa-solid fa-arrow-pointer text-sm"></i>
         </button>
 
-        <!-- Mano (Pan) -->
         <button data-tool="hand" title="Mano / Mover Pizarra (H)" class="tool-btn w-9 h-9 rounded-xl flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-all">
             <i class="fa-solid fa-hand text-sm"></i>
         </button>
 
-        <!-- Nota Adhesiva -->
         <div class="relative">
             <button data-tool="sticky" data-flyout="flyout-sticky" title="Nota Adhesiva" class="tool-btn has-flyout w-9 h-9 rounded-xl flex items-center justify-center text-amber-500 hover:bg-amber-50 transition-all">
                 <i class="fa-solid fa-note-sticky text-sm"></i>
@@ -211,12 +208,10 @@
             </div>
         </div>
 
-        <!-- Texto -->
         <button data-tool="text" title="Texto (T)" class="tool-btn w-9 h-9 rounded-xl flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-all">
             <i class="fa-solid fa-font text-sm"></i>
         </button>
 
-        <!-- Lápiz Libre -->
         <div class="relative">
             <button data-tool="pencil" data-flyout="flyout-pencil" title="Lápiz / Dibujo Libre (P)" class="tool-btn has-flyout w-9 h-9 rounded-xl flex items-center justify-center text-indigo-600 hover:bg-indigo-50 transition-all">
                 <i class="fa-solid fa-pen text-sm"></i>
@@ -248,7 +243,6 @@
             </div>
         </div>
 
-        <!-- Destacador Neón -->
         <div class="relative">
             <button data-tool="highlighter" data-flyout="flyout-highlighter" title="Resaltador Neón" class="tool-btn has-flyout w-9 h-9 rounded-xl flex items-center justify-center text-amber-500 hover:bg-amber-50 transition-all">
                 <i class="fa-solid fa-highlighter text-sm"></i>
@@ -272,7 +266,6 @@
             </div>
         </div>
 
-        <!-- Formas Geométricas -->
         <div class="relative">
             <button data-tool="shape" data-flyout="flyout-shape" title="Formas Geométricas" class="tool-btn has-flyout w-9 h-9 rounded-xl flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-all">
                 <i class="fa-regular fa-square text-sm"></i>
@@ -305,7 +298,6 @@
             </div>
         </div>
 
-        <!-- Conectores y Flechas -->
         <div class="relative">
             <button data-tool="connector" data-flyout="flyout-connector" title="Líneas y Flechas" class="tool-btn has-flyout w-9 h-9 rounded-xl flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-all">
                 <i class="fa-solid fa-arrow-right-arrow-left text-sm"></i>
@@ -323,20 +315,15 @@
                 <button class="conn-opt text-left px-2 py-1.5 text-xs text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded flex items-center gap-2" data-conn="orthogonal">
                     <i class="fa-solid fa-diagram-next"></i> Ortogonal
                 </button>
-                <button class="conn-opt text-left px-2 py-1.5 text-xs text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 rounded flex items-center gap-2" data-conn="curved-arrow">
-                    <i class="fa-solid fa-route"></i> Flecha Curva
-                </button>
             </div>
         </div>
 
-        <!-- Borrador -->
         <button data-tool="eraser" title="Borrador (E)" class="tool-btn w-9 h-9 rounded-xl flex items-center justify-center text-slate-600 hover:bg-red-50 hover:text-red-600 transition-all">
             <i class="fa-solid fa-eraser text-sm"></i>
         </button>
 
         <div class="w-6 h-px bg-slate-200 my-0.5"></div>
 
-        <!-- Subir Imagen -->
         <label title="Insertar Imagen" class="tool-btn w-9 h-9 rounded-xl flex items-center justify-center text-slate-600 hover:bg-slate-100 cursor-pointer transition-all">
             <i class="fa-regular fa-image text-sm"></i>
             <input id="image-upload-input" type="file" accept="image/*" class="hidden" />
@@ -365,13 +352,12 @@
             <button id="btn-toggle-minimap" title="Ver Minimapa" class="p-1.5 hover:bg-slate-100 rounded-lg text-indigo-600"><i class="fa-solid fa-map"></i></button>
         </div>
 
-        <!-- CONTENEDOR DEL MINIMAPA -->
         <div id="minimap-container" class="hidden glass-panel p-1 rounded-2xl shadow-xl border border-slate-200 overflow-hidden bg-white">
             <canvas id="minimap-canvas" width="160" height="100" class="rounded-xl border border-slate-100"></canvas>
         </div>
     </div>
 
-    <!-- MODAL GESTOR DE PIZARRAS Y GOOGLE DRIVE EXPLORER -->
+    <!-- MODAL GOOGLE DRIVE EXPLORER -->
     <div id="modal-gdrive" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
         <div class="glass-panel w-full max-w-2xl rounded-3xl shadow-2xl p-6 flex flex-col gap-4 border border-slate-200 bg-white max-h-[90vh] overflow-y-auto">
             <div class="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -387,7 +373,6 @@
                 <button id="btn-close-gdrive" class="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100"><i class="fa-solid fa-xmark text-base"></i></button>
             </div>
 
-            <!-- 1. Autenticación y Rol -->
             <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between gap-3">
                 <div class="flex items-center gap-3">
                     <img id="gdrive-user-avatar" src="https://placehold.co/40x40/10b981/ffffff?text=U" class="w-10 h-10 rounded-full border border-emerald-400 shadow-sm object-cover" />
@@ -405,7 +390,6 @@
                 </div>
             </div>
 
-            <!-- 2. Crear / Guardar Pizarra -->
             <div class="p-3.5 bg-indigo-50/60 border border-indigo-100 rounded-2xl flex flex-col gap-2">
                 <span class="text-xs font-bold text-indigo-900">Crear / Guardar Pizarra Activa</span>
                 <div class="flex items-center gap-2">
@@ -416,21 +400,17 @@
                 </div>
             </div>
 
-            <!-- 3. Explorador de Clases -->
             <div class="flex flex-col gap-2.5">
                 <div class="flex items-center justify-between">
                     <h4 class="text-xs font-bold text-slate-700 uppercase tracking-wider">Explorador de Clases</h4>
-                    <!-- Indicador de Sincronización Automática -->
                     <label class="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
                         <input id="toggle-autosync-gdrive" type="checkbox" class="w-3.5 h-3.5 text-emerald-600 rounded accent-emerald-600" />
                         <span class="text-[11px]">Auto-Sync</span>
                     </label>
                 </div>
 
-                <!-- Ruta actual / Breadcrumb -->
                 <div class="breadcrumbs" id="breadcrumbsView">Ruta: Raíz</div>
 
-                <!-- Barra de acciones del explorador -->
                 <div class="toolbar flex items-center gap-2">
                     <button id="newFolderBtn" disabled class="bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1">
                         <i class="fa-solid fa-folder-plus"></i> + Nueva Carpeta
@@ -443,14 +423,10 @@
                     </button>
                 </div>
 
-                <!-- Indicador de archivo copiado -->
                 <div id="clipboardBar" class="clipboard-bar"></div>
-
-                <!-- Lista de Archivos y Carpetas -->
                 <ul id="boardsList" class="max-h-56 overflow-y-auto pr-1"></ul>
             </div>
 
-            <!-- 4. Contenido / Vista previa del archivo -->
             <div class="flex flex-col gap-1 border-t border-slate-100 pt-3">
                 <span class="text-[11px] font-bold text-slate-500">Vista Previa / Contenido JSON</span>
                 <pre id="fileContent" class="text-[10px] bg-slate-900 text-slate-300 p-3 rounded-xl max-h-24 overflow-x-auto">Selecciona una pizarra para cargar su contenido.</pre>
@@ -473,7 +449,7 @@
         </div>
     </div>
 
-    <!-- MODAL GALERÍA DE PLANTILLAS -->
+    <!-- MODAL PLANTILLAS -->
     <div id="templates-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
         <div class="glass-panel w-full max-w-2xl rounded-3xl shadow-2xl p-6 flex flex-col gap-5 border border-slate-200 bg-white">
             <div class="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -526,7 +502,6 @@
         <span id="toast-message" class="text-xs font-semibold text-slate-700">Notificación</span>
     </div>
 
-    <!-- CARGA DEL SCRIPT PRINCIPAL DE ARRANQUE -->
     <script type="module" src="js/main.js"></script>
 </body>
 </html>
