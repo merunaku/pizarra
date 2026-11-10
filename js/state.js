@@ -142,6 +142,9 @@ export function restoreSnapshot(jsonStr, renderCallback) {
         const data = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
         const elementsList = Array.isArray(data) ? data : (data.elements || []);
         
+        // Conservar los IDs seleccionados previamente antes de reconstruir el estado
+        const previousSelection = [...state.selectedIds];
+
         state.elements = elementsList.map(el => {
             if (el.type === 'pencil' || el.type === 'highlighter') {
                 if (el.arrowMode === undefined) el.arrowMode = 'none';
@@ -173,7 +176,10 @@ export function restoreSnapshot(jsonStr, renderCallback) {
             }
             return el;
         });
-        state.selectedIds = [];
+
+        // Mantener seleccionados únicamente los elementos que aún existan en el lienzo
+        state.selectedIds = previousSelection.filter(id => state.elements.some(el => el.id === id));
+
         if (renderCallback) renderCallback();
     } catch (e) {
         console.error("Error al restaurar estado de la pizarra:", e);

@@ -71,7 +71,6 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
     canvas.addEventListener('pointerdown', (e) => {
         if ((state.userRole === 'student' || !state.gdriveIsTeacher) && !state.studentDrawingAllowed) return;
 
-        // RETENER CAPTURA DE PUNTERO: Evita soltar el objeto si el cursor sale del canvas o se mueve rápido
         try {
             canvas.setPointerCapture(e.pointerId);
         } catch (_) {}
@@ -80,10 +79,10 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
             closeInlineEditor();
         }
 
-        let worldPos = screenToWorld(e.clientX, e.clientY, canvas);
-        worldPos = getSnapPoint(worldPos);
+        const rawWorldPos = screenToWorld(e.clientX, e.clientY, canvas);
+        let worldPos = getSnapPoint(rawWorldPos);
 
-        state.startPoint = worldPos;
+        state.startPoint = rawWorldPos;
         state.lastMousePos = { x: e.clientX, y: e.clientY };
 
         if (state.activeTool === 'hand' || e.button === 1) {
@@ -92,13 +91,14 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
             return;
         }
 
+        // 1. Verificación de tiradores en el elemento actualmente seleccionado (coordenadas reales)
         if (state.selectedIds.length === 1) {
             const selected = state.elements.find(el => el.id === state.selectedIds[0]);
             if (selected) {
                 if (selected.type === 'connector') {
                     const pts = getConnectorPoints(selected);
                     for (let i = 0; i < pts.length; i++) {
-                        if (Math.hypot(worldPos.x - pts[i].x, worldPos.y - pts[i].y) < 14 / state.zoom) {
+                        if (Math.hypot(rawWorldPos.x - pts[i].x, rawWorldPos.y - pts[i].y) < 20 / state.zoom) {
                             if (e.altKey && i > 0 && i < pts.length - 1) {
                                 removeConnectorIntermediatePoint(selected, i);
                                 saveState();
@@ -115,19 +115,21 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                     const cx = b.x + b.width / 2;
                     const cy = b.y + b.height / 2;
 
-                    let checkPos = worldPos;
+                    let checkPos = rawWorldPos;
                     if (selected.rotation) {
-                        checkPos = rotatePoint(worldPos, -selected.rotation, { x: cx, y: cy });
+                        checkPos = rotatePoint(rawWorldPos, -selected.rotation, { x: cx, y: cy });
                     }
 
+                    // Tirador de Rotación
                     const rotY = b.y - 24 / state.zoom;
-                    if (Math.hypot(checkPos.x - cx, checkPos.y - rotY) <= 14 / state.zoom) {
+                    if (Math.hypot(checkPos.x - cx, checkPos.y - rotY) <= 20 / state.zoom) {
                         state.isRotating = true;
                         state.rotationCenter = { x: cx, y: cy };
                         return;
                     }
 
-                    const handleRadius = 14 / state.zoom;
+                    // Tiradores de Esquina
+                    const handleRadius = 20 / state.zoom;
                     const corners = [
                         { name: 'nw', x: b.x, y: b.y },
                         { name: 'ne', x: b.x + b.width, y: b.y },
@@ -155,7 +157,8 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
             }
         }
 
-        const clickedEl = [...state.elements].reverse().find(el => isPointInElement(worldPos, el));
+        // 2. Detección de elementos tocados (soporta rotación)
+        const clickedEl = [...state.elements].reverse().find(el => isPointInElement(rawWorldPos, el));
 
         if (state.activeTool === 'select') {
             if (clickedEl) {
@@ -170,7 +173,9 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                 }
                 state.isDragging = true;
             } else {
-                state.selectedIds = [];
+                if (!state.isResizing && !state.isRotating) {
+                    state.selectedIds = [];
+                }
             }
             if (updateContextToolbarCallback) updateContextToolbarCallback();
             if (renderCallback) renderCallback();
@@ -287,8 +292,8 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
     });
 
     canvas.addEventListener('pointermove', (e) => {
-        let worldPos = screenToWorld(e.clientX, e.clientY, canvas);
-        worldPos = getSnapPoint(worldPos);
+        const rawWorldPos = screenToWorld(e.clientX, e.clientY, canvas);
+        let worldPos = getSnapPoint(rawWorldPos);
 
         if ((state.orthoMode || e.shiftKey) && state.isDrawing && state.startPoint) {
             const dx = Math.abs(worldPos.x - state.startPoint.x);
@@ -308,7 +313,7 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
         if (state.isRotating && state.selectedIds.length === 1 && state.rotationCenter) {
             const el = state.elements.find(e => e.id === state.selectedIds[0]);
             if (el) {
-                const angle = Math.atan2(worldPos.y - state.rotationCenter.y, worldPos.x - state.rotationCenter.x);
+                const angle = Math.atan2(rawWorldPos.y - state.rotationCenter.y, rawWorldPos.x - state.rotationCenter.x);
                 el.rotation = angle + Math.PI / 2;
                 if (renderCallback) renderCallback();
             }
@@ -336,7 +341,7 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                     const rad = state.resizeRotation || 0;
                     const minSize = 10;
 
-                    const localPos = rotatePoint(worldPos, -rad, centerInit);
+                    const localPos = rotatePoint(rawWorldPos, -rad, centerInit);
 
                     let newW = init.width;
                     let newH = init.height;
@@ -394,52 +399,21 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
         }
 
         if (state.isDragging && state.selectedIds.length > 0) {
-            const dx = worldPos.x - state.startPoint.x;
-            const dy = worldPos.y - state.startPoint.y;
-
-            state.alignmentGuides = [];
-            let snapDx = dx;
-            let snapDy = dy;
-
-            if (state.selectedIds.length === 1) {
-                const dragged = state.elements.find(e => e.id === state.selectedIds[0]);
-                if (dragged && dragged.type !== 'connector' && dragged.type !== 'pencil') {
-                    const b = getElementBounds(dragged);
-                    const targetBox = { x: b.x + dx, y: b.y + dy, width: b.width, height: b.height };
-                    const threshold = 6 / state.zoom;
-
-                    const targetCx = targetBox.x + targetBox.width / 2;
-                    const targetCy = targetBox.y + targetBox.height / 2;
-
-                    state.elements.forEach(other => {
-                        if (state.selectedIds.includes(other.id)) return;
-                        const ob = getElementBounds(other);
-                        const otherCx = ob.x + ob.width / 2;
-                        const otherCy = ob.y + ob.height / 2;
-
-                        if (Math.abs(targetBox.x - ob.x) < threshold) { snapDx = ob.x - b.x; state.alignmentGuides.push({ type: 'v', pos: ob.x }); }
-                        else if (Math.abs(targetBox.x + targetBox.width - (ob.x + ob.width)) < threshold) { snapDx = ob.x + ob.width - (b.x + b.width); state.alignmentGuides.push({ type: 'v', pos: ob.x + ob.width }); }
-                        else if (Math.abs(targetCx - otherCx) < threshold) { snapDx = otherCx - (b.x + b.width / 2); state.alignmentGuides.push({ type: 'v', pos: otherCx }); }
-
-                        if (Math.abs(targetBox.y - ob.y) < threshold) { snapDy = ob.y - b.y; state.alignmentGuides.push({ type: 'h', pos: ob.y }); }
-                        else if (Math.abs(targetBox.y + targetBox.height - (ob.y + ob.height)) < threshold) { snapDy = ob.y + ob.height - (b.y + b.height); state.alignmentGuides.push({ type: 'h', pos: ob.y + ob.height }); }
-                        else if (Math.abs(targetCy - otherCy) < threshold) { snapDy = otherCy - (b.y + b.height / 2); state.alignmentGuides.push({ type: 'h', pos: otherCy }); }
-                    });
-                }
-            }
+            const dx = rawWorldPos.x - state.startPoint.x;
+            const dy = rawWorldPos.y - state.startPoint.y;
 
             state.selectedIds.forEach(id => {
                 const el = state.elements.find(e => e.id === id);
                 if (el) {
-                    if (el.x !== undefined) el.x += snapDx;
-                    if (el.y !== undefined) el.y += snapDy;
-                    if (el.endX !== undefined) el.endX += snapDx;
-                    if (el.endY !== undefined) el.endY += snapDy;
-                    if (el.cp) { el.cp.x += snapDx; el.cp.y += snapDy; }
-                    if (el.points) el.points.forEach(p => { p.x += snapDx; p.y += snapDy; });
+                    if (el.x !== undefined) el.x += dx;
+                    if (el.y !== undefined) el.y += dy;
+                    if (el.endX !== undefined) el.endX += dx;
+                    if (el.endY !== undefined) el.endY += dy;
+                    if (el.cp) { el.cp.x += dx; el.cp.y += dy; }
+                    if (el.points) el.points.forEach(p => { p.x += dx; p.y += dy; });
                 }
             });
-            state.startPoint = { x: worldPos.x, y: worldPos.y };
+            state.startPoint = { x: rawWorldPos.x, y: rawWorldPos.y };
             if (renderCallback) renderCallback();
             return;
         }
@@ -463,7 +437,6 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
     });
 
     const handlePointerEnd = (e) => {
-        // LIBERAR CAPTURA DE PUNTERO
         try {
             canvas.releasePointerCapture(e.pointerId);
         } catch (_) {}
@@ -511,11 +484,11 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
     canvas.addEventListener('pointercancel', handlePointerEnd);
 
     canvas.addEventListener('dblclick', (e) => {
-        const worldPos = screenToWorld(e.clientX, e.clientY, canvas);
-        const clicked = [...state.elements].reverse().find(el => isPointInElement(worldPos, el));
+        const rawWorldPos = screenToWorld(e.clientX, e.clientY, canvas);
+        const clicked = [...state.elements].reverse().find(el => isPointInElement(rawWorldPos, el));
         if (clicked) {
             if (clicked.type === 'connector') {
-                addConnectorIntermediatePoint(clicked, worldPos);
+                addConnectorIntermediatePoint(clicked, rawWorldPos);
                 saveState();
                 if (renderCallback) renderCallback();
                 return;
