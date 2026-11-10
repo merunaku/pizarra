@@ -69,8 +69,12 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
     });
 
     canvas.addEventListener('pointerdown', (e) => {
-        // Restricción de dibujo para alumnos sin permiso activo
         if ((state.userRole === 'student' || !state.gdriveIsTeacher) && !state.studentDrawingAllowed) return;
+
+        // RETENER CAPTURA DE PUNTERO: Evita soltar el objeto si el cursor sale del canvas o se mueve rápido
+        try {
+            canvas.setPointerCapture(e.pointerId);
+        } catch (_) {}
 
         if (state.editingElementId) {
             closeInlineEditor();
@@ -123,7 +127,7 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                         return;
                     }
 
-                    const handleRadius = 12 / state.zoom;
+                    const handleRadius = 14 / state.zoom;
                     const corners = [
                         { name: 'nw', x: b.x, y: b.y },
                         { name: 'ne', x: b.x + b.width, y: b.y },
@@ -253,7 +257,7 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                 height: 1,
                 fillColor: '#ffffff',
                 strokeColor: state.pencilColor,
-                strokeWidth: 2,
+                strokeWidth: state.pencilWidth || 2,
                 strokeStyle: 'solid',
                 text: ''
             };
@@ -275,7 +279,7 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
                 endY: worldPos.y,
                 cp: { x: worldPos.x, y: worldPos.y - 30 },
                 strokeColor: state.pencilColor,
-                strokeWidth: 2,
+                strokeWidth: state.pencilWidth || 2,
                 strokeStyle: 'solid'
             };
         }
@@ -458,7 +462,12 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
         }
     });
 
-    canvas.addEventListener('pointerup', () => {
+    const handlePointerEnd = (e) => {
+        // LIBERAR CAPTURA DE PUNTERO
+        try {
+            canvas.releasePointerCapture(e.pointerId);
+        } catch (_) {}
+
         state.osnapPoint = null;
         state.alignmentGuides = [];
         if (state.isPanning) {
@@ -473,6 +482,7 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
             state.resizeInitialPoints = null;
             state.rotationCenter = null;
             saveState();
+            if (updateContextToolbarCallback) updateContextToolbarCallback();
         }
         if (state.isDrawing && state.tempElement) {
             if (state.tempElement.type === 'shape' || state.tempElement.type === 'connector') {
@@ -495,7 +505,10 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
             if (updateContextToolbarCallback) updateContextToolbarCallback();
             if (renderCallback) renderCallback();
         }
-    });
+    };
+
+    canvas.addEventListener('pointerup', handlePointerEnd);
+    canvas.addEventListener('pointercancel', handlePointerEnd);
 
     canvas.addEventListener('dblclick', (e) => {
         const worldPos = screenToWorld(e.clientX, e.clientY, canvas);

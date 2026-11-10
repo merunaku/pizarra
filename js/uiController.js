@@ -188,7 +188,7 @@ export function updateContextToolbar() {
         if (strokeInput) strokeInput.value = selected.color || '#1e293b';
 
         const strokeWidthInput = document.getElementById('ctx-stroke-width');
-        if (strokeWidthInput) strokeWidthInput.value = selected.lineWidth || 3;
+        if (strokeWidthInput) strokeWidthInput.value = selected.lineWidth || selected.strokeWidth || 3;
 
         const arrowInput = document.getElementById('ctx-arrow-size');
         if (arrowInput) arrowInput.value = selected.arrowSize !== undefined ? selected.arrowSize : 14;
@@ -216,7 +216,7 @@ export function updateContextToolbar() {
         if (strokeInput) strokeInput.value = selected.strokeColor || '#1e293b';
 
         const strokeWidthInput = document.getElementById('ctx-stroke-width');
-        if (strokeWidthInput) strokeWidthInput.value = selected.strokeWidth || 2;
+        if (strokeWidthInput) strokeWidthInput.value = selected.strokeWidth || selected.lineWidth || 2;
 
         const connLineSelect = document.getElementById('ctx-conn-line');
         if (connLineSelect) {
@@ -239,7 +239,7 @@ export function updateContextToolbar() {
         if (strokeInput) strokeInput.value = selected.strokeColor || '#1e293b';
 
         const strokeWidthInput = document.getElementById('ctx-stroke-width');
-        if (strokeWidthInput) strokeWidthInput.value = selected.strokeWidth || 2;
+        if (strokeWidthInput) strokeWidthInput.value = selected.strokeWidth || selected.lineWidth || 2;
 
         const styleSelect = document.getElementById('ctx-stroke-style');
         if (styleSelect) styleSelect.value = selected.strokeStyle || 'solid';
@@ -366,8 +366,19 @@ export function setupUIListeners(canvas, ctx, renderFn) {
     const pencilWidthVal = document.getElementById('pencil-width-val');
     if (pencilWidthSlider) {
         pencilWidthSlider.addEventListener('input', (e) => {
-            state.pencilWidth = parseInt(e.target.value);
-            if (pencilWidthVal) pencilWidthVal.innerText = `${state.pencilWidth}px`;
+            const val = parseInt(e.target.value, 10);
+            state.pencilWidth = val;
+            if (pencilWidthVal) pencilWidthVal.innerText = `${val}px`;
+
+            state.selectedIds.forEach(id => {
+                const el = state.elements.find(m => m.id === id);
+                if (el) {
+                    el.lineWidth = val;
+                    el.strokeWidth = val;
+                }
+            });
+            saveState();
+            if (renderCallback) renderCallback();
         });
     }
 
@@ -394,8 +405,19 @@ export function setupUIListeners(canvas, ctx, renderFn) {
     const hlWidthVal = document.getElementById('hl-width-val');
     if (hlWidthSlider) {
         hlWidthSlider.addEventListener('input', (e) => {
-            state.hlWidth = parseInt(e.target.value);
-            if (hlWidthVal) hlWidthVal.innerText = `${state.hlWidth}px`;
+            const val = parseInt(e.target.value, 10);
+            state.hlWidth = val;
+            if (hlWidthVal) hlWidthVal.innerText = `${val}px`;
+
+            state.selectedIds.forEach(id => {
+                const el = state.elements.find(m => m.id === id);
+                if (el) {
+                    el.lineWidth = val;
+                    el.strokeWidth = val;
+                }
+            });
+            saveState();
+            if (renderCallback) renderCallback();
         });
     }
 
@@ -547,9 +569,13 @@ export function setupUIListeners(canvas, ctx, renderFn) {
     const ctxWidth = document.getElementById('ctx-stroke-width');
     if (ctxWidth) {
         ctxWidth.addEventListener('input', (e) => {
+            const val = parseInt(e.target.value, 10);
             state.selectedIds.forEach(id => {
                 const el = state.elements.find(m => m.id === id);
-                if (el) { el.strokeWidth = parseInt(e.target.value); el.lineWidth = parseInt(e.target.value); }
+                if (el) { 
+                    el.strokeWidth = val; 
+                    el.lineWidth = val; 
+                }
             });
             saveState();
             if (renderCallback) renderCallback();
@@ -559,7 +585,7 @@ export function setupUIListeners(canvas, ctx, renderFn) {
     const ctxArrowSize = document.getElementById('ctx-arrow-size');
     if (ctxArrowSize) {
         ctxArrowSize.addEventListener('input', (e) => {
-            const size = parseInt(e.target.value);
+            const size = parseInt(e.target.value, 10);
             state.selectedIds.forEach(id => {
                 const el = state.elements.find(m => m.id === id);
                 if (el && (el.type === 'connector' || el.type === 'pencil' || el.type === 'highlighter')) {
@@ -588,7 +614,7 @@ export function setupUIListeners(canvas, ctx, renderFn) {
         ctxFont.addEventListener('change', (e) => {
             state.selectedIds.forEach(id => {
                 const el = state.elements.find(m => m.id === id);
-                if (el) el.fontSize = parseInt(e.target.value);
+                if (el) el.fontSize = parseInt(e.target.value, 10);
             });
             saveState();
             if (renderCallback) renderCallback();
@@ -598,7 +624,7 @@ export function setupUIListeners(canvas, ctx, renderFn) {
     const ctxSmoothing = document.getElementById('ctx-smoothing');
     if (ctxSmoothing) {
         ctxSmoothing.addEventListener('input', (e) => {
-            const val = parseInt(e.target.value);
+            const val = parseInt(e.target.value, 10);
             state.selectedIds.forEach(id => {
                 const el = state.elements.find(m => m.id === id);
                 if (el && (el.type === 'pencil' || el.type === 'highlighter')) {
