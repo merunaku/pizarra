@@ -1,7 +1,6 @@
 // GOOGLE DRIVE CLOUD SYNC & EXPLORER MODULE - PIZARRA PROFEDIEGO
 import { state, saveState, restoreSnapshot } from './state.js';
-import { showToast, applyRoleUIRestrictions } from './uiController.js';
-import { broadcastActiveFileToStudents } from './firebaseSync.js';
+import { showToast } from './uiController.js';
 
 let renderCallback = null;
 let tokenClient = null;
@@ -64,6 +63,7 @@ export function initGIS(renderFn) {
                     }
                     state.gdriveAccessToken = response.access_token;
                     
+                    // Guardar credenciales de sesión en localStorage (1 hora de validez)
                     const expiresIn = response.expires_in || 3600;
                     const expTime = Date.now() + (expiresIn * 1000);
                     localStorage.setItem('profediego_gdrive_token', response.access_token);
@@ -75,6 +75,7 @@ export function initGIS(renderFn) {
                 }
             });
 
+            // Verificar si existe una sesión previa no expirada en localStorage (Resistencia a F5)
             checkSavedSession();
 
         } catch (err) {
@@ -92,7 +93,7 @@ async function checkSavedSession() {
 
     if (savedToken && savedExp) {
         const expTime = parseInt(savedExp, 10);
-        if (Date.now() < expTime - 60000) {
+        if (Date.now() < expTime - 60000) { // Si quedan más de 60 segundos
             state.gdriveAccessToken = savedToken;
             await fetchUserProfile();
             updateUIByRole();
@@ -100,6 +101,7 @@ async function checkSavedSession() {
         }
     }
     
+    // Si expiro o no existe token, intentar refresco silencioso si tokenClient está listo
     if (tokenClient) {
         try {
             tokenClient.requestAccessToken({ prompt: 'none' });
@@ -131,6 +133,7 @@ export function handleAuthClick() {
 export function setupGoogleDriveListeners(renderFn) {
     renderCallback = renderFn;
 
+    // Exponer la función de Auto-Sync al ámbito global para invocation desde saveState()
     window.triggerAutoSaveToDrive = triggerAutoSaveToDrive;
 
     window.gdriveModule = {
@@ -146,6 +149,7 @@ export function setupGoogleDriveListeners(renderFn) {
         syncBoardTitle
     };
 
+    // Listeners para cambio de título sincrónico
     const topTitleInput = document.getElementById('board-title');
     if (topTitleInput) {
         topTitleInput.addEventListener('input', (e) => syncBoardTitle(e.target.value));
@@ -156,6 +160,7 @@ export function setupGoogleDriveListeners(renderFn) {
         modalTitleInput.addEventListener('input', (e) => syncBoardTitle(e.target.value));
     }
 
+    // Botones de la interfaz
     const btnAccount = document.getElementById('btn-gdrive-account');
     if (btnAccount) {
         btnAccount.addEventListener('click', () => {
@@ -209,7 +214,7 @@ export function setupGoogleDriveListeners(renderFn) {
 
     const toggleSync = document.getElementById('toggle-autosync-gdrive');
     if (toggleSync) {
-        toggleSync.checked = true;
+        toggleSync.checked = true; // Habilitar auto-sync por defecto
         state.gdriveAutoSync = true;
         toggleSync.addEventListener('change', (e) => {
             state.gdriveAutoSync = e.target.checked;
@@ -253,8 +258,6 @@ export async function fetchUserProfile() {
             headerProfile.classList.remove('hidden');
         }
 
-        applyRoleUIRestrictions();
-
         if (state.gdriveActiveFileId) {
             updateSyncBadge('Conectado a Drive', 'drive');
         } else {
@@ -262,10 +265,10 @@ export async function fetchUserProfile() {
         }
     } catch (err) {
         console.error('Error al obtener perfil:', err);
+        // Limpiar token inválido
         localStorage.removeItem('profediego_gdrive_token');
         localStorage.removeItem('profediego_gdrive_exp');
         state.gdriveAccessToken = null;
-        applyRoleUIRestrictions();
     }
 }
 
@@ -280,7 +283,7 @@ export function triggerAutoSaveToDrive() {
     if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
     autoSaveTimeout = setTimeout(() => {
         saveWhiteboardTest(true);
-    }, 1500);
+    }, 1500); // 1.5 segundos de debounce
 }
 
 /**
@@ -311,7 +314,6 @@ export function updateUIByRole() {
     if (newFolderBtn) newFolderBtn.disabled = !state.gdriveIsTeacher;
     if (refreshBtn) refreshBtn.disabled = false;
 
-    applyRoleUIRestrictions();
     renderBreadcrumbs();
     listFolderContents();
 }
@@ -479,7 +481,7 @@ export async function promptCreateFolder() {
 }
 
 /**
- * Guardado inteligente: Sobrescribe el archivo activo o crea uno nuevo
+ * Guardado inteligente: Sobrescribe el archivo activo si ya existe o crea uno nuevo si es primera vez.
  */
 export async function saveWhiteboardTest(silent = false) {
     const titleInput = document.getElementById('boardTitle') || document.getElementById('board-title');
@@ -503,6 +505,8 @@ export async function saveWhiteboardTest(silent = false) {
 
     try {
         if (state.gdriveActiveFileId) {
+            // SOBRESCRIBIR ARCHIVO EXISTENTE (Evita duplicados)
+            // 1. Actualizar Nombre / Metadatos en Drive
             await fetch(`https://www.googleapis.com/drive/v3/files/${state.gdriveActiveFileId}`, {
                 method: 'PATCH',
                 headers: {
@@ -512,6 +516,7 @@ export async function saveWhiteboardTest(silent = false) {
                 body: JSON.stringify({ name: fileName })
             });
 
+            // 2. Actualizar Contenido del Archivo
             const contentResponse = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${state.gdriveActiveFileId}?uploadType=media`, {
                 method: 'PATCH',
                 headers: {
@@ -522,13 +527,12 @@ export async function saveWhiteboardTest(silent = false) {
             });
 
             if (contentResponse.ok) {
-                state.gdriveActiveFileName = fileName;
-                broadcastActiveFileToStudents(fileName);
                 updateSyncBadge('Sincronizado con Drive', 'drive');
                 if (!silent) showToast('Pizarra actualizada en Google Drive', 'fa-solid fa-cloud-arrow-up');
                 listFolderContents();
             }
         } else {
+            // CREAR UN NUEVO ARCHIVO
             const metadataResponse = await fetch('https://www.googleapis.com/drive/v3/files', {
                 method: 'POST',
                 headers: {
@@ -561,10 +565,8 @@ export async function saveWhiteboardTest(silent = false) {
 
             if (contentResponse.ok) {
                 state.gdriveActiveFileId = file.id;
-                state.gdriveActiveFileName = fileName;
                 localStorage.setItem('profediego_active_file_id', file.id);
                 await setPublicReadPermission(file.id);
-                broadcastActiveFileToStudents(fileName);
                 updateSyncBadge('Sincronizado con Drive', 'drive');
                 if (!silent) showToast('Pizarra guardada y enlazada con Drive', 'fa-solid fa-cloud-arrow-up');
                 listFolderContents();
@@ -681,14 +683,13 @@ export async function readWhiteboard(fileId, fileName = '') {
             fileContentPre.innerText = content.substring(0, 500) + (content.length > 500 ? '...' : '');
         }
 
+        // Establecer como el archivo activo de trabajo
         state.gdriveActiveFileId = fileId;
-        state.gdriveActiveFileName = fileName;
         localStorage.setItem('profediego_active_file_id', fileId);
 
         if (fileName) {
             const cleanTitle = fileName.replace(/^PIZARRA_/, '').replace(/\.json$/, '');
             syncBoardTitle(cleanTitle);
-            broadcastActiveFileToStudents(fileName);
         }
 
         restoreSnapshot(content, renderCallback);

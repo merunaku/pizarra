@@ -1,6 +1,9 @@
 // CANVAS ENGINE & RENDERER - PIZARRA PROFEDIEGO
 import { state } from './state.js';
 
+/**
+ * Ajusta la dimensión del canvas según el tamaño del contenedor o ventana
+ */
 export function resizeCanvas(canvas, renderCallback) {
     if (!canvas) return;
     const parent = canvas.parentElement;
@@ -9,6 +12,9 @@ export function resizeCanvas(canvas, renderCallback) {
     if (renderCallback) renderCallback();
 }
 
+/**
+ * Rotación geométrica de un punto respecto a un centro
+ */
 export function rotatePoint(pt, angle, center) {
     const cos = Math.cos(angle);
     const sin = Math.sin(angle);
@@ -20,6 +26,10 @@ export function rotatePoint(pt, angle, center) {
     };
 }
 
+/**
+ * Divide un texto en líneas ajustadas al ancho máximo especificado (maxWidth),
+ * contemplando saltos de línea explícitos (\n), ajuste por palabras y palabras largas.
+ */
 export function getWrappedLines(ctx, text, maxWidth) {
     if (!text) return [];
     const paragraphs = text.split('\n');
@@ -65,12 +75,14 @@ export function getWrappedLines(ctx, text, maxWidth) {
     return lines;
 }
 
-export function getSmoothedPoints(points, iterations = 2) {
+/**
+ * Algoritmo de suavizado para trazos libres (Chaikin's Corner Cutting)
+ */
+export function getSmoothedPoints(points, iterations = 3) {
     if (!points || points.length <= 2) return points || [];
-    const maxIter = Math.min(iterations, 2); // Límite para evitar saturación de memoria
     let current = points.map(p => ({ x: p.x, y: p.y }));
 
-    for (let i = 0; i < maxIter; i++) {
+    for (let i = 0; i < iterations; i++) {
         const next = [];
         next.push(current[0]);
         for (let j = 0; j < current.length - 1; j++) {
@@ -87,6 +99,9 @@ export function getSmoothedPoints(points, iterations = 2) {
     return current;
 }
 
+/**
+ * Calcula la luminancia percibida de una cadena de color (Hex, RGB, RGBA)
+ */
 export function getLuminance(colorStr) {
     if (!colorStr) return 0;
     let r = 0, g = 0, b = 0;
@@ -112,11 +127,10 @@ export function getLuminance(colorStr) {
     return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
 }
 
-export function getEffectiveColor(colorStr, role = 'stroke', elType = null) {
-    if (elType === 'highlighter' || (colorStr && colorStr.startsWith('rgba') && colorStr.includes('0.45'))) {
-        return colorStr;
-    }
-
+/**
+ * Retorna el color adaptado visualmente para el lienzo según Modo Oscuro / Claro
+ */
+export function getEffectiveColor(colorStr, role = 'stroke') {
     if (!colorStr) {
         if (state.darkMode) {
             return role === 'fill' ? '#1e293b' : '#f8fafc';
@@ -126,6 +140,18 @@ export function getEffectiveColor(colorStr, role = 'stroke', elType = null) {
     }
 
     if (colorStr.startsWith('rgba')) {
+        const match = colorStr.match(/rgba?\(([^)]+)\)/);
+        if (match) {
+            const parts = match[1].split(',').map(s => s.trim());
+            const r = parseInt(parts[0]), g = parseInt(parts[1]), b = parseInt(parts[2]), a = parts[3] || '1';
+            const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+            if (state.darkMode && lum < 0.35 && role !== 'fill') {
+                return `rgba(248, 250, 252, ${a})`;
+            }
+            if (!state.darkMode && lum > 0.75 && role !== 'fill') {
+                return `rgba(30, 41, 59, ${a})`;
+            }
+        }
         return colorStr;
     }
 
@@ -133,21 +159,32 @@ export function getEffectiveColor(colorStr, role = 'stroke', elType = null) {
 
     if (state.darkMode) {
         if (role === 'stroke' || role === 'text') {
-            if (lum < 0.35) return '#f8fafc';
+            if (lum < 0.35) {
+                return '#f8fafc';
+            }
         } else if (role === 'fill') {
-            if (lum > 0.85) return '#1e293b';
+            if (lum > 0.85) {
+                return '#1e293b';
+            }
         }
         return colorStr;
     } else {
         if (role === 'stroke' || role === 'text') {
-            if (lum > 0.75) return '#1e293b';
+            if (lum > 0.75) {
+                return '#1e293b';
+            }
         } else if (role === 'fill') {
-            if (lum < 0.15) return '#ffffff';
+            if (lum < 0.15) {
+                return '#ffffff';
+            }
         }
         return colorStr;
     }
 }
 
+/**
+ * Obtiene los límites rectangulares exactos (bounding box) de cualquier elemento
+ */
 export function getElementBounds(el) {
     if (el.type === 'pencil' || el.type === 'highlighter') {
         if (!el.points || el.points.length === 0) return { x: el.x || 0, y: el.y || 0, width: 20, height: 20 };
@@ -158,7 +195,7 @@ export function getElementBounds(el) {
             if (p.x > maxX) maxX = p.x;
             if (p.y > maxY) maxY = p.y;
         });
-        const padding = Math.max(8, (el.lineWidth || el.strokeWidth || 3) / 2);
+        const padding = Math.max(8, (el.lineWidth || 3) / 2);
         return {
             x: minX - padding,
             y: minY - padding,
@@ -179,7 +216,10 @@ export function getElementBounds(el) {
         let maxLineW = 0;
 
         paragraphs.forEach(p => {
-            if (!p) { lineCount++; return; }
+            if (!p) {
+                lineCount++;
+                return;
+            }
             const words = p.split(' ');
             let curLen = 0;
             words.forEach(w => {
@@ -197,7 +237,12 @@ export function getElementBounds(el) {
 
         const calculatedWidth = el.width ? el.width : Math.max(120, maxLineW + 16);
         const calculatedHeight = Math.max(fSize * 1.4, lineCount * (fSize * 1.35) + 12);
-        return { x: el.x, y: el.y, width: calculatedWidth, height: calculatedHeight };
+        return {
+            x: el.x,
+            y: el.y,
+            width: calculatedWidth,
+            height: calculatedHeight
+        };
     }
 
     if (el.type === 'connector') {
@@ -209,7 +254,7 @@ export function getElementBounds(el) {
             if (p.x > maxX) maxX = p.x;
             if (p.y > maxY) maxY = p.y;
         });
-        const pad = Math.max(10, (el.strokeWidth || el.lineWidth || 2) * 2);
+        const pad = Math.max(10, (el.strokeWidth || 2) * 2);
         return {
             x: minX - pad,
             y: minY - pad,
@@ -226,6 +271,9 @@ export function getElementBounds(el) {
     };
 }
 
+/**
+ * Retorna los puntos de control de un conector
+ */
 export function getConnectorPoints(el) {
     if (el.points && el.points.length >= 2) {
         return el.points;
@@ -236,9 +284,13 @@ export function getConnectorPoints(el) {
     const isOrthogonal = el.isOrthogonal !== undefined ? el.isOrthogonal : (el.connType === 'orthogonal');
 
     if (isOrthogonal) {
-        const dx = Math.abs(end.x - start.x);
-        const dy = Math.abs(end.y - start.y);
-        return dx > dy ? [start, { x: end.x, y: start.y }, end] : [start, { x: start.x, y: end.y }, end];
+        const midX = (start.x + end.x) / 2;
+        return [
+            start,
+            { x: midX, y: start.y },
+            { x: midX, y: end.y },
+            end
+        ];
     }
 
     if (isCurved) {
@@ -248,13 +300,20 @@ export function getConnectorPoints(el) {
     return [start, end];
 }
 
+/**
+ * Calcula la distancia de un punto a un segmento rectilíneo
+ */
 export function distToSegment(p, p1, p2) {
     const l2 = (p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2;
     if (l2 === 0) return Math.hypot(p.x - p1.x, p.y - p1.y);
-    let t = Math.max(0, Math.min(1, ((p.x - p1.x) * (p2.x - p1.x) + (p.y - p1.y) * (p2.y - p1.y)) / l2));
+    let t = ((p.x - p1.x) * (p2.x - p1.x) + (p.y - p1.y) * (p2.y - p1.y)) / l2;
+    t = Math.max(0, Math.min(1, t));
     return Math.hypot(p.x - (p1.x + t * (p2.x - p1.x)), p.y - (p1.y + t * (p2.y - p1.y)));
 }
 
+/**
+ * Calcula la distancia mínima de un punto a una secuencia de puntos (polilínea)
+ */
 export function distToPath(pt, points) {
     if (!points || points.length === 0) return Infinity;
     if (points.length === 1) return Math.hypot(pt.x - points[0].x, pt.y - points[0].y);
@@ -266,7 +325,22 @@ export function distToPath(pt, points) {
     return minD;
 }
 
+/**
+ * Evalúa si un punto está contenido o muy cercano a un elemento
+ */
 export function isPointInElement(pt, el) {
+    if (el.type === 'pencil' || el.type === 'highlighter') {
+        const pts = el.points || [];
+        const threshold = Math.max(10, (el.lineWidth || 3) / 2 + 5);
+        return distToPath(pt, pts) <= threshold;
+    }
+
+    if (el.type === 'connector') {
+        const pts = getConnectorPoints(el);
+        const threshold = Math.max(10, (el.strokeWidth || 2) + 6);
+        return distToPath(pt, pts) <= threshold;
+    }
+
     const bounds = getElementBounds(el);
     let checkPt = pt;
 
@@ -276,30 +350,12 @@ export function isPointInElement(pt, el) {
         checkPt = rotatePoint(pt, -el.rotation, { x: cx, y: cy });
     }
 
-    const hitMargin = Math.max(12, 16 / state.zoom);
-
-    // Filtro previo de Bounding Box ultra veloz para evitar congelamiento
-    const inBox = (
-        checkPt.x >= bounds.x - hitMargin &&
-        checkPt.x <= bounds.x + bounds.width + hitMargin &&
-        checkPt.y >= bounds.y - hitMargin &&
-        checkPt.y <= bounds.y + bounds.height + hitMargin
+    return (
+        checkPt.x >= bounds.x &&
+        checkPt.x <= bounds.x + bounds.width &&
+        checkPt.y >= bounds.y &&
+        checkPt.y <= bounds.y + bounds.height
     );
-    if (!inBox) return false;
-
-    if (el.type === 'pencil' || el.type === 'highlighter') {
-        const pts = el.points || [];
-        const threshold = Math.max(hitMargin, (el.lineWidth || el.strokeWidth || 3) / 2 + hitMargin / 2);
-        return distToPath(checkPt, pts) <= threshold;
-    }
-
-    if (el.type === 'connector') {
-        const pts = getConnectorPoints(el);
-        const threshold = Math.max(hitMargin, (el.strokeWidth || el.lineWidth || 2) + hitMargin / 2);
-        return distToPath(checkPt, pts) <= threshold;
-    }
-
-    return true;
 }
 
 function setLineDashStyle(ctx, style) {
@@ -381,6 +437,63 @@ function getPointAtDistanceBack(pts, fromEnd, dist) {
     return { ...list[list.length - 1] };
 }
 
+function findLineIntersection(p1, p2, p3, p4) {
+    const d = (p1.x - p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x - p4.x);
+    if (Math.abs(d) < 1e-5) return null;
+
+    const t = ((p1.x - p3.x) * (p3.y - p4.y) - (p1.y - p3.y) * (p3.x - p4.x)) / d;
+    const u = -((p1.x - p2.x) * (p1.y - p3.y) - (p1.y - p2.y) * (p1.x - p3.x)) / d;
+
+    if (t > 0.05 && t < 0.95 && u > 0.05 && u < 0.95) {
+        return {
+            x: p1.x + t * (p2.x - p1.x),
+            y: p1.y + t * (p2.y - p1.y)
+        };
+    }
+    return null;
+}
+
+function drawSegmentWithJumps(ctx, pA, pB, currentElId) {
+    const intersections = [];
+
+    state.elements.forEach(other => {
+        if (other.id === currentElId || other.type !== 'connector') return;
+        const otherPts = getConnectorPoints(other);
+        for (let j = 0; j < otherPts.length - 1; j++) {
+            const hit = findLineIntersection(pA, pB, otherPts[j], otherPts[j + 1]);
+            if (hit) {
+                const dist = Math.hypot(hit.x - pA.x, hit.y - pA.y);
+                intersections.push({ pt: hit, dist });
+            }
+        }
+    });
+
+    if (intersections.length === 0) {
+        ctx.lineTo(pB.x, pB.y);
+        return;
+    }
+
+    intersections.sort((a, b) => a.dist - b.dist);
+    const r = 8;
+    const angle = Math.atan2(pB.y - pA.y, pB.x - pA.x);
+
+    intersections.forEach(item => {
+        const ix = item.pt.x;
+        const iy = item.pt.y;
+        const beforeX = ix - r * Math.cos(angle);
+        const beforeY = iy - r * Math.sin(angle);
+        const afterX = ix + r * Math.cos(angle);
+        const afterY = iy + r * Math.sin(angle);
+
+        ctx.lineTo(beforeX, beforeY);
+        const cpX = ix - r * Math.sin(angle);
+        const cpY = iy + r * Math.cos(angle);
+        ctx.quadraticCurveTo(cpX, cpY, afterX, afterY);
+    });
+
+    ctx.lineTo(pB.x, pB.y);
+}
+
 function drawArrowHead(ctx, fromX, fromY, toX, toY, color, size = 14) {
     const angle = Math.atan2(toY - fromY, toX - fromX);
     ctx.fillStyle = color || '#1e293b';
@@ -393,9 +506,9 @@ function drawArrowHead(ctx, fromX, fromY, toX, toY, color, size = 14) {
 }
 
 function drawConnector(ctx, el) {
-    const strokeColor = getEffectiveColor(el.strokeColor || el.color || '#1e293b', 'stroke', el.type);
+    const strokeColor = getEffectiveColor(el.strokeColor || '#1e293b', 'stroke');
     ctx.strokeStyle = strokeColor;
-    const strokeWidth = el.strokeWidth || el.lineWidth || 2;
+    const strokeWidth = el.strokeWidth || 2;
     ctx.lineWidth = strokeWidth;
     setLineDashStyle(ctx, el.strokeStyle);
 
@@ -441,7 +554,14 @@ function drawConnector(ctx, el) {
             }
         } else {
             for (let i = 0; i < strokePts.length - 1; i++) {
-                ctx.lineTo(strokePts[i + 1].x, strokePts[i + 1].y);
+                const pA = strokePts[i];
+                const pB = strokePts[i + 1];
+
+                if (el.lineJumps) {
+                    drawSegmentWithJumps(ctx, pA, pB, el.id);
+                } else {
+                    ctx.lineTo(pB.x, pB.y);
+                }
             }
         }
         ctx.stroke();
@@ -465,10 +585,9 @@ function drawConnector(ctx, el) {
 
 function drawPencil(ctx, el) {
     if (!el.points || el.points.length === 0) return;
-    const strokeColor = getEffectiveColor(el.strokeColor || el.color || '#1e293b', 'stroke', el.type);
+    const strokeColor = getEffectiveColor(el.color || '#1e293b', 'stroke');
     ctx.strokeStyle = strokeColor;
-    const strokeWidth = el.strokeWidth || el.lineWidth || 3;
-    ctx.lineWidth = strokeWidth;
+    ctx.lineWidth = el.lineWidth || 3;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
@@ -476,11 +595,11 @@ function drawPencil(ctx, el) {
         ctx.globalCompositeOperation = state.darkMode ? 'screen' : 'multiply';
     }
 
-    const pts = el.smoothing ? getSmoothedPoints(el.points, Math.min(2, el.smoothing)) : el.points;
+    const pts = el.smoothing ? getSmoothedPoints(el.points, Math.min(5, el.smoothing)) : el.points;
 
     if (pts.length === 1) {
         ctx.beginPath();
-        ctx.arc(pts[0].x, pts[0].y, strokeWidth / 2, 0, Math.PI * 2);
+        ctx.arc(pts[0].x, pts[0].y, (el.lineWidth || 3) / 2, 0, Math.PI * 2);
         ctx.fillStyle = strokeColor;
         ctx.fill();
     } else {
@@ -512,12 +631,12 @@ function drawPencil(ctx, el) {
 }
 
 function drawShape(ctx, el) {
-    const strokeColor = getEffectiveColor(el.strokeColor || '#1e293b', 'stroke', el.type);
-    const fillColor = getEffectiveColor(el.fillColor || '#ffffff', 'fill', el.type);
+    const strokeColor = getEffectiveColor(el.strokeColor || '#1e293b', 'stroke');
+    const fillColor = getEffectiveColor(el.fillColor || '#ffffff', 'fill');
 
     ctx.fillStyle = fillColor;
     ctx.strokeStyle = strokeColor;
-    ctx.lineWidth = el.strokeWidth || el.lineWidth || 2;
+    ctx.lineWidth = el.strokeWidth || 2;
     setLineDashStyle(ctx, el.strokeStyle);
 
     const x = el.x;
@@ -635,17 +754,7 @@ function drawSticky(ctx, el) {
 
         const margin = 14;
         const maxW = (el.width || 160) - margin * 2;
-        
-        const paragraphs = el.text.split('\n');
-        let curY = el.y + margin;
-        const lineHeight = fSize * 1.3;
-        for (let p = 0; p < paragraphs.length; p++) {
-            const lines = getWrappedLines(ctx, paragraphs[p], maxW);
-            lines.forEach(line => {
-                ctx.fillText(line, el.x + margin, curY);
-                curY += lineHeight;
-            });
-        }
+        wrapText(ctx, el.text, el.x + margin, el.y + margin, maxW, fSize * 1.3);
     }
 }
 
@@ -654,7 +763,7 @@ function drawText(ctx, el) {
     ctx.font = `${fSize}px Inter, system-ui, sans-serif`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillStyle = getEffectiveColor(el.color || '#1e293b', 'text', el.type);
+    ctx.fillStyle = getEffectiveColor(el.color || '#1e293b', 'text');
 
     const rawText = el.text || 'Haz doble clic para editar';
     const maxWidth = el.width ? Math.max(40, el.width - 8) : 350;
@@ -696,6 +805,28 @@ function drawImage(ctx, el) {
     }
 }
 
+function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+    if (!text) return;
+    const paragraphs = text.split('\n');
+    for (let p = 0; p < paragraphs.length; p++) {
+        const words = paragraphs[p].split(' ');
+        let line = '';
+        for (let n = 0; n < words.length; n++) {
+            const testLine = line + words[n] + ' ';
+            const metrics = ctx.measureText(testLine);
+            if (metrics.width > maxWidth && n > 0) {
+                ctx.fillText(line, x, y);
+                line = words[n] + ' ';
+                y += lineHeight;
+            } else {
+                line = testLine;
+            }
+        }
+        ctx.fillText(line, x, y);
+        y += lineHeight;
+    }
+}
+
 export function drawGrid(ctx, canvas) {
     ctx.save();
     ctx.strokeStyle = state.darkMode ? 'rgba(255, 255, 255, 0.07)' : 'rgba(0, 0, 0, 0.06)';
@@ -718,32 +849,6 @@ export function drawGrid(ctx, canvas) {
     ctx.restore();
 }
 
-function drawStudentViewports(ctx) {
-    if (!state.showStudentViewports || !state.connectedStudents) return;
-
-    state.connectedStudents.forEach(student => {
-        if (student.isTeacher || !student.viewport) return;
-
-        const vp = student.viewport;
-        ctx.save();
-        ctx.strokeStyle = '#3b82f6';
-        ctx.lineWidth = 2 / state.zoom;
-        ctx.setLineDash([8, 8]);
-        ctx.strokeRect(vp.x, vp.y, vp.width, vp.height);
-
-        ctx.fillStyle = '#2563eb';
-        ctx.font = `bold ${Math.max(12, 14 / state.zoom)}px Inter, system-ui, sans-serif`;
-        const tagText = ` 🎓 ${student.name} `;
-        const textWidth = ctx.measureText(tagText).width;
-        ctx.fillRect(vp.x, vp.y - (22 / state.zoom), textWidth + 8, 22 / state.zoom);
-
-        ctx.fillStyle = '#ffffff';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(tagText, vp.x + 4, vp.y - (11 / state.zoom));
-        ctx.restore();
-    });
-}
-
 export function drawElement(ctx, el) {
     if (el.id === state.editingElementId && el.type === 'text') {
         return;
@@ -754,7 +859,7 @@ export function drawElement(ctx, el) {
         ctx.globalAlpha = el.opacity;
     }
 
-    if (el.rotation && el.type !== 'connector') {
+    if (el.rotation && el.type !== 'pencil' && el.type !== 'highlighter' && el.type !== 'connector') {
         const bounds = getElementBounds(el);
         const cx = bounds.x + bounds.width / 2;
         const cy = bounds.y + bounds.height / 2;
@@ -792,7 +897,7 @@ export function drawElement(ctx, el) {
 }
 
 function drawSelectionOverlay(ctx) {
-    if (state.alignmentGuidesEnabled && state.alignmentGuides && state.alignmentGuides.length > 0) {
+    if (state.alignmentGuides && state.alignmentGuides.length > 0) {
         ctx.save();
         ctx.strokeStyle = '#ec4899';
         ctx.lineWidth = 1 / state.zoom;
@@ -826,6 +931,20 @@ function drawSelectionOverlay(ctx) {
 
         if (el.type === 'connector') {
             const pts = getConnectorPoints(el);
+            const isCurved = el.isCurved !== undefined ? el.isCurved : (el.connType && el.connType.startsWith('curved'));
+
+            if (isCurved && pts.length > 2) {
+                ctx.strokeStyle = '#f59e0b';
+                ctx.setLineDash([3, 3]);
+                ctx.beginPath();
+                ctx.moveTo(pts[0].x, pts[0].y);
+                for (let i = 1; i < pts.length; i++) {
+                    ctx.lineTo(pts[i].x, pts[i].y);
+                }
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
             pts.forEach((p, idx) => {
                 const color = (idx === 0 || idx === pts.length - 1) ? '#3b82f6' : '#f59e0b';
                 drawHandleCircle(ctx, p.x, p.y, color);
@@ -903,7 +1022,6 @@ export function render(canvas, ctx, minimapCanvas, minimapCtx) {
         drawElement(ctx, state.tempElement);
     }
 
-    drawStudentViewports(ctx);
     drawSelectionOverlay(ctx);
 
     ctx.restore();

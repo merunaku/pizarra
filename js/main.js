@@ -2,10 +2,9 @@
 import { loadFromLocalStorage } from './state.js';
 import { resizeCanvas, render } from './canvasEngine.js';
 import { setupCanvasListeners } from './tools.js';
-import { setupUIListeners, setTool, updateContextToolbar, applyRoleUIRestrictions } from './uiController.js';
+import { setupUIListeners, setTool, updateContextToolbar } from './uiController.js';
 import { setupGoogleDriveListeners, initGIS } from './gdrive.js';
 import { setupTemplatesListeners } from './templates.js';
-import { initFirebaseSync, updateStudentDrawingUI } from './firebaseSync.js';
 
 window.addEventListener('DOMContentLoaded', () => {
     const canvas = document.getElementById('board-canvas');
@@ -30,15 +29,8 @@ window.addEventListener('DOMContentLoaded', () => {
     setupGoogleDriveListeners(renderFn);
     setupTemplatesListeners(canvas, renderFn);
 
-    // Inicializar sincronización en tiempo real (Profesor / Alumnos)
-    initFirebaseSync(renderFn);
-
     // Inicializar Google Identity Services Client
     initGIS(renderFn);
-
-    // Aplicar restricciones visuales iniciales según rol y estado de dibujo
-    applyRoleUIRestrictions();
-    updateStudentDrawingUI();
 
     // Herramienta inicial por defecto y primer renderizado
     setTool('pencil');

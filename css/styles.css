@@ -1,4 +1,4 @@
-/* ESTILOS BASE Y PANELES GLASSMORPHIC - PIZARRA PROFEDIEGO */
+/* ESTILOS BASE Y PANELES GLASSMORPHIC */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 *{
@@ -158,16 +158,14 @@ border-radius: 9999px;
 background: #94a3b8;
 }
 
-/* ==========================================================================
-   MODO OSCURO - CORRECCIÓN INTEGRAL DE CONTRASTE Y CONTROLES CONTEXTUALES
-   ========================================================================== */
+/* MODO OSCURO (REGLAS Y ADAPTACIONES) */
 .dark body {
 background-color: #0f172a;
 color: #f8fafc;
 }
 
 .dark .glass-panel {
-background: rgba(15, 23, 42, 0.92);
+background: rgba(15, 23, 42, 0.90);
 border-color: rgba(51, 65, 85, 0.85);
 color: #f8fafc;
 }
@@ -208,69 +206,29 @@ box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
 .dark .flyout-menu label,
 .dark .flyout-menu div,
 .dark .shape-opt,
-.dark .conn-opt {
+.dark .conn-opt,
+.dark #context-toolbar span,
+.dark #context-toolbar select,
+.dark #context-toolbar button {
 color: #f8fafc !important;
 }
 
 .dark .shape-opt:hover,
-.dark .conn-opt:hover {
+.dark .conn-opt:hover,
+.dark #context-toolbar button:hover {
 background-color: #1e293b !important;
 color: #818cf8 !important;
-}
-
-/* FIX: BARRA CONTEXTUAL FLOTANTE EN MODO OSCURO (Solución imagen adjunta) */
-.dark #context-toolbar {
-background: rgba(15, 23, 42, 0.96) !important;
-border-color: #334155 !important;
-color: #f8fafc !important;
-box-shadow: 0 10px 30px rgba(0,0,0,0.6) !important;
-}
-
-.dark #context-toolbar span,
-.dark #context-toolbar label,
-.dark #context-toolbar i {
-color: #94a3b8 !important;
-}
-
-.dark #context-toolbar select {
-background-color: #1e293b !important;
-color: #f8fafc !important;
-border-color: #334155 !important;
 }
 
 .dark #context-toolbar select option {
-background-color: #0f172a !important;
-color: #f8fafc !important;
+background-color: #0f172a;
+color: #f8fafc;
 }
 
-.dark #context-toolbar button {
-background-color: #1e293b !important;
-color: #f8fafc !important;
-border-color: #334155 !important;
-}
-
-.dark #context-toolbar button:hover {
-background-color: #334155 !important;
-color: #818cf8 !important;
-}
-
-.dark #context-toolbar .arrow-btn-opt,
-.dark #context-toolbar .ctx-arrow-btn {
-background: #1e293b !important;
-color: #f8fafc !important;
-border-color: #334155 !important;
-}
-
-.dark #context-toolbar .arrow-btn-opt:hover,
-.dark #context-toolbar .ctx-arrow-btn:hover {
-background: #334155 !important;
-}
-
-.dark #context-toolbar .arrow-btn-opt.active,
-.dark #context-toolbar .ctx-arrow-btn.active {
-background: #4f46e5 !important;
-color: #ffffff !important;
-border-color: #6366f1 !important;
+.dark #context-toolbar {
+background: rgba(15, 23, 42, 0.94);
+border-color: #334155;
+color: #f8fafc;
 }
 
 .dark .breadcrumbs {
