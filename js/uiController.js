@@ -24,6 +24,22 @@ export function applyRolePermissions(userRole) {
     updateUserPresence();
 }
 
+/**
+ * Genera la vista previa gráfica de la pizarra actual en Base64
+ */
+export function generateBoardThumbnail() {
+    const canvas = document.getElementById('board-canvas');
+    if (!canvas) return null;
+    try {
+        return canvas.toDataURL('image/png', 0.5);
+    } catch (e) {
+        return null;
+    }
+}
+
+/**
+ * Abre la ventana modal para seleccionar pizarras indicando la clase activa del profesor
+ */
 export function openBoardSelectionModal(boardsList, onSelectBoard) {
     const existing = document.querySelector('.board-modal-overlay');
     if (existing) existing.remove();
@@ -31,17 +47,39 @@ export function openBoardSelectionModal(boardsList, onSelectBoard) {
     const modal = document.createElement('div');
     modal.className = 'board-modal-overlay';
 
-    const boardsHtml = boardsList && boardsList.length > 0 ? boardsList.map(board => `
-        <div class="board-card" data-id="${board.id}">
-            <div class="board-thumb-container">
-                <img src="${board.thumbnailUrl || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=400&q=80'}" alt="${board.name}" />
+    const teacherBoardId = state.teacherActiveBoardId || state.gdriveActiveFileId;
+
+    const boardsHtml = boardsList && boardsList.length > 0 ? boardsList.map(board => {
+        const isTeacherOpen = (board.id === teacherBoardId);
+        const storedThumb = localStorage.getItem('profediego_thumb_' + board.id) || board.thumbnailUrl;
+
+        let badgeHtml = '';
+        if (isTeacherOpen) {
+            badgeHtml = `<span class="absolute top-2 right-2 bg-emerald-600 text-white font-bold text-[10px] px-2.5 py-1 rounded-full shadow-md flex items-center gap-1 z-10">
+                <i class="fa-solid fa-satellite-dish fa-spin"></i> Profesor en Vivo
+            </span>`;
+        }
+
+        const thumbMedia = storedThumb 
+            ? `<img src="${storedThumb}" alt="${board.name}" class="w-full h-full object-cover" />`
+            : `<div class="w-full h-full bg-slate-900 flex flex-col items-center justify-center p-3 text-slate-300">
+                <i class="fa-solid fa-chalkboard text-3xl mb-1 text-indigo-400"></i>
+                <span class="text-[11px] font-bold text-center truncate max-w-full">${board.name}</span>
+               </div>`;
+
+        return `
+        <div class="board-card relative ${isTeacherOpen ? 'border-emerald-500 ring-2 ring-emerald-400' : ''}" data-id="${board.id}">
+            ${badgeHtml}
+            <div class="board-thumb-container relative">
+                ${thumbMedia}
             </div>
             <div class="board-card-info">
                 <span class="board-card-title">${board.name}</span>
                 <span class="board-card-meta">${board.updatedAt ? new Date(board.updatedAt).toLocaleDateString() : 'Pizarra interactiva'}</span>
             </div>
         </div>
-    `).join('') : '<p style="grid-column: 1/-1; text-align: center; color: #64748b; padding: 2rem;">No hay pizarras disponibles.</p>';
+        `;
+    }).join('') : '<p style="grid-column: 1/-1; text-align: center; color: #64748b; padding: 2rem;">No hay pizarras disponibles.</p>';
 
     modal.innerHTML = `
         <div class="board-modal-content">

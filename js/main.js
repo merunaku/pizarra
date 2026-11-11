@@ -5,7 +5,7 @@ import { setupCanvasListeners } from './tools.js';
 import { setupUIListeners, setTool, updateContextToolbar, openBoardSelectionModal, applyRolePermissions } from './uiController.js';
 import { setupGoogleDriveListeners, initGIS, fetchDriveBoards, loadBoardFromDrive } from './gdrive.js';
 import { setupTemplatesListeners } from './templates.js';
-import { initFirebaseSync, listenTeacherBoardChange, notifyBoardSwitch } from './firebaseSync.js';
+import { initFirebaseSync, listenTeacherBoardChange, updateUserPresence } from './firebaseSync.js';
 
 window.addEventListener('DOMContentLoaded', () => {
     const canvas = document.getElementById('board-canvas');
@@ -32,10 +32,26 @@ window.addEventListener('DOMContentLoaded', () => {
     initGIS(renderFn);
     initFirebaseSync(renderFn);
 
+    let panThrottleTimer = null;
+    canvas.addEventListener('mousemove', () => {
+        if (state.isPanning) {
+            if (!panThrottleTimer) {
+                panThrottleTimer = setTimeout(() => {
+                    updateUserPresence();
+                    panThrottleTimer = null;
+                }, 100);
+            }
+        }
+    });
+
     listenTeacherBoardChange((boardId) => {
         if ((state.userRole === 'student' || !state.gdriveIsTeacher) && boardId) {
             if (state.gdriveActiveFileId !== boardId) {
-                loadBoardFromDrive(boardId, renderFn);
+                state.gdriveActiveFileId = boardId;
+                state.activeBoardId = boardId;
+                if (state.gdriveAccessToken) {
+                    loadBoardFromDrive(boardId, renderFn);
+                }
             }
         }
     });

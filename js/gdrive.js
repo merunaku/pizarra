@@ -1,15 +1,12 @@
 // GOOGLE DRIVE CLOUD SYNC & EXPLORER MODULE - PIZARRA PROFEDIEGO
 import { state, saveState, restoreSnapshot } from './state.js';
-import { showToast } from './uiController.js';
+import { showToast, generateBoardThumbnail } from './uiController.js';
 import { setTeacherActiveBoard, notifyBoardSwitch, updateUserPresence } from './firebaseSync.js';
 
 let renderCallback = null;
 let tokenClient = null;
 let autoSaveTimeout = null;
 
-/**
- * Actualiza la insignia gráfica de estado de sincronización en el Navbar
- */
 export function updateSyncBadge(statusText, type = 'local') {
     const badge = document.getElementById('sync-status-badge');
     if (!badge) return;
@@ -29,9 +26,6 @@ export function updateSyncBadge(statusText, type = 'local') {
     }
 }
 
-/**
- * Sincroniza el título de la pizarra en los inputs de la barra principal y del modal
- */
 export function syncBoardTitle(newTitle) {
     const topTitleInput = document.getElementById('board-title');
     const modalTitleInput = document.getElementById('boardTitle');
@@ -46,9 +40,6 @@ export function syncBoardTitle(newTitle) {
     }
 }
 
-/**
- * Inicializa el cliente GIS OAuth 2.0 de Google con persistencia de sesión
- */
 export function initGIS(renderFn) {
     if (renderFn) renderCallback = renderFn;
 
@@ -349,7 +340,7 @@ export async function fetchDriveBoards() {
             return data.files.map(f => ({
                 id: f.id,
                 name: f.name.replace(/^PIZARRA_/, '').replace(/\.json$/, ''),
-                thumbnailUrl: f.thumbnailLink,
+                thumbnailUrl: localStorage.getItem('profediego_thumb_' + f.id) || f.thumbnailLink,
                 updatedAt: f.modifiedTime
             }));
         }
@@ -378,6 +369,7 @@ export async function listFolderContents() {
 
     const currentFolderId = getCurrentFolderId();
     const query = encodeURIComponent(`'${currentFolderId}' in parents and trashed = false`);
+    const teacherBoardId = state.teacherActiveBoardId || state.gdriveActiveFileId;
 
     try {
         const response = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name,mimeType,createdTime)&orderBy=folder,name`, {
@@ -391,10 +383,12 @@ export async function listFolderContents() {
             data.files.forEach(item => {
                 const isFolder = item.mimeType === 'application/vnd.google-apps.folder';
                 const isCurrentActive = (item.id === state.gdriveActiveFileId);
+                const isTeacherActive = (item.id === teacherBoardId);
+
                 const li = document.createElement('li');
                 li.className = 'flex items-center justify-between p-2.5 mb-1.5 rounded-xl border text-xs transition-all ' +
                     (isFolder ? 'bg-slate-100 border-indigo-200 border-l-4 border-l-indigo-600' : 
-                     (isCurrentActive ? 'bg-emerald-50 border-emerald-400 border-l-4 border-l-emerald-600 font-bold' : 'bg-white border-slate-200 hover:border-indigo-300'));
+                     (isTeacherActive ? 'bg-emerald-50 border-emerald-400 border-l-4 border-l-emerald-600 font-bold' : 'bg-white border-slate-200 hover:border-indigo-300'));
 
                 const safeName = item.name.replace(/'/g, "\\'");
 
@@ -408,7 +402,14 @@ export async function listFolderContents() {
                     `;
                 } else {
                     let copyBtnHtml = state.gdriveIsTeacher ? `<button class="btn-secondary px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-semibold text-[11px] mr-1" onclick="window.gdriveModule.copyFile('${item.id}', '${safeName}')">📄 Copiar</button>` : '';
-                    let activeTag = isCurrentActive ? '<span class="text-[10px] bg-emerald-200 text-emerald-800 font-bold px-1.5 py-0.5 rounded ml-1">Abierto</span>' : '';
+                    
+                    let activeTag = '';
+                    if (isTeacherActive) {
+                        activeTag = '<span class="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-full ml-1"><i class="fa-solid fa-satellite-dish"></i> Profesor En Vivo</span>';
+                    } else if (isCurrentActive) {
+                        activeTag = '<span class="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-1.5 py-0.5 rounded ml-1">Abierto</span>';
+                    }
+
                     li.innerHTML = `
                         <div class="item-title flex items-center gap-2 cursor-pointer font-semibold text-slate-700" onclick="window.gdriveModule.readWhiteboard('${item.id}', '${safeName}')">
                             <i class="fa-solid fa-file-code text-indigo-600 text-sm"></i>
@@ -485,8 +486,14 @@ export async function saveWhiteboardTest(silent = false) {
     const fileName = `PIZARRA_${rawTitle}.json`;
     const whiteboardData = state.elements;
 
+    const thumb = generateBoardThumbnail();
+
     try {
         if (state.gdriveActiveFileId) {
+            if (thumb) {
+                localStorage.setItem('profediego_thumb_' + state.gdriveActiveFileId, thumb);
+            }
+
             await fetch(`https://www.googleapis.com/drive/v3/files/${state.gdriveActiveFileId}`, {
                 method: 'PATCH',
                 headers: {
@@ -530,6 +537,10 @@ export async function saveWhiteboardTest(silent = false) {
                 alert('Error al crear archivo: ' + file.error.message);
                 updateSyncBadge('Error al sincronizar', 'error');
                 return;
+            }
+
+            if (thumb) {
+                localStorage.setItem('profediego_thumb_' + file.id, thumb);
             }
 
             const contentResponse = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${file.id}?uploadType=media`, {
@@ -676,6 +687,11 @@ export async function readWhiteboard(fileId, fileName = '') {
 
         restoreSnapshot(content, renderCallback);
         saveState();
+
+        const thumb = generateBoardThumbnail();
+        if (thumb) {
+            localStorage.setItem('profediego_thumb_' + fileId, thumb);
+        }
 
         updateSyncBadge('Sincronizado con Drive', 'drive');
 

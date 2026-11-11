@@ -33,7 +33,9 @@ function getTeacherBoardId() {
 function isStudentOnTeacherBoard() {
     const isTeacher = state.userRole === 'teacher' || state.gdriveIsTeacher;
     if (isTeacher) return true;
-    return getCurrentBoardId() === getTeacherBoardId();
+    const current = getCurrentBoardId();
+    const teacherBoard = getTeacherBoardId();
+    return !teacherBoard || teacherBoard === 'default' || current === teacherBoard;
 }
 
 export function initFirebaseSync(renderFn) {
@@ -68,7 +70,7 @@ export function syncFirebaseElements(elements) {
     }
 
     const elementsRef = ref(db, `boards/${currentRoomId}/elements`);
-    set(elementsRef, elements).catch(err => console.error("Error en realtime sync:", err));
+    set(elementsRef, elements || []).catch(err => console.error("Error en realtime sync:", err));
 }
 
 function listenToRoom(roomId) {
@@ -95,16 +97,14 @@ function listenToPresence(roomId) {
     const presenceRef = ref(db, `boards/${roomId}/presence`);
     onValue(presenceRef, (snapshot) => {
         const val = snapshot.val() || {};
-        const currentBoard = getCurrentBoardId();
         const now = Date.now();
         
         const filteredPresence = {};
         Object.keys(val).forEach(uid => {
             const user = val[uid];
-            const userBoard = user.activeBoardId || 'default';
-            const isRecent = !user.lastSeen || (now - user.lastSeen < 12000);
+            const isRecent = !user.lastSeen || (now - user.lastSeen < 15000);
 
-            if (userBoard === currentBoard && isRecent) {
+            if (isRecent) {
                 filteredPresence[uid] = user;
             }
         });
@@ -118,9 +118,6 @@ function listenToSettings(roomId) {
     if (!db) return;
     const settingsRef = ref(db, `boards/${roomId}/settings`);
     onValue(settingsRef, (snapshot) => {
-        const isTeacher = state.userRole === 'teacher' || state.gdriveIsTeacher;
-        if (!isTeacher && !isStudentOnTeacherBoard()) return;
-
         const settings = snapshot.val();
         if (settings) {
             if (settings.studentDrawingAllowed !== undefined) {
@@ -143,7 +140,9 @@ export function listenTeacherBoardChange(callback) {
             teacherActiveBoardId = boardId;
             state.teacherActiveBoardId = boardId;
             
-            if (isStudentOnTeacherBoard()) {
+            if (state.userRole === 'student' || !state.gdriveIsTeacher) {
+                state.activeBoardId = boardId;
+                state.gdriveActiveFileId = boardId;
                 applyRoomElements();
             }
         }
