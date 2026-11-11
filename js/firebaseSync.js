@@ -1,6 +1,6 @@
 // REALTIME SYNC & PARTICIPANT PRESENCE - PIZARRA PROFEDIEGO
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getDatabase, ref, set, onValue, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+import { getDatabase, ref, set, onValue, update, onDisconnect } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 import { state, restoreSnapshot } from './state.js';
 import { showToast } from './uiController.js';
 
@@ -18,7 +18,21 @@ let app = null;
 let db = null;
 let isRemoteUpdating = false;
 let currentRoomId = 'clase_principal';
+let teacherActiveBoardId = null;
 let renderCallbackRef = null;
+
+/**
+ * Comprueba si el usuario actual coincide con la pizarra activa del profesor
+ */
+function isStudentOnTeacherBoard() {
+    const isTeacher = state.userRole === 'teacher' || state.gdriveIsTeacher;
+    if (isTeacher) return true;
+
+    const studentBoard = state.gdriveActiveFileId || state.activeBoardId || 'default';
+    const teacherBoard = teacherActiveBoardId || state.teacherActiveBoardId || 'default';
+
+    return studentBoard === teacherBoard;
+}
 
 export function initFirebaseSync(renderFn) {
     renderCallbackRef = renderFn;
@@ -28,6 +42,7 @@ export function initFirebaseSync(renderFn) {
 
         window.syncFirebaseElements = syncFirebaseElements;
 
+        listenTeacherBoardChange();
         listenToRoom(currentRoomId);
         listenToPresence(currentRoomId);
         listenToSettings(currentRoomId);
@@ -43,7 +58,12 @@ export function initFirebaseSync(renderFn) {
 
 export function syncFirebaseElements(elements) {
     if (!db || isRemoteUpdating) return;
-    if (state.userRole === 'student' && !state.studentDrawingAllowed) return;
+    const isTeacher = state.userRole === 'teacher' || state.gdriveIsTeacher;
+
+    if (!isTeacher) {
+        if (!state.studentDrawingAllowed) return;
+        if (!isStudentOnTeacherBoard()) return;
+    }
 
     const elementsRef = ref(db, `boards/${currentRoomId}/elements`);
     set(elementsRef, elements).catch(err => console.error("Error en realtime sync:", err));
@@ -53,6 +73,13 @@ function listenToRoom(roomId) {
     if (!db) return;
     const elementsRef = ref(db, `boards/${roomId}/elements`);
     onValue(elementsRef, (snapshot) => {
+        const isTeacher = state.userRole === 'teacher' || state.gdriveIsTeacher;
+        
+        // Si no es profesor y no está en la pizarra que usa el profesor, no aplicar actualización
+        if (!isTeacher && !isStudentOnTeacherBoard()) {
+            return;
+        }
+
         const val = snapshot.val();
         if (val) {
             isRemoteUpdating = true;
@@ -67,7 +94,22 @@ function listenToPresence(roomId) {
     const presenceRef = ref(db, `boards/${roomId}/presence`);
     onValue(presenceRef, (snapshot) => {
         const val = snapshot.val() || {};
-        state.presenceUsers = val;
+        const currentBoard = state.gdriveActiveFileId || state.activeBoardId || 'default';
+        const now = Date.now();
+        
+        // Filtrar usuarios para mostrar únicamente a quienes estén en la misma pizarra y estén activos (últimos 12 seg)
+        const filteredPresence = {};
+        Object.keys(val).forEach(uid => {
+            const user = val[uid];
+            const userBoard = user.activeBoardId || 'default';
+            const isRecent = !user.lastSeen || (now - user.lastSeen < 12000);
+
+            if (userBoard === currentBoard && isRecent) {
+                filteredPresence[uid] = user;
+            }
+        });
+
+        state.presenceUsers = filteredPresence;
         if (renderCallbackRef) renderCallbackRef();
     });
 }
@@ -76,6 +118,9 @@ function listenToSettings(roomId) {
     if (!db) return;
     const settingsRef = ref(db, `boards/${roomId}/settings`);
     onValue(settingsRef, (snapshot) => {
+        const isTeacher = state.userRole === 'teacher' || state.gdriveIsTeacher;
+        if (!isTeacher && !isStudentOnTeacherBoard()) return;
+
         const settings = snapshot.val();
         if (settings) {
             if (settings.studentDrawingAllowed !== undefined) {
@@ -97,6 +142,10 @@ export function listenTeacherBoardChange(callback) {
     const teacherBoardRef = ref(db, `boards/${currentRoomId}/activeBoardId`);
     onValue(teacherBoardRef, (snapshot) => {
         const boardId = snapshot.val();
+        if (boardId !== undefined && boardId !== null) {
+            teacherActiveBoardId = boardId;
+            state.teacherActiveBoardId = boardId;
+        }
         if (boardId && callback) {
             callback(boardId);
         }
@@ -109,19 +158,26 @@ export function listenTeacherBoardChange(callback) {
 export function setTeacherActiveBoard(boardId) {
     if (!db) return;
     if (state.userRole !== 'teacher' && !state.gdriveIsTeacher) return;
+    teacherActiveBoardId = boardId;
+    state.teacherActiveBoardId = boardId;
     const teacherBoardRef = ref(db, `boards/${currentRoomId}/activeBoardId`);
     set(teacherBoardRef, boardId);
 }
 
 export function updateUserPresence() {
     if (!db) return;
-    const canvas = document.getElementById('board-canvas');
+    const canvas = document.getElementById('board-canvas') || document.getElementById('main-canvas');
     if (!canvas) return;
 
     const userRef = ref(db, `boards/${currentRoomId}/presence/${state.userId}`);
+    
+    // Registrar eliminación automática al cerrar pestaña o perder conexión
+    onDisconnect(userRef).remove();
+
     const isTeacher = state.userRole === 'teacher' || state.gdriveIsTeacher;
     const userColor = isTeacher ? '#059669' : '#2563eb';
     const userName = state.gdriveCurrentUserEmail ? state.gdriveCurrentUserEmail.split('@')[0] : (isTeacher ? 'Profesor' : 'Alumno');
+    const activeBoardId = state.gdriveActiveFileId || state.activeBoardId || 'default';
 
     const viewBounds = {
         x: -state.pan.x / state.zoom,
@@ -135,7 +191,9 @@ export function updateUserPresence() {
         userName: userName,
         isTeacher: isTeacher,
         color: userColor,
-        viewBounds
+        activeBoardId: activeBoardId,
+        viewBounds,
+        lastSeen: Date.now()
     });
 }
 
