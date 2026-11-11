@@ -3,13 +3,10 @@ import { state, saveState, undo, redo, restoreSnapshot } from './state.js';
 import { openInlineEditor, closeInlineEditor, addConnectorIntermediatePoint, removeConnectorIntermediatePoint, joinSelectedLines } from './tools.js';
 import { getConnectorPoints, getLuminance } from './canvasEngine.js';
 import { saveWhiteboardTest, syncBoardTitle } from './gdrive.js';
-import { toggleStudentDrawingPermission } from './firebaseSync.js';
+import { toggleStudentDrawingPermission, setTeacherActiveBoard, notifyBoardSwitch, updateUserPresence } from './firebaseSync.js';
 
 let renderCallback = null;
 
-/**
- * Controla la visibilidad de elementos según el rol activo (Profesor vs Alumno)
- */
 export function applyRolePermissions(userRole) {
     state.userRole = userRole;
     document.body.classList.remove('role-teacher', 'role-student');
@@ -23,11 +20,10 @@ export function applyRolePermissions(userRole) {
             el.style.display = 'none';
         }
     });
+
+    updateUserPresence();
 }
 
-/**
- * Abre la ventana modal para seleccionar pizarras con vista previa de imágenes medianas
- */
 export function openBoardSelectionModal(boardsList, onSelectBoard) {
     const existing = document.querySelector('.board-modal-overlay');
     if (existing) existing.remove();
@@ -71,6 +67,16 @@ export function openBoardSelectionModal(boardsList, onSelectBoard) {
     modal.querySelectorAll('.board-card').forEach(card => {
         card.addEventListener('click', () => {
             const selectedId = card.dataset.id;
+            state.gdriveActiveFileId = selectedId;
+            state.activeBoardId = selectedId;
+
+            const isTeacher = state.userRole === 'teacher' || state.gdriveIsTeacher;
+            if (isTeacher) {
+                setTeacherActiveBoard(selectedId);
+            } else {
+                notifyBoardSwitch(selectedId);
+            }
+
             if (onSelectBoard) onSelectBoard(selectedId);
             modal.remove();
         });
@@ -734,6 +740,7 @@ export function setupUIListeners(canvas, ctx, renderFn) {
             state.zoom = Math.min(5.0, state.zoom + 0.2);
             const dropdown = document.getElementById('zoom-dropdown');
             if (dropdown) dropdown.value = state.zoom.toFixed(2);
+            updateUserPresence();
             if (renderCallback) renderCallback();
         });
     }
@@ -744,6 +751,7 @@ export function setupUIListeners(canvas, ctx, renderFn) {
             state.zoom = Math.max(0.05, state.zoom - 0.2);
             const dropdown = document.getElementById('zoom-dropdown');
             if (dropdown) dropdown.value = state.zoom.toFixed(2);
+            updateUserPresence();
             if (renderCallback) renderCallback();
         });
     }
@@ -752,6 +760,7 @@ export function setupUIListeners(canvas, ctx, renderFn) {
     if (zoomDropdown) {
         zoomDropdown.addEventListener('change', (e) => {
             state.zoom = parseFloat(e.target.value);
+            updateUserPresence();
             if (renderCallback) renderCallback();
         });
     }
@@ -763,6 +772,7 @@ export function setupUIListeners(canvas, ctx, renderFn) {
             state.zoom = 1.0;
             const dropdown = document.getElementById('zoom-dropdown');
             if (dropdown) dropdown.value = "1.0";
+            updateUserPresence();
             if (renderCallback) renderCallback();
         });
     }
