@@ -8,14 +8,17 @@ import { toggleStudentDrawingPermission, setTeacherActiveBoard, notifyBoardSwitc
 let renderCallback = null;
 
 export function applyRolePermissions(userRole) {
-    state.userRole = userRole;
+    const isTeacher = (userRole === 'teacher' || state.gdriveIsTeacher || state.userRole === 'teacher');
+    state.userRole = isTeacher ? 'teacher' : 'student';
+
     document.body.classList.remove('role-teacher', 'role-student');
-    document.body.classList.add(`role-${userRole}`);
+    document.body.classList.add(`role-${state.userRole}`);
 
     const teacherElements = document.querySelectorAll('.teacher-only, [data-requires-role="teacher"]');
     teacherElements.forEach(el => {
-        if (userRole === 'teacher') {
+        if (isTeacher) {
             el.style.display = '';
+            el.classList.remove('hidden');
         } else {
             el.style.display = 'none';
         }

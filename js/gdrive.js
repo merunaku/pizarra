@@ -2,6 +2,7 @@
 import { state, saveState, restoreSnapshot } from './state.js';
 import { showToast, generateBoardThumbnail } from './uiController.js';
 import { setTeacherActiveBoard, notifyBoardSwitch, updateUserPresence } from './firebaseSync.js';
+import { applyRolePermissions } from './uiController.js'; // Asegurar importación al inicio
 
 let renderCallback = null;
 let tokenClient = null;
@@ -282,6 +283,9 @@ export function updateUIByRole() {
     if (saveBtn) saveBtn.disabled = !state.gdriveIsTeacher;
     if (newFolderBtn) newFolderBtn.disabled = !state.gdriveIsTeacher;
     if (refreshBtn) refreshBtn.disabled = false;
+
+    // Aplicar los permisos visuales al entorno completo
+    applyRolePermissions(state.gdriveIsTeacher ? 'teacher' : 'student');
 
     renderBreadcrumbs();
     listFolderContents();
