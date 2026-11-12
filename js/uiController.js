@@ -3,7 +3,7 @@ import { state, saveState, undo, redo, restoreSnapshot } from './state.js';
 import { openInlineEditor, closeInlineEditor, addConnectorIntermediatePoint, removeConnectorIntermediatePoint, joinSelectedLines } from './tools.js';
 import { getConnectorPoints, getLuminance } from './canvasEngine.js';
 import { saveWhiteboardTest, syncBoardTitle } from './gdrive.js';
-import { toggleStudentDrawingPermission, setTeacherActiveBoard, notifyBoardSwitch, updateUserPresence } from './firebaseSync.js';
+import { toggleStudentDrawingPermission, setTeacherActiveBoard, notifyBoardSwitch, syncWithTeacherBoard, updateUserPresence } from './firebaseSync.js';
 
 let renderCallback = null;
 
@@ -24,9 +24,6 @@ export function applyRolePermissions(userRole) {
     updateUserPresence();
 }
 
-/**
- * Genera la vista previa gráfica de la pizarra actual en Base64
- */
 export function generateBoardThumbnail() {
     const canvas = document.getElementById('board-canvas');
     if (!canvas) return null;
@@ -37,9 +34,6 @@ export function generateBoardThumbnail() {
     }
 }
 
-/**
- * Abre la ventana modal para seleccionar pizarras indicando la clase activa del profesor
- */
 export function openBoardSelectionModal(boardsList, onSelectBoard) {
     const existing = document.querySelector('.board-modal-overlay');
     if (existing) existing.remove();
@@ -48,6 +42,13 @@ export function openBoardSelectionModal(boardsList, onSelectBoard) {
     modal.className = 'board-modal-overlay';
 
     const teacherBoardId = state.teacherActiveBoardId || state.gdriveActiveFileId;
+    const isStudent = state.userRole === 'student' && !state.gdriveIsTeacher;
+
+    const followTeacherBtnHtml = isStudent ? `
+        <button id="btn-follow-teacher" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-sm transition-all">
+            <i class="fa-solid fa-satellite-dish"></i> Unirme a Pizarra del Profesor
+        </button>
+    ` : '';
 
     const boardsHtml = boardsList && boardsList.length > 0 ? boardsList.map(board => {
         const isTeacherOpen = (board.id === teacherBoardId);
@@ -62,7 +63,7 @@ export function openBoardSelectionModal(boardsList, onSelectBoard) {
 
         const thumbMedia = storedThumb 
             ? `<img src="${storedThumb}" alt="${board.name}" class="w-full h-full object-cover" />`
-            : `<div class="w-full h-full bg-slate-900 flex flex-col items-center justify-center p-3 text-slate-300">
+            : `<div class="w-full h-full bg-slate-800 flex flex-col items-center justify-center p-3 text-slate-300">
                 <i class="fa-solid fa-chalkboard text-3xl mb-1 text-indigo-400"></i>
                 <span class="text-[11px] font-bold text-center truncate max-w-full">${board.name}</span>
                </div>`;
@@ -84,7 +85,10 @@ export function openBoardSelectionModal(boardsList, onSelectBoard) {
     modal.innerHTML = `
         <div class="board-modal-content">
             <div class="board-modal-header">
-                <h3>Seleccionar Pizarra</h3>
+                <div class="flex items-center gap-3">
+                    <h3>Seleccionar Pizarra</h3>
+                    ${followTeacherBtnHtml}
+                </div>
                 <button class="board-modal-close" id="closeBoardModal">&times;</button>
             </div>
             <div class="board-grid">
@@ -97,6 +101,16 @@ export function openBoardSelectionModal(boardsList, onSelectBoard) {
 
     const btnClose = modal.querySelector('#closeBoardModal');
     if (btnClose) btnClose.addEventListener('click', () => modal.remove());
+
+    const btnFollow = modal.querySelector('#btn-follow-teacher');
+    if (btnFollow) {
+        btnFollow.addEventListener('click', () => {
+            syncWithTeacherBoard();
+            if (onSelectBoard) onSelectBoard(state.teacherActiveBoardId);
+            showToast('Sincronizado con la clase del profesor', 'fa-solid fa-satellite-dish');
+            modal.remove();
+        });
+    }
     
     modal.addEventListener('click', (e) => {
         if (e.target === modal) modal.remove();
@@ -112,7 +126,7 @@ export function openBoardSelectionModal(boardsList, onSelectBoard) {
             if (isTeacher) {
                 setTeacherActiveBoard(selectedId);
             } else {
-                notifyBoardSwitch(selectedId);
+                notifyBoardSwitch(selectedId, true);
             }
 
             if (onSelectBoard) onSelectBoard(selectedId);

@@ -39,6 +39,9 @@ export const state = {
     // Rol de usuario ('student' | 'teacher')
     userRole: 'student',
 
+    // Selección independiente del alumno (evita cambio forzado)
+    studentManuallySelectedBoard: false,
+
     // Firebase Realtime Sync & Presencia
     userId: 'user_' + Math.random().toString(36).substr(2, 9),
     userName: 'Usuario',
@@ -142,7 +145,6 @@ export function restoreSnapshot(jsonStr, renderCallback) {
         const data = typeof jsonStr === 'string' ? JSON.parse(jsonStr) : jsonStr;
         const elementsList = Array.isArray(data) ? data : (data.elements || []);
         
-        // Conservar los IDs seleccionados previamente antes de reconstruir el estado
         const previousSelection = [...state.selectedIds];
 
         state.elements = elementsList.map(el => {
@@ -177,7 +179,6 @@ export function restoreSnapshot(jsonStr, renderCallback) {
             return el;
         });
 
-        // Mantener seleccionados únicamente los elementos que aún existan en el lienzo
         state.selectedIds = previousSelection.filter(id => state.elements.some(el => el.id === id));
 
         if (renderCallback) renderCallback();
