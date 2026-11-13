@@ -2,7 +2,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getDatabase, ref, set, onValue, update, onDisconnect, off } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 import { state, restoreSnapshot } from './state.js';
-import { showToast } from './uiController.js';
+import { showToast, renderParticipantsList } from './uiController.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyCgwLhw_twx8FaQot6e4tFa-vTyKhOVruI",
@@ -111,8 +111,8 @@ function switchRoomBoardListener(boardId) {
 }
 
 export function isTeacherOnline() {
-    const users = state.presenceUsers || {};
-    return Object.values(users).some(u => u && u.isTeacher === true);
+    const isSelfTeacher = state.userRole === 'teacher' || state.gdriveIsTeacher;
+    return isSelfTeacher || Boolean(state.isTeacherOnline) || Object.values(state.presenceUsers || {}).some(u => u && u.isTeacher === true);
 }
 
 export function syncFirebaseElements(elements) {
@@ -120,7 +120,6 @@ export function syncFirebaseElements(elements) {
     const isTeacher = state.userRole === 'teacher' || state.gdriveIsTeacher;
 
     if (!isTeacher) {
-        // Si el profesor no está conectado o bloqueó el dibujo, el alumno practica en local sin sobrescribir Firebase
         if (!isTeacherOnline() || !state.studentDrawingAllowed) return;
     }
 
@@ -145,20 +144,45 @@ function listenToPresence(roomId) {
         const now = Date.now();
         const currentBoard = getCurrentBoardId();
 
-        const filteredPresence = {};
+        state.isTeacherOnline = Object.values(val).some(
+            u => u && u.isTeacher === true && u.lastSeen && (now - u.lastSeen < 7000)
+        );
+
+        const sameBoardPresence = {};
+        const allActiveUsers = [];
+
         Object.keys(val).forEach(uid => {
             const user = val[uid];
             if (!user) return;
 
-            const userBoard = user.activeBoardId || 'default';
             const isActive = user.lastSeen && (now - user.lastSeen < 7000);
+            if (!isActive) return;
 
-            if (userBoard === currentBoard && isActive && uid !== state.userId) {
-                filteredPresence[uid] = user;
+            const userBoard = user.activeBoardId || 'default';
+            const isSameBoard = (userBoard === currentBoard);
+
+            allActiveUsers.push({
+                uid,
+                ...user,
+                isSelf: uid === state.userId,
+                isSameBoard
+            });
+
+            if (isSameBoard && uid !== state.userId) {
+                sameBoardPresence[uid] = user;
             }
         });
 
-        state.presenceUsers = filteredPresence;
+        // Ordenar: Profesor primero, luego el resto alfabéticamente
+        allActiveUsers.sort((a, b) => {
+            if (a.isTeacher !== b.isTeacher) return a.isTeacher ? -1 : 1;
+            return (a.name || '').localeCompare(b.name || '');
+        });
+
+        state.presenceUsers = sameBoardPresence;
+        state.allActiveUsers = allActiveUsers;
+
+        renderParticipantsList(renderCallbackRef);
         if (renderCallbackRef) renderCallbackRef();
     });
 }
@@ -228,8 +252,12 @@ export function updateUserPresence() {
 
     const isTeacher = state.userRole === 'teacher' || state.gdriveIsTeacher;
     const userColor = isTeacher ? '#059669' : '#2563eb';
-    const userName = state.gdriveCurrentUserEmail ? state.gdriveCurrentUserEmail.split('@')[0] : (isTeacher ? 'Profesor' : 'Alumno');
+    const googleProfile = state.gdriveUser || {};
+    const userName = googleProfile.name
+        || (state.gdriveCurrentUserEmail ? state.gdriveCurrentUserEmail.split('@')[0] : (isTeacher ? 'Profesor' : 'Alumno'));
+    const photoUrl = googleProfile.picture || null;
     const activeBoardId = getCurrentBoardId();
+    const boardTitle = document.getElementById('board-title')?.value || 'Pizarra';
 
     const viewBounds = {
         x: -state.pan.x / state.zoom,
@@ -241,9 +269,12 @@ export function updateUserPresence() {
     set(userRef, {
         name: userName,
         userName: userName,
+        email: state.gdriveCurrentUserEmail || null,
+        photoUrl: photoUrl,
         isTeacher: isTeacher,
         color: userColor,
         activeBoardId: activeBoardId,
+        boardTitle: boardTitle,
         viewBounds,
         lastSeen: Date.now()
     }).catch(() => {});

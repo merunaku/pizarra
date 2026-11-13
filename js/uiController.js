@@ -27,6 +27,95 @@ export function applyRolePermissions(userRole) {
     updateUserPresence();
 }
 
+export function renderParticipantsList(renderFn) {
+    const users = Array.isArray(state.allActiveUsers) ? state.allActiveUsers : [];
+    const avatarsContainer = document.getElementById('participants-avatars');
+    const countLabel = document.getElementById('participants-count-label');
+    const dropdownCount = document.getElementById('participants-dropdown-count');
+    const listEl = document.getElementById('participants-list');
+
+    if (countLabel) countLabel.innerText = `Conectados (${users.length})`;
+    if (dropdownCount) dropdownCount.innerText = `${users.length} en línea`;
+
+    if (avatarsContainer) {
+        avatarsContainer.innerHTML = users.slice(0, 5).map(u => {
+            const initial = (u.name || 'U').charAt(0).toUpperCase();
+            const ringColor = u.isTeacher ? 'border-emerald-500' : 'border-blue-500';
+            const bgColor = u.isTeacher ? 'bg-emerald-600' : 'bg-blue-600';
+
+            if (u.photoUrl) {
+                return `<img src="${u.photoUrl}" alt="${u.name}" referrerpolicy="no-referrer"
+                    class="w-6 h-6 rounded-full border-2 ${ringColor} object-cover bg-white shadow-sm"
+                    onerror="this.outerHTML='<span class=\\'w-6 h-6 rounded-full border-2 border-white ${bgColor} text-white text-[10px] font-bold flex items-center justify-center\\'>${initial}</span>'" />`;
+            }
+            return `<span class="w-6 h-6 rounded-full border-2 border-white ${bgColor} text-white text-[10px] font-bold flex items-center justify-center shadow-sm">${initial}</span>`;
+        }).join('');
+    }
+
+    if (listEl) {
+        if (users.length === 0) {
+            listEl.innerHTML = '<li class="text-[11px] text-slate-400 italic py-2 text-center">Sin participantes conectados</li>';
+            return;
+        }
+
+        listEl.innerHTML = users.map(u => {
+            const initial = (u.name || 'U').charAt(0).toUpperCase();
+            const bgColor = u.isTeacher ? 'bg-emerald-600' : 'bg-blue-600';
+            const roleBadge = u.isTeacher
+                ? '<span class="text-[9px] bg-emerald-100 text-emerald-700 font-bold px-1.5 py-0.5 rounded">Profesor</span>'
+                : '<span class="text-[9px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded">Alumno</span>';
+
+            const boardStatus = u.isSameBoard
+                ? '<span class="text-[10px] text-emerald-600 font-medium">En esta pizarra</span>'
+                : `<span class="text-[10px] text-amber-600 font-medium truncate max-w-[130px]" title="${u.boardTitle || 'Otra pizarra'}">En: ${u.boardTitle || 'Otra pizarra'}</span>`;
+
+            const avatarHtml = u.photoUrl
+                ? `<img src="${u.photoUrl}" alt="${u.name}" referrerpolicy="no-referrer"
+                    class="w-8 h-8 rounded-full border ${u.isTeacher ? 'border-emerald-400' : 'border-blue-400'} object-cover shrink-0"
+                    onerror="this.outerHTML='<div class=\\'w-8 h-8 rounded-full ${bgColor} text-white text-xs font-bold flex items-center justify-center shrink-0\\'>${initial}</div>'" />`
+                : `<div class="w-8 h-8 rounded-full ${bgColor} text-white text-xs font-bold flex items-center justify-center shrink-0">${initial}</div>`;
+
+            const jumpBtn = (!u.isSelf && u.isSameBoard && u.viewBounds)
+                ? `<button data-jump-uid="${u.uid}" title="Ir a donde está mirando" class="p-1.5 hover:bg-indigo-50 text-indigo-600 rounded-lg transition-all shrink-0">
+                    <i class="fa-solid fa-crosshairs text-xs"></i>
+                   </button>`
+                : '';
+
+            return `
+                <li class="flex items-center justify-between gap-2 p-1.5 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-all">
+                    <div class="flex items-center gap-2 min-w-0">
+                        ${avatarHtml}
+                        <div class="flex flex-col min-w-0">
+                            <div class="flex items-center gap-1.5">
+                                <span class="text-xs font-bold text-slate-800 truncate">${u.name}${u.isSelf ? ' (Tú)' : ''}</span>
+                                ${roleBadge}
+                            </div>
+                            ${boardStatus}
+                        </div>
+                    </div>
+                    ${jumpBtn}
+                </li>
+            `;
+        }).join('');
+
+        listEl.querySelectorAll('[data-jump-uid]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const target = users.find(x => x.uid === btn.dataset.jumpUid);
+                if (target && target.viewBounds) {
+                    const canvas = document.getElementById('board-canvas');
+                    const centerX = target.viewBounds.x + target.viewBounds.w / 2;
+                    const centerY = target.viewBounds.y + target.viewBounds.h / 2;
+                    state.pan.x = (canvas ? canvas.width / 2 : window.innerWidth / 2) - centerX * state.zoom;
+                    state.pan.y = (canvas ? canvas.height / 2 : window.innerHeight / 2) - centerY * state.zoom;
+                    updateUserPresence();
+                    if (renderFn || renderCallback) (renderFn || renderCallback)();
+                    showToast(`Vista centrada en ${target.name}`, 'fa-solid fa-crosshairs');
+                }
+            });
+        });
+    }
+}
+
 export function generateBoardThumbnail() {
     const canvas = document.getElementById('board-canvas');
     if (!canvas) return null;
@@ -318,6 +407,19 @@ export function updateContextToolbar() {
 export function setupUIListeners(canvas, ctx, renderFn) {
     renderCallback = renderFn;
 
+    const btnParticipants = document.getElementById('btn-participants-toggle');
+    const participantsDropdown = document.getElementById('participants-dropdown');
+    if (btnParticipants && participantsDropdown) {
+        btnParticipants.addEventListener('click', (e) => {
+            e.stopPropagation();
+            participantsDropdown.classList.toggle('hidden');
+        });
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#participants-widget')) {
+                participantsDropdown.classList.add('hidden');
+            }
+        });
+    }
     const topBoardTitle = document.getElementById('board-title');
     if (topBoardTitle) {
         topBoardTitle.addEventListener('input', (e) => syncBoardTitle(e.target.value));
