@@ -46,15 +46,17 @@ export function openBoardSelectionModal(boardsList, onSelectBoard) {
 
     const teacherBoardId = state.teacherActiveBoardId || state.gdriveActiveFileId;
     const isStudent = state.userRole === 'student' && !state.gdriveIsTeacher;
+    const isSelfTeacher = state.userRole === 'teacher' || state.gdriveIsTeacher;
+    const teacherOnline = isSelfTeacher || Boolean(state.isTeacherOnline) || Object.values(state.presenceUsers || {}).some(u => u && u.isTeacher === true);
 
-    const followTeacherBtnHtml = isStudent ? `
+    const followTeacherBtnHtml = (isStudent && teacherOnline) ? `
         <button id="btn-follow-teacher" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1.5 shadow-sm transition-all">
             <i class="fa-solid fa-satellite-dish"></i> Unirme a Pizarra del Profesor
         </button>
     ` : '';
 
     const boardsHtml = boardsList && boardsList.length > 0 ? boardsList.map(board => {
-        const isTeacherOpen = (board.id === teacherBoardId);
+        const isTeacherOpen = teacherOnline && (board.id === teacherBoardId);
         const storedThumb = localStorage.getItem('profediego_thumb_' + board.id) || board.thumbnailUrl;
 
         let badgeHtml = '';

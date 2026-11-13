@@ -5,7 +5,7 @@ import { setupCanvasListeners } from './tools.js';
 import { setupUIListeners, setTool, updateContextToolbar, openBoardSelectionModal, applyRolePermissions } from './uiController.js';
 import { setupGoogleDriveListeners, initGIS, fetchDriveBoards, loadBoardFromDrive } from './gdrive.js';
 import { setupTemplatesListeners } from './templates.js';
-import { initFirebaseSync, listenTeacherBoardChange, updateUserPresence } from './firebaseSync.js';
+import { initFirebaseSync, listenTeacherBoardChange, updateUserPresence, getSharedBoardsCatalog } from './firebaseSync.js';
 
 window.addEventListener('DOMContentLoaded', () => {
     const canvas = document.getElementById('board-canvas');
@@ -45,10 +45,19 @@ window.addEventListener('DOMContentLoaded', () => {
     });
 
     listenTeacherBoardChange((boardId) => {
-        if ((state.userRole === 'student' || !state.gdriveIsTeacher) && boardId) {
+        const isStudent = state.userRole === 'student' && !state.gdriveIsTeacher;
+        if (isStudent && boardId && !state.studentManuallySelectedBoard) {
             if (state.gdriveActiveFileId !== boardId) {
                 state.gdriveActiveFileId = boardId;
                 state.activeBoardId = boardId;
+
+                const catalog = getSharedBoardsCatalog();
+                const found = catalog.find(b => b.id === boardId);
+                if (found && found.name) {
+                    const topTitleInput = document.getElementById('board-title');
+                    if (topTitleInput) topTitleInput.value = found.name;
+                }
+
                 if (state.gdriveAccessToken) {
                     loadBoardFromDrive(boardId, renderFn);
                 }
@@ -59,9 +68,29 @@ window.addEventListener('DOMContentLoaded', () => {
     const btnOpenBoards = document.getElementById('btn-open-boards-menu');
     if (btnOpenBoards) {
         btnOpenBoards.addEventListener('click', async () => {
-            const boards = await fetchDriveBoards();
+            const isTeacher = state.userRole === 'teacher' || state.gdriveIsTeacher;
+            let boards = [];
+
+            if (isTeacher) {
+                boards = await fetchDriveBoards();
+            } else {
+                boards = getSharedBoardsCatalog();
+                if (boards.length === 0 && state.gdriveAccessToken) {
+                    boards = await fetchDriveBoards();
+                }
+            }
+
             openBoardSelectionModal(boards, (selectedBoardId) => {
-                loadBoardFromDrive(selectedBoardId, renderFn);
+                const chosen = boards.find(b => b.id === selectedBoardId);
+                if (chosen && chosen.name) {
+                    const topTitleInput = document.getElementById('board-title');
+                    if (topTitleInput) topTitleInput.value = chosen.name;
+                    localStorage.setItem('profediego_board_title', chosen.name);
+                }
+
+                if (state.gdriveAccessToken) {
+                    loadBoardFromDrive(selectedBoardId, renderFn);
+                }
             });
         });
     }

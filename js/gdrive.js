@@ -1,12 +1,38 @@
 // GOOGLE DRIVE CLOUD SYNC & EXPLORER MODULE - PIZARRA PROFEDIEGO
 import { state, saveState, restoreSnapshot } from './state.js';
-import { showToast, generateBoardThumbnail } from './uiController.js';
-import { setTeacherActiveBoard, notifyBoardSwitch, updateUserPresence } from './firebaseSync.js';
-import { applyRolePermissions } from './uiController.js'; // Asegurar importación al inicio
+import { showToast, generateBoardThumbnail, applyRolePermissions } from './uiController.js';
+import { setTeacherActiveBoard, notifyBoardSwitch, updateUserPresence, publishBoardsCatalog } from './firebaseSync.js';
 
 let renderCallback = null;
 let tokenClient = null;
 let autoSaveTimeout = null;
+let renameTimeout = null;
+let isRestoringFromDrive = false;
+
+function getCompactThumbnail() {
+    const canvas = document.getElementById('board-canvas');
+    if (!canvas) return generateBoardThumbnail();
+    try {
+        const thumbCanvas = document.createElement('canvas');
+        thumbCanvas.width = 240;
+        thumbCanvas.height = 150;
+        const tCtx = thumbCanvas.getContext('2d');
+        tCtx.fillStyle = state.darkMode ? '#0f172a' : '#f8fafc';
+        tCtx.fillRect(0, 0, thumbCanvas.width, thumbCanvas.height);
+        tCtx.drawImage(canvas, 0, 0, thumbCanvas.width, thumbCanvas.height);
+        return thumbCanvas.toDataURL('image/jpeg', 0.6);
+    } catch (e) {
+        return generateBoardThumbnail();
+    }
+}
+
+function setTitleInputsSilently(cleanTitle) {
+    const topTitleInput = document.getElementById('board-title');
+    const modalTitleInput = document.getElementById('boardTitle');
+    if (topTitleInput && topTitleInput.value !== cleanTitle) topTitleInput.value = cleanTitle;
+    if (modalTitleInput && modalTitleInput.value !== cleanTitle) modalTitleInput.value = cleanTitle;
+    localStorage.setItem('profediego_board_title', cleanTitle);
+}
 
 export function updateSyncBadge(statusText, type = 'local') {
     const badge = document.getElementById('sync-status-badge');
@@ -28,16 +54,37 @@ export function updateSyncBadge(statusText, type = 'local') {
 }
 
 export function syncBoardTitle(newTitle) {
-    const topTitleInput = document.getElementById('board-title');
-    const modalTitleInput = document.getElementById('boardTitle');
-    
-    if (topTitleInput && topTitleInput.value !== newTitle) topTitleInput.value = newTitle;
-    if (modalTitleInput && modalTitleInput.value !== newTitle) modalTitleInput.value = newTitle;
-    
-    localStorage.setItem('profediego_board_title', newTitle);
+    setTitleInputsSilently(newTitle);
 
-    if (state.gdriveActiveFileId && state.gdriveAccessToken) {
-        triggerAutoSaveToDrive();
+    if (isRestoringFromDrive) return;
+
+    if (state.gdriveActiveFileId && state.gdriveAccessToken && state.gdriveIsTeacher) {
+        const trimmed = (newTitle || '').trim();
+        if (!trimmed) return;
+
+        if (renameTimeout) clearTimeout(renameTimeout);
+        renameTimeout = setTimeout(async () => {
+            const rawTitle = trimmed.replace(/^PIZARRA_/, '').replace(/\.json$/, '');
+            const fileName = `PIZARRA_${rawTitle}.json`;
+            try {
+                updateSyncBadge('Renombrando...', 'syncing');
+                const res = await fetch(`https://www.googleapis.com/drive/v3/files/${state.gdriveActiveFileId}`, {
+                    method: 'PATCH',
+                    headers: {
+                        Authorization: `Bearer ${state.gdriveAccessToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name: fileName })
+                });
+                if (res.ok) {
+                    updateSyncBadge('Sincronizado con Drive', 'drive');
+                    await fetchDriveBoards();
+                    listFolderContents();
+                }
+            } catch (err) {
+                console.error('Error al renombrar pizarra en Drive:', err);
+            }
+        }, 1200);
     }
 }
 
@@ -55,7 +102,7 @@ export function initGIS(renderFn) {
                         return;
                     }
                     state.gdriveAccessToken = response.access_token;
-                    
+
                     const expiresIn = response.expires_in || 3600;
                     const expTime = Date.now() + (expiresIn * 1000);
                     localStorage.setItem('profediego_gdrive_token', response.access_token);
@@ -88,7 +135,7 @@ async function checkSavedSession() {
             return;
         }
     }
-    
+
     if (tokenClient) {
         try {
             tokenClient.requestAccessToken({ prompt: 'none' });
@@ -211,7 +258,7 @@ export async function fetchUserProfile() {
         const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
             headers: { Authorization: `Bearer ${state.gdriveAccessToken}` }
         });
-        
+
         if (!res.ok) throw new Error("Token no válido");
 
         const data = await res.json();
@@ -249,7 +296,9 @@ export async function fetchUserProfile() {
 }
 
 export function triggerAutoSaveToDrive() {
+    if (isRestoringFromDrive) return;
     if (!state.gdriveAutoSync || !state.gdriveAccessToken || !state.gdriveIsTeacher) return;
+    if (!state.gdriveActiveFileId) return;
 
     updateSyncBadge('Sincronizando...', 'syncing');
 
@@ -284,8 +333,11 @@ export function updateUIByRole() {
     if (newFolderBtn) newFolderBtn.disabled = !state.gdriveIsTeacher;
     if (refreshBtn) refreshBtn.disabled = false;
 
-    // Aplicar los permisos visuales al entorno completo
     applyRolePermissions(state.gdriveIsTeacher ? 'teacher' : 'student');
+
+    if (state.gdriveIsTeacher) {
+        fetchDriveBoards();
+    }
 
     renderBreadcrumbs();
     listFolderContents();
@@ -341,12 +393,18 @@ export async function fetchDriveBoards() {
         });
         const data = await response.json();
         if (data.files) {
-            return data.files.map(f => ({
+            const boards = data.files.map(f => ({
                 id: f.id,
                 name: f.name.replace(/^PIZARRA_/, '').replace(/\.json$/, ''),
-                thumbnailUrl: localStorage.getItem('profediego_thumb_' + f.id) || f.thumbnailLink,
+                thumbnailUrl: localStorage.getItem('profediego_thumb_' + f.id) || f.thumbnailLink || null,
                 updatedAt: f.modifiedTime
             }));
+
+            if (state.gdriveIsTeacher || state.userRole === 'teacher') {
+                publishBoardsCatalog(boards);
+            }
+
+            return boards;
         }
         return [];
     } catch (err) {
@@ -391,7 +449,7 @@ export async function listFolderContents() {
 
                 const li = document.createElement('li');
                 li.className = 'flex items-center justify-between p-2.5 mb-1.5 rounded-xl border text-xs transition-all ' +
-                    (isFolder ? 'bg-slate-100 border-indigo-200 border-l-4 border-l-indigo-600' : 
+                    (isFolder ? 'bg-slate-100 border-indigo-200 border-l-4 border-l-indigo-600' :
                      (isTeacherActive ? 'bg-emerald-50 border-emerald-400 border-l-4 border-l-emerald-600 font-bold' : 'bg-white border-slate-200 hover:border-indigo-300'));
 
                 const safeName = item.name.replace(/'/g, "\\'");
@@ -406,7 +464,7 @@ export async function listFolderContents() {
                     `;
                 } else {
                     let copyBtnHtml = state.gdriveIsTeacher ? `<button class="btn-secondary px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-semibold text-[11px] mr-1" onclick="window.gdriveModule.copyFile('${item.id}', '${safeName}')">📄 Copiar</button>` : '';
-                    
+
                     let activeTag = '';
                     if (isTeacherActive) {
                         activeTag = '<span class="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-full ml-1"><i class="fa-solid fa-satellite-dish"></i> Profesor En Vivo</span>';
@@ -481,16 +539,21 @@ export async function saveWhiteboardTest(silent = false) {
         return;
     }
 
+    // El autoguardado silencioso nunca debe crear archivos nuevos ni sobreescribir nombres
+    if (silent && (!state.gdriveActiveFileId || isRestoringFromDrive)) {
+        return;
+    }
+
     if (saveBtn && !silent) {
         saveBtn.disabled = true;
         saveBtn.innerText = 'Guardando...';
     }
 
-    const rawTitle = title.replace(/^PIZARRA_/, '').replace(/\.json$/, '');
+    const rawTitle = (title || 'Clase sin título').replace(/^PIZARRA_/, '').replace(/\.json$/, '');
     const fileName = `PIZARRA_${rawTitle}.json`;
     const whiteboardData = state.elements;
 
-    const thumb = generateBoardThumbnail();
+    const thumb = getCompactThumbnail();
 
     try {
         if (state.gdriveActiveFileId) {
@@ -498,14 +561,17 @@ export async function saveWhiteboardTest(silent = false) {
                 localStorage.setItem('profediego_thumb_' + state.gdriveActiveFileId, thumb);
             }
 
-            await fetch(`https://www.googleapis.com/drive/v3/files/${state.gdriveActiveFileId}`, {
-                method: 'PATCH',
-                headers: {
-                    Authorization: `Bearer ${state.gdriveAccessToken}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ name: fileName })
-            });
+            // Solo actualizar el nombre si el usuario pulsó explícitamente Guardar (no en auto-save)
+            if (!silent) {
+                await fetch(`https://www.googleapis.com/drive/v3/files/${state.gdriveActiveFileId}`, {
+                    method: 'PATCH',
+                    headers: {
+                        Authorization: `Bearer ${state.gdriveAccessToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name: fileName })
+                });
+            }
 
             const contentResponse = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${state.gdriveActiveFileId}?uploadType=media`, {
                 method: 'PATCH',
@@ -518,10 +584,13 @@ export async function saveWhiteboardTest(silent = false) {
 
             if (contentResponse.ok) {
                 updateSyncBadge('Sincronizado con Drive', 'drive');
-                if (!silent) showToast('Pizarra actualizada en Google Drive', 'fa-solid fa-cloud-arrow-up');
-                listFolderContents();
+                if (!silent) {
+                    showToast('Pizarra actualizada en Google Drive', 'fa-solid fa-cloud-arrow-up');
+                    await fetchDriveBoards();
+                    listFolderContents();
+                }
             }
-        } else {
+        } else if (!silent) {
             const metadataResponse = await fetch('https://www.googleapis.com/drive/v3/files', {
                 method: 'POST',
                 headers: {
@@ -570,7 +639,8 @@ export async function saveWhiteboardTest(silent = false) {
 
                 await setPublicReadPermission(file.id);
                 updateSyncBadge('Sincronizado con Drive', 'drive');
-                if (!silent) showToast('Pizarra guardada y enlazada con Drive', 'fa-solid fa-cloud-arrow-up');
+                showToast('Pizarra guardada y enlazada con Drive', 'fa-solid fa-cloud-arrow-up');
+                await fetchDriveBoards();
                 listFolderContents();
             }
         }
@@ -627,6 +697,7 @@ export async function pasteFile() {
         if (response.ok) {
             await setPublicReadPermission(copiedFile.id);
             showToast('Archivo pegado con éxito', 'fa-solid fa-paste');
+            await fetchDriveBoards();
             listFolderContents();
         } else {
             alert('Error al pegar archivo: ' + copiedFile.error.message);
@@ -660,14 +731,38 @@ export async function setPublicReadPermission(fileId) {
 }
 
 export async function readWhiteboard(fileId, fileName = '') {
+    if (!state.gdriveAccessToken) return;
+
     const fileContentPre = document.getElementById('fileContent');
     if (fileContentPre) fileContentPre.innerText = 'Cargando contenido...';
+
+    isRestoringFromDrive = true;
 
     try {
         const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
             headers: { Authorization: `Bearer ${state.gdriveAccessToken}` }
         });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
         const content = await response.text();
+
+        let resolvedName = fileName;
+        if (!resolvedName) {
+            try {
+                const metaRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=name`, {
+                    headers: { Authorization: `Bearer ${state.gdriveAccessToken}` }
+                });
+                if (metaRes.ok) {
+                    const meta = await metaRes.json();
+                    resolvedName = meta.name || '';
+                }
+            } catch (e) {
+                console.warn('No se pudo obtener metadatos de nombre:', e);
+            }
+        }
 
         if (fileContentPre) {
             fileContentPre.innerText = content.substring(0, 500) + (content.length > 500 ? '...' : '');
@@ -677,24 +772,28 @@ export async function readWhiteboard(fileId, fileName = '') {
         state.activeBoardId = fileId;
         localStorage.setItem('profediego_active_file_id', fileId);
 
+        if (resolvedName) {
+            const cleanTitle = resolvedName.replace(/^PIZARRA_/, '').replace(/\.json$/, '');
+            setTitleInputsSilently(cleanTitle);
+        }
+
         const isTeacher = state.userRole === 'teacher' || state.gdriveIsTeacher;
         if (isTeacher) {
             setTeacherActiveBoard(fileId);
         } else {
-            notifyBoardSwitch(fileId);
-        }
-
-        if (fileName) {
-            const cleanTitle = fileName.replace(/^PIZARRA_/, '').replace(/\.json$/, '');
-            syncBoardTitle(cleanTitle);
+            notifyBoardSwitch(fileId, state.studentManuallySelectedBoard);
         }
 
         restoreSnapshot(content, renderCallback);
         saveState();
 
-        const thumb = generateBoardThumbnail();
+        const thumb = getCompactThumbnail();
         if (thumb) {
             localStorage.setItem('profediego_thumb_' + fileId, thumb);
+        }
+
+        if (isTeacher) {
+            await fetchDriveBoards();
         }
 
         updateSyncBadge('Sincronizado con Drive', 'drive');
@@ -706,5 +805,7 @@ export async function readWhiteboard(fileId, fileName = '') {
     } catch (err) {
         console.error('Error leyendo archivo:', err);
         if (fileContentPre) fileContentPre.innerText = 'Error al leer el archivo.';
+    } finally {
+        isRestoringFromDrive = false;
     }
 }
