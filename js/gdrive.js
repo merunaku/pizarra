@@ -145,17 +145,47 @@ async function checkSavedSession() {
     }
 }
 
-export function handleAuthClick() {
-    if (tokenClient) {
-        tokenClient.requestAccessToken({ prompt: 'select_account consent' });
-    } else {
-        initGIS();
-        if (tokenClient) {
-            tokenClient.requestAccessToken({ prompt: 'select_account consent' });
-        } else {
-            showToast('Google Identity Services no está disponible aún', 'fa-solid fa-triangle-exclamation');
-        }
+export function handleAuthClick(requestDriveAccess = false) {
+    if (!window.google || !window.google.accounts || !window.google.accounts.oauth2) {
+        showToast('Google Identity Services no está disponible aún', 'fa-solid fa-triangle-exclamation');
+        return;
     }
+
+    // Permisos básicos sin advertencia de seguridad para alumnos; Drive completo solo si se solicita
+    const scopes = requestDriveAccess
+        ? state.gdriveScopes
+        : 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile';
+
+    const client = window.google.accounts.oauth2.initTokenClient({
+        client_id: state.gdriveClientId,
+        scope: scopes,
+        callback: async (response) => {
+            if (response.error) {
+                showToast('Error de autenticación: ' + response.error, 'fa-solid fa-triangle-exclamation');
+                return;
+            }
+            state.gdriveAccessToken = response.access_token;
+
+            const expiresIn = response.expires_in || 3600;
+            const expTime = Date.now() + (expiresIn * 1000);
+            localStorage.setItem('profediego_gdrive_token', response.access_token);
+            localStorage.setItem('profediego_gdrive_exp', expTime.toString());
+
+            await fetchUserProfile();
+
+            // Si el correo autenticado es el del profesor y aún no tiene permiso de Drive, lo solicita
+            if (state.gdriveIsTeacher && !requestDriveAccess) {
+                handleAuthClick(true);
+                return;
+            }
+
+            updateUIByRole();
+            showToast('Sesión con Google conectada', 'fa-brands fa-google-drive');
+        }
+    });
+
+    // 'select_account' evita volver a mostrar la pantalla de permisos si el usuario ya aceptó antes
+    client.requestAccessToken({ prompt: 'select_account' });
 }
 
 export function setupGoogleDriveListeners(renderFn) {
