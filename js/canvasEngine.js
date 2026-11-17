@@ -1,5 +1,9 @@
 // CANVAS ENGINE & RENDERER - PIZARRA PROFEDIEGO
 import { state } from './state.js';
+import { updateUserPresence } from './firebaseSync.js';
+
+let minimapBound = false;
+let activeMinimapDragTransform = null;
 
 export function resizeCanvas(canvas, renderCallback) {
     if (!canvas) return;
@@ -1041,22 +1045,199 @@ export function render(canvas, ctx, minimapCanvas, minimapCtx) {
 
     ctx.restore();
 
-    renderMinimap(minimapCanvas, minimapCtx);
+    renderMinimap(minimapCanvas, minimapCtx, canvas);
 }
 
-export function renderMinimap(minimapCanvas, minimapCtx) {
+function getMinimapWorldTransform(minimapCanvas, mainCanvas) {
+    const mainW = mainCanvas ? mainCanvas.width : window.innerWidth;
+    const mainH = mainCanvas ? mainCanvas.height : window.innerHeight;
+
+    const viewX = -state.pan.x / state.zoom;
+    const viewY = -state.pan.y / state.zoom;
+    const viewW = mainW / state.zoom;
+    const viewH = mainH / state.zoom;
+
+    let minX = viewX;
+    let minY = viewY;
+    let maxX = viewX + viewW;
+    let maxY = viewY + viewH;
+
+    state.elements.forEach(el => {
+        const b = getElementBounds(el);
+        if (b.x < minX) minX = b.x;
+        if (b.y < minY) minY = b.y;
+        if (b.x + b.width > maxX) maxX = b.x + b.width;
+        if (b.y + b.height > maxY) maxY = b.y + b.height;
+    });
+
+    if (state.tempElement) {
+        const tb = getElementBounds(state.tempElement);
+        if (tb.x < minX) minX = tb.x;
+        if (tb.y < minY) minY = tb.y;
+        if (tb.x + tb.width > maxX) maxX = tb.x + tb.width;
+        if (tb.y + tb.height > maxY) maxY = tb.y + tb.height;
+    }
+
+    const rawW = Math.max(200, maxX - minX);
+    const rawH = Math.max(150, maxY - minY);
+    const padX = Math.max(80, rawW * 0.08);
+    const padY = Math.max(60, rawH * 0.08);
+
+    minX -= padX;
+    minY -= padY;
+    maxX += padX;
+    maxY += padY;
+
+    const worldW = maxX - minX;
+    const worldH = maxY - minY;
+
+    const scaleX = minimapCanvas.width / worldW;
+    const scaleY = minimapCanvas.height / worldH;
+    const scale = Math.min(scaleX, scaleY);
+
+    const drawnW = worldW * scale;
+    const drawnH = worldH * scale;
+    const offsetX = (minimapCanvas.width - drawnW) / 2 - minX * scale;
+    const offsetY = (minimapCanvas.height - drawnH) / 2 - minY * scale;
+
+    return {
+        scale,
+        offsetX,
+        offsetY,
+        viewX,
+        viewY,
+        viewW,
+        viewH,
+        mainW,
+        mainH
+    };
+}
+
+function navigateFromMinimapEvent(e, minimapCanvas, mainCanvas, transform) {
+    const rect = minimapCanvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    const scaleRatioX = minimapCanvas.width / rect.width;
+    const scaleRatioY = minimapCanvas.height / rect.height;
+
+    const mx = (e.clientX - rect.left) * scaleRatioX;
+    const my = (e.clientY - rect.top) * scaleRatioY;
+
+    const worldX = (mx - transform.offsetX) / transform.scale;
+    const worldY = (my - transform.offsetY) / transform.scale;
+
+    const targetCanvas = mainCanvas || document.getElementById('board-canvas');
+    const cW = targetCanvas ? targetCanvas.width : window.innerWidth;
+    const cH = targetCanvas ? targetCanvas.height : window.innerHeight;
+
+    state.pan.x = cW / 2 - worldX * state.zoom;
+    state.pan.y = cH / 2 - worldY * state.zoom;
+
+    if (targetCanvas) {
+        const ctx = targetCanvas.getContext('2d');
+        const minimapCtx = minimapCanvas.getContext('2d');
+        render(targetCanvas, ctx, minimapCanvas, minimapCtx);
+    }
+}
+
+function bindMinimapInteraction(minimapCanvas, mainCanvas) {
+    if (minimapBound || !minimapCanvas) return;
+    minimapBound = true;
+    minimapCanvas.style.cursor = 'grab';
+
+    minimapCanvas.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        minimapCanvas.setPointerCapture(e.pointerId);
+        minimapCanvas.style.cursor = 'grabbing';
+
+        const targetMain = mainCanvas || document.getElementById('board-canvas');
+        activeMinimapDragTransform = getMinimapWorldTransform(minimapCanvas, targetMain);
+        navigateFromMinimapEvent(e, minimapCanvas, targetMain, activeMinimapDragTransform);
+    });
+
+    minimapCanvas.addEventListener('pointermove', (e) => {
+        if (!activeMinimapDragTransform) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const targetMain = mainCanvas || document.getElementById('board-canvas');
+        navigateFromMinimapEvent(e, minimapCanvas, targetMain, activeMinimapDragTransform);
+    });
+
+    const endMinimapDrag = (e) => {
+        if (!activeMinimapDragTransform) return;
+        activeMinimapDragTransform = null;
+        minimapCanvas.style.cursor = 'grab';
+        try {
+            minimapCanvas.releasePointerCapture(e.pointerId);
+        } catch (_) {}
+        updateUserPresence();
+    };
+
+    minimapCanvas.addEventListener('pointerup', endMinimapDrag);
+    minimapCanvas.addEventListener('pointercancel', endMinimapDrag);
+}
+
+export function renderMinimap(minimapCanvas, minimapCtx, mainCanvas = null) {
     const minimapContainer = document.getElementById('minimap-container');
     if (!minimapCtx || !minimapCanvas || !minimapContainer || minimapContainer.classList.contains('hidden')) return;
+
+    const targetMain = mainCanvas || document.getElementById('board-canvas');
+    bindMinimapInteraction(minimapCanvas, targetMain);
 
     minimapCtx.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
     minimapCtx.fillStyle = state.darkMode ? '#0f172a' : '#f8fafc';
     minimapCtx.fillRect(0, 0, minimapCanvas.width, minimapCanvas.height);
 
+    const t = getMinimapWorldTransform(minimapCanvas, targetMain);
+
+    // 1. Dibujar elementos reales a escala en el minimapa
+    minimapCtx.save();
+    minimapCtx.translate(t.offsetX, t.offsetY);
+    minimapCtx.scale(t.scale, t.scale);
+
     state.elements.forEach(el => {
-        minimapCtx.fillStyle = state.darkMode ? '#64748b' : '#94a3b8';
-        const b = getElementBounds(el);
-        const mx = (b.x / 10) + minimapCanvas.width / 2;
-        const my = (b.y / 10) + minimapCanvas.height / 2;
-        minimapCtx.fillRect(mx, my, Math.max(2, b.width / 10), Math.max(2, b.height / 10));
+        drawElement(minimapCtx, el);
     });
+
+    if (state.tempElement) {
+        drawElement(minimapCtx, state.tempElement);
+    }
+    minimapCtx.restore();
+
+    // 2. Dibujar recuadros de otros participantes conectados
+    if (state.showParticipantViewports && state.presenceUsers) {
+        Object.keys(state.presenceUsers).forEach(uid => {
+            if (uid === state.userId) return;
+            const user = state.presenceUsers[uid];
+            const b = user && (user.viewBounds || user.bounds);
+            if (!b) return;
+
+            const px = (b.x || 0) * t.scale + t.offsetX;
+            const py = (b.y || 0) * t.scale + t.offsetY;
+            const pw = Math.max(4, (b.w || b.width || 200) * t.scale);
+            const ph = Math.max(4, (b.h || b.height || 150) * t.scale);
+
+            minimapCtx.save();
+            minimapCtx.strokeStyle = user.color || '#06b6d4';
+            minimapCtx.lineWidth = 1;
+            minimapCtx.setLineDash([2, 2]);
+            minimapCtx.strokeRect(px, py, pw, ph);
+            minimapCtx.restore();
+        });
+    }
+
+    // 3. Dibujar recuadro de la vista actual del usuario
+    const vx = t.viewX * t.scale + t.offsetX;
+    const vy = t.viewY * t.scale + t.offsetY;
+    const vw = Math.max(6, t.viewW * t.scale);
+    const vh = Math.max(6, t.viewH * t.scale);
+
+    minimapCtx.save();
+    minimapCtx.fillStyle = 'rgba(79, 70, 229, 0.14)';
+    minimapCtx.fillRect(vx, vy, vw, vh);
+    minimapCtx.strokeStyle = '#4f46e5';
+    minimapCtx.lineWidth = 1.5;
+    minimapCtx.strokeRect(vx, vy, vw, vh);
+    minimapCtx.restore();
 }
