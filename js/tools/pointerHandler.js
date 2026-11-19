@@ -5,6 +5,7 @@ import { openInlineEditor, closeInlineEditor, initTextEditor } from './textEdito
 import { addConnectorIntermediatePoint, removeConnectorIntermediatePoint } from './connectorTool.js';
 import { setupImagePasteListener } from './imageTool.js';
 import { closeAllFlyouts } from '../uiController.js';
+import { isTeacherOnline } from '../firebaseSync.js';
 
 let renderCallback = null;
 let setToolCallback = null;
@@ -68,9 +69,7 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
         }
     });
 
-    canvas.addEventListener('pointerdown', (e) => {
-        if ((state.userRole === 'student' || !state.gdriveIsTeacher) && !state.studentDrawingAllowed) return;
-
+canvas.addEventListener('pointerdown', (e) => {
         try {
             canvas.setPointerCapture(e.pointerId);
         } catch (_) {}
@@ -88,6 +87,13 @@ export function setupCanvasListeners(canvas, ctx, renderFn, setToolFn, updateCon
         if (state.activeTool === 'hand' || e.button === 1) {
             state.isPanning = true;
             canvas.style.cursor = 'grabbing';
+            return;
+        }
+
+        // Permite dibujar siempre al profesor o en el lienzo en blanco local; bloquea solo pizarras compartidas sin permiso
+        const isTeacher = state.userRole === 'teacher' || state.gdriveIsTeacher;
+        const isLocalBlank = Boolean(state.activeBoardId && state.activeBoardId.startsWith('local_blank_'));
+        if (!isTeacher && !isLocalBlank && (!isTeacherOnline() || !state.studentDrawingAllowed)) {
             return;
         }
 

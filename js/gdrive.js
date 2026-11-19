@@ -1,7 +1,7 @@
 // GOOGLE DRIVE CLOUD SYNC & EXPLORER MODULE - PIZARRA PROFEDIEGO
 import { state, saveState, restoreSnapshot } from './state.js';
 import { showToast, generateBoardThumbnail, applyRolePermissions } from './uiController.js';
-import { setTeacherActiveBoard, notifyBoardSwitch, updateUserPresence, publishBoardsCatalog } from './firebaseSync.js';
+import { setTeacherActiveBoard, notifyBoardSwitch, updateUserPresence, publishBoardsCatalog, promoteLocalBlankToTeacherBoard } from './firebaseSync.js';
 
 let renderCallback = null;
 let tokenClient = null;
@@ -151,11 +151,11 @@ export function handleAuthClick(requestDriveAccess = false) {
         return;
     }
 
-    // Permisos básicos sin advertencia de seguridad para alumnos; Drive completo solo si se solicita
-    const scopes = requestDriveAccess
+    const isDriveRequest = requestDriveAccess === true;
+    const scopes = isDriveRequest
         ? state.gdriveScopes
         : 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile';
-
+        
     const client = window.google.accounts.oauth2.initTokenClient({
         client_id: state.gdriveClientId,
         scope: scopes,
@@ -174,7 +174,7 @@ export function handleAuthClick(requestDriveAccess = false) {
             await fetchUserProfile();
 
             // Si el correo autenticado es el del profesor y aún no tiene permiso de Drive, lo solicita
-            if (state.gdriveIsTeacher && !requestDriveAccess) {
+            if (state.gdriveIsTeacher && !isDriveRequest) {
                 handleAuthClick(true);
                 return;
             }
@@ -352,10 +352,10 @@ export function updateUIByRole() {
 
     if (badge) {
         if (state.gdriveIsTeacher) {
-            badge.innerHTML = '<span class="badge teacher bg-emerald-600 text-white px-2 py-1 rounded text-xs font-bold"><i class="fa-solid fa-user-shield"></i> ROL: PROFESOR (Editor)</span>';
-        } else {
-            badge.innerHTML = '<span class="badge student bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold"><i class="fa-solid fa-graduation-cap"></i> ROL: ALUMNO (Solo Lectura)</span>';
-        }
+        state.userRole = 'teacher';
+        promoteLocalBlankToTeacherBoard();
+        fetchDriveBoards();
+    }
     }
 
     if (boardTitleInput) boardTitleInput.disabled = !state.gdriveIsTeacher;

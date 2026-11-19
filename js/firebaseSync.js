@@ -337,3 +337,38 @@ export function toggleStudentDrawingPermission(allowed) {
     update(settingsRef, { studentDrawingAllowed: allowed });
     showToast(allowed ? 'Transmisión de alumnos ACTIVADA' : 'Transmisión de alumnos BLOQUEADA', allowed ? 'fa-solid fa-unlock' : 'fa-solid fa-lock');
 }
+
+export function promoteLocalBlankToTeacherBoard() {
+    if (!db) return;
+    const isTeacher = state.userRole === 'teacher' || state.gdriveIsTeacher;
+    if (!isTeacher) return;
+
+    // Asegura que el permiso de dibujo de alumnos arranque en false al iniciar sesión como profesor
+    state.studentDrawingAllowed = false;
+    update(ref(db, `rooms/${currentRoomId}/settings`), {
+        studentDrawingAllowed: false
+    });
+
+    const currentId = getCurrentBoardId();
+    if (currentId && currentId.startsWith('local_blank_')) {
+        const hasLocalDrawings = Array.isArray(state.elements) && state.elements.length > 0;
+        const existingTeacherBoard = getTeacherBoardId();
+        const newLiveBoardId = hasLocalDrawings
+            ? ('board_' + Date.now())
+            : (existingTeacherBoard && existingTeacherBoard !== 'default' ? existingTeacherBoard : 'default');
+
+        // Mantiene gdriveActiveFileId en null para no sobrescribir archivos previos de Drive
+        state.gdriveActiveFileId = null;
+        state.activeBoardId = newLiveBoardId;
+        teacherActiveBoardId = newLiveBoardId;
+        state.teacherActiveBoardId = newLiveBoardId;
+
+        set(ref(db, `rooms/${currentRoomId}/teacherActiveBoardId`), newLiveBoardId);
+        switchRoomBoardListener(newLiveBoardId);
+
+        if (hasLocalDrawings) {
+            syncFirebaseElements(state.elements);
+        }
+        updateUserPresence();
+    }
+}

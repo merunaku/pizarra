@@ -23,8 +23,11 @@ window.addEventListener('DOMContentLoaded', () => {
     loadFromLocalStorage(renderFn);
 
     // Si entra como estudiante, iniciar siempre con lienzo en blanco y sin redirección automática
-    const isTeacherSaved = state.userRole === 'teacher' || state.gdriveIsTeacher;
+   // Si entra sin sesión de profesor activa, iniciar siempre con lienzo en blanco y sin redirección automática
+    const hasSavedToken = Boolean(localStorage.getItem('profediego_gdrive_token'));
+    const isTeacherSaved = hasSavedToken && (state.userRole === 'teacher' || state.gdriveIsTeacher);
     if (!isTeacherSaved) {
+        state.userRole = 'student';
         state.elements = [];
         state.selectedIds = [];
         state.gdriveActiveFileId = null;
