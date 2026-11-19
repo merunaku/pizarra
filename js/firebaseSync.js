@@ -46,6 +46,14 @@ export function initFirebaseSync(renderFn) {
         listenToPresence(currentRoomId);
         listenToSettings(currentRoomId);
 
+        // Reinicia en false el permiso de dibujo en Firebase al entrar como profesor
+        if (state.userRole === 'teacher' || state.gdriveIsTeacher) {
+            state.studentDrawingAllowed = false;
+            update(ref(db, `rooms/${currentRoomId}/settings`), {
+                studentDrawingAllowed: false
+            });
+        }
+
         updateUserPresence();
 
         if (heartbeatInterval) clearInterval(heartbeatInterval);
@@ -58,6 +66,22 @@ export function initFirebaseSync(renderFn) {
     } catch (e) {
         console.error("Error al inicializar Firebase:", e);
     }
+}
+
+function listenToSettings(roomId) {
+    if (!db) return;
+    const settingsRef = ref(db, `rooms/${roomId}/settings`);
+    onValue(settingsRef, (snapshot) => {
+        const settings = snapshot.val() || {};
+        const allowed = Boolean(settings.studentDrawingAllowed);
+        state.studentDrawingAllowed = allowed;
+
+        const toggleBtn = document.getElementById('btn-toggle-student-draw');
+        if (toggleBtn) {
+            toggleBtn.classList.toggle('active', allowed);
+            if ('checked' in toggleBtn) toggleBtn.checked = allowed;
+        }
+    });
 }
 
 function listenBoardsCatalog(roomId) {
@@ -208,15 +232,14 @@ function listenToSettings(roomId) {
     if (!db) return;
     const settingsRef = ref(db, `rooms/${roomId}/settings`);
     onValue(settingsRef, (snapshot) => {
-        const settings = snapshot.val();
-        if (settings) {
-            if (settings.studentDrawingAllowed !== undefined) {
-                state.studentDrawingAllowed = settings.studentDrawingAllowed;
-                const toggleBtn = document.getElementById('btn-toggle-student-draw');
-                if (toggleBtn) {
-                    toggleBtn.classList.toggle('active', state.studentDrawingAllowed);
-                }
-            }
+        const settings = snapshot.val() || {};
+        const allowed = Boolean(settings.studentDrawingAllowed);
+        state.studentDrawingAllowed = allowed;
+
+        const toggleBtn = document.getElementById('btn-toggle-student-draw');
+        if (toggleBtn) {
+            toggleBtn.classList.toggle('active', allowed);
+            if ('checked' in toggleBtn) toggleBtn.checked = allowed;
         }
     });
 }

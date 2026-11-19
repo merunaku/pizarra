@@ -45,7 +45,7 @@ export const state = {
     // Firebase Realtime Sync & Presencia
     userId: 'user_' + Math.random().toString(36).substr(2, 9),
     userName: 'Usuario',
-    studentDrawingAllowed: true,
+    studentDrawingAllowed: false,
     showParticipantViewports: true,
     presenceUsers: {},
 
