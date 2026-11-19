@@ -338,7 +338,7 @@ export function triggerAutoSaveToDrive() {
     }, 1500);
 }
 
-eexport function updateUIByRole() {
+export function updateUIByRole() {
     const userInfo = document.getElementById('userInfo');
     const badge = document.getElementById('roleBadge');
     const boardTitleInput = document.getElementById('boardTitle');
