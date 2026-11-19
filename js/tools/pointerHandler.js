@@ -490,6 +490,12 @@ canvas.addEventListener('pointerdown', (e) => {
     canvas.addEventListener('pointercancel', handlePointerEnd);
 
     canvas.addEventListener('dblclick', (e) => {
+        const isTeacher = state.userRole === 'teacher' || state.gdriveIsTeacher;
+        const isLocalBlank = Boolean(state.activeBoardId && state.activeBoardId.startsWith('local_blank_'));
+        if (!isTeacher && !isLocalBlank && (!isTeacherOnline() || !state.studentDrawingAllowed)) {
+            return;
+        }
+
         const rawWorldPos = screenToWorld(e.clientX, e.clientY, canvas);
         const clicked = [...state.elements].reverse().find(el => isPointInElement(rawWorldPos, el));
         if (clicked) {

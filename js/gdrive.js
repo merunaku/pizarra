@@ -338,7 +338,7 @@ export function triggerAutoSaveToDrive() {
     }, 1500);
 }
 
-export function updateUIByRole() {
+eexport function updateUIByRole() {
     const userInfo = document.getElementById('userInfo');
     const badge = document.getElementById('roleBadge');
     const boardTitleInput = document.getElementById('boardTitle');
@@ -352,10 +352,10 @@ export function updateUIByRole() {
 
     if (badge) {
         if (state.gdriveIsTeacher) {
-        state.userRole = 'teacher';
-        promoteLocalBlankToTeacherBoard();
-        fetchDriveBoards();
-    }
+            badge.innerHTML = '<span class="badge teacher bg-emerald-600 text-white px-2 py-1 rounded text-xs font-bold"><i class="fa-solid fa-user-shield"></i> ROL: PROFESOR (Editor)</span>';
+        } else {
+            badge.innerHTML = '<span class="badge student bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold"><i class="fa-solid fa-graduation-cap"></i> ROL: ALUMNO (Solo Lectura)</span>';
+        }
     }
 
     if (boardTitleInput) boardTitleInput.disabled = !state.gdriveIsTeacher;
@@ -366,6 +366,8 @@ export function updateUIByRole() {
     applyRolePermissions(state.gdriveIsTeacher ? 'teacher' : 'student');
 
     if (state.gdriveIsTeacher) {
+        state.userRole = 'teacher';
+        promoteLocalBlankToTeacherBoard();
         fetchDriveBoards();
     }
 
