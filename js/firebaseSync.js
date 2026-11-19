@@ -228,21 +228,6 @@ function listenToPresence(roomId) {
     });
 }
 
-function listenToSettings(roomId) {
-    if (!db) return;
-    const settingsRef = ref(db, `rooms/${roomId}/settings`);
-    onValue(settingsRef, (snapshot) => {
-        const settings = snapshot.val() || {};
-        const allowed = Boolean(settings.studentDrawingAllowed);
-        state.studentDrawingAllowed = allowed;
-
-        const toggleBtn = document.getElementById('btn-toggle-student-draw');
-        if (toggleBtn) {
-            toggleBtn.classList.toggle('active', allowed);
-            if ('checked' in toggleBtn) toggleBtn.checked = allowed;
-        }
-    });
-}
 
 export function listenTeacherBoardChange(callback) {
     if (!db) return;
