@@ -22,6 +22,19 @@ window.addEventListener('DOMContentLoaded', () => {
 
     loadFromLocalStorage(renderFn);
 
+    // Si entra como estudiante, iniciar siempre con lienzo en blanco y sin redirección automática
+    const isTeacherSaved = state.userRole === 'teacher' || state.gdriveIsTeacher;
+    if (!isTeacherSaved) {
+        state.elements = [];
+        state.selectedIds = [];
+        state.gdriveActiveFileId = null;
+        state.activeBoardId = 'local_blank_' + (state.userId || Date.now());
+        state.studentManuallySelectedBoard = true;
+
+        const topTitleInput = document.getElementById('board-title');
+        if (topTitleInput) topTitleInput.value = 'Pizarra en blanco';
+    }
+
     applyRolePermissions(state.userRole || 'student');
 
     setupCanvasListeners(canvas, ctx, renderFn, setTool, updateContextToolbar);

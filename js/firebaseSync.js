@@ -100,13 +100,27 @@ function switchRoomBoardListener(boardId) {
     if (!db) return;
     if (activeElementsRef) {
         off(activeElementsRef);
+        activeElementsRef = null;
     }
-    const cleanBoardId = (boardId || 'default').replace(/[.#$\[\]]/g, '_');
+
+    // Si es el lienzo en blanco inicial del estudiante, no escuchar ninguna sala de Firebase
+    if (!boardId || boardId.startsWith('local_blank_')) {
+        lastElementsVal = null;
+        return;
+    }
+
+    const cleanBoardId = boardId.replace(/[.#$\[\]]/g, '_');
     activeElementsRef = ref(db, `rooms/${currentRoomId}/boards/${cleanBoardId}/elements`);
 
     onValue(activeElementsRef, (snapshot) => {
         lastElementsVal = snapshot.val();
-        applyRoomElements();
+        if (lastElementsVal) {
+            applyRoomElements();
+        } else {
+            isRemoteUpdating = true;
+            restoreSnapshot([], renderCallbackRef);
+            isRemoteUpdating = false;
+        }
     });
 }
 
@@ -123,7 +137,10 @@ export function syncFirebaseElements(elements) {
         if (!isTeacherOnline() || !state.studentDrawingAllowed) return;
     }
 
-    const boardId = getCurrentBoardId().replace(/[.#$\[\]]/g, '_');
+    const rawBoardId = getCurrentBoardId();
+    if (!rawBoardId || rawBoardId.startsWith('local_blank_')) return;
+
+    const boardId = rawBoardId.replace(/[.#$\[\]]/g, '_');
     const elementsRef = ref(db, `rooms/${currentRoomId}/boards/${boardId}/elements`);
     set(elementsRef, elements || []).catch(err => console.error("Error en realtime sync:", err));
 }
